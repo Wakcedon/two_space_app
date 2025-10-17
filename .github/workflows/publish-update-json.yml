@@ -30,8 +30,9 @@ jobs:
 
       - name: Create update.json from fetched release
         run: |
+          mkdir -p out
           python - <<'PY'
-          import json
+          import json, os
           with open('release.json', 'r', encoding='utf-8') as f:
             release = json.load(f)
           tag = release.get('tag_name') or release.get('name') or ''
@@ -39,7 +40,6 @@ jobs:
           notes = release.get('body') or ''
           asset_url = ''
           assets = release.get('assets') or []
-          # Try to find first asset with a browser_download_url
           for asset in assets:
             if asset.get('browser_download_url'):
               asset_url = asset.get('browser_download_url')
@@ -49,9 +49,10 @@ jobs:
             'update_url': asset_url,
             'notes': notes
           }
-          with open('update.json', 'w', encoding='utf-8') as f:
+          out_path = os.path.join('out', 'update.json')
+          with open(out_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-          print('Wrote update.json:')
+          print('Wrote', out_path)
           print(json.dumps(data, ensure_ascii=False))
           PY
 
@@ -69,8 +70,10 @@ jobs:
             git checkout --orphan gh-pages
             git rm -rf . || true
           fi
-          # Ensure update.json is in repo root
-          mv -f update.json update.json || true
+          # Ensure update.json is in repo root; move from out/ where we generated it
+          if [ -f out/update.json ]; then
+            mv -f out/update.json update.json
+          fi
           git add update.json
           git commit -m "chore(publish): update update.json for ${RELEASE_TAG}" || echo "No changes to commit"
           git push origin gh-pages --force
