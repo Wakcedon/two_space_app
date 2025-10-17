@@ -4,62 +4,60 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Get release info
-        id: rel
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const release = context.payload.release;
-            const tag = release.tag_name || release.name || '';
-            const notes = release.body || '';
-            let asset_url = '';
-            if (release.assets && release.assets.length > 0) {
-              asset_url = release.assets[0].browser_download_url;
-            }
-            core.setOutput('version', tag.replace(/^v/, '')); // remove leading v
-            core.setOutput('notes', notes);
-            core.setOutput('asset_url', asset_url);
-
-      - name: Checkout gh-pages (or create)
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: gh-pages
-          persist-credentials: true
           fetch-depth: 0
-          # if gh-pages doesn't exist this will still checkout default branch,
-          # we'll create/update gh-pages below.
 
-      - name: Create update.json
+      - name: Create update.json from release
+        env:
+          RELEASE_JSON: ${{ toJson(github.event.release) }}
         run: |
-          mkdir -p out
-          cat > out/update.json <<EOF
-          {
-            "version": "${{ steps.rel.outputs.version }}",
-            "update_url": "${{ steps.rel.outputs.asset_url }}",
-            "notes": "${{ steps.rel.outputs.notes | toJson | fromJson }}"
+          python - <<'PY'
+          import json, os
+          release = json.loads(os.environ['RELEASE_JSON'])
+          tag = release.get('tag_name') or release.get('name') or ''
+          version = tag.lstrip('v')
+          notes = release.get('body') or ''
+          asset_url = ''
+          assets = release.get('assets') or []
+          if assets:
+            asset = assets[0]
+            asset_url = asset.get('browser_download_url') or ''
+          data = {
+            'version': version,
+            'update_url': asset_url,
+            'notes': notes
           }
-          EOF
-      - name: Commit to gh-pages
+          with open('update.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+          print('Wrote update.json:')
+          print(json.dumps(data, ensure_ascii=False))
+          PY
+
+      - name: Commit and push to gh-pages
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Create gh-pages branch if missing
-          if ! git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-            git checkout --orphan gh-pages
-            git rm -rf .
-            mkdir -p out
-            git add out/update.json
-            git commit -m "chore(publish): create gh-pages with update.json"
-            git push -u origin gh-pages --force
-          else
+          # If gh-pages exists remotely, fetch and switch to it; otherwise create orphan
+          if git ls-remote --exit-code origin gh-pages; then
+            git fetch origin gh-pages:gh-pages
             git checkout gh-pages
-            mkdir -p .
-            mv out/update.json update.json
-            git add update.json
-            git commit -m "chore(publish): update update.json for ${{ steps.rel.outputs.version }}" || true
-            git push origin gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . || true
           fi
+          # Ensure update.json is in repo root
+          mv -f update.json update.json || true
+          git add update.json
+          git commit -m "chore(publish): update update.json for ${RELEASE_TAG}" || echo "No changes to commit"
+          git push origin gh-pages --force
