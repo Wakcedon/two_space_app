@@ -16,21 +16,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create update.json from release
+      - name: Fetch release via GitHub API
         env:
-          RELEASE_JSON: ${{ toJson(github.event.release) }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          RELEASE_ID=${{ github.event.release.id }}
+          OWNER=${{ github.repository_owner }}
+          REPO=${{ github.event.repository.name }}
+          echo "Fetching release ${RELEASE_ID} for ${OWNER}/${REPO}"
+          curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" "https://api.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}" -o release.json
+          echo "Saved release.json"
+
+      - name: Create update.json from fetched release
         run: |
           python - <<'PY'
-          import json, os
-          release = json.loads(os.environ['RELEASE_JSON'])
+          import json
+          with open('release.json', 'r', encoding='utf-8') as f:
+            release = json.load(f)
           tag = release.get('tag_name') or release.get('name') or ''
           version = tag.lstrip('v')
           notes = release.get('body') or ''
           asset_url = ''
           assets = release.get('assets') or []
-          if assets:
-            asset = assets[0]
-            asset_url = asset.get('browser_download_url') or ''
+          # Try to find first asset with a browser_download_url
+          for asset in assets:
+            if asset.get('browser_download_url'):
+              asset_url = asset.get('browser_download_url')
+              break
           data = {
             'version': version,
             'update_url': asset_url,
