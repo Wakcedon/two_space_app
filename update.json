@@ -1,5 +1,5 @@
 {
-  "version": "Update",
-  "update_url": "",
-  "notes": "Первая версия приложения."
+  "version": "v1.2.0",
+  "update_url": "https://github.com/Wakcedon/two_space_app/releases/download/v1.0.3-beta.3/app-arm64-v8a-release.apk",
+  "notes": "Тестирование."
 }
