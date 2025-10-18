@@ -66,11 +66,15 @@ jobs:
           set -e
           # repo URL for authenticated push
           REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${OWNER}/${REPO}.git"
+          # ensure no leftover file in workspace that could block branch checkouts
+          rm -f update.json || true
           rm -rf gh-pages-temp
           # If gh-pages exists remotely, clone it shallowly and update
           if git ls-remote --exit-code origin gh-pages; then
             echo "gh-pages exists — cloning into gh-pages-temp"
             git clone --depth 1 --branch gh-pages "${REPO_URL}" gh-pages-temp
+            # remove old file in temp clone to avoid any overwrite conflicts, then copy
+            rm -f gh-pages-temp/update.json || true
             cp -f out/update.json gh-pages-temp/update.json
             cd gh-pages-temp
             git config user.name "github-actions[bot]"
@@ -86,6 +90,7 @@ jobs:
             git checkout --orphan gh-pages
             git rm -rf . || true
             mkdir -p .
+            rm -f update.json || true
             cp -f ../out/update.json update.json
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
