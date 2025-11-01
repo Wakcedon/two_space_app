@@ -47,3 +47,6 @@ app.*.map.json
 # Environment files (do NOT commit secrets)
 .env
 .env.*
+
+# Copilot Instructions
+/.github/instructions/messenger_base.instructions.md
