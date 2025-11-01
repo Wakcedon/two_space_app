@@ -418,6 +418,13 @@ class AppwriteService {
           await saveSessionCookie(setCookie);
         }
       } catch (_) {}
+      // After creating a session, try to obtain and save a JWT so the
+      // SDK client becomes authenticated. This prevents parts of the app
+      // that use the SDK (Account(client).get()) from failing due to the
+      // SDK lacking the JWT even though a session cookie was set.
+      try {
+        await _tryRefreshJwt();
+      } catch (_) {}
       return jsonDecode(res.body);
     }
     // Defensive: avoid throwing full HTML or extremely large bodies that would
