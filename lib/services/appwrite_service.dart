@@ -852,22 +852,36 @@ class AppwriteService {
   static Future<void> deleteCurrentSession() async {
     final base = _v1Endpoint();
     if (base.isEmpty) return;
-    if (_cachedJwt == null || _cachedJwt!.isEmpty) {
-      // If no JWT, nothing to do server-side — just clear local state.
+    // If we have either a session cookie or a cached JWT, attempt to delete
+    // the server-side session. Some Appwrite installs require the cookie to
+    // be sent to delete the session; others accept JWT. Try both via
+    // _authHeaders which prefers cookie when present.
+    final cookie = await getSessionCookie();
+    final hasJwt = _cachedJwt != null && _cachedJwt!.isNotEmpty;
+    if (cookie == null && !hasJwt) {
+      // Nothing to delete on server; just clear local state.
       await clearJwt();
+      try {
+        await SecureStore.delete('appwrite_session_cookie');
+      } catch (_) {}
       return;
     }
+
     try {
       final uri = Uri.parse('$base/account/sessions/current');
+      // Prefer headers that include cookie when available because server may
+      // identify the session by cookie. _authHeaders will include cookie if
+      // present; otherwise it will include JWT or API key as fallback.
       final headers = await _authHeaders();
       final res = await http.delete(uri, headers: headers);
-      // regardless of server result, clear local jwt
+      // regardless of server result, clear local jwt and cookie
       await clearJwt();
       try {
         await SecureStore.delete('appwrite_session_cookie');
       } catch (_) {}
       if (res.statusCode >= 200 && res.statusCode < 300) return;
     } catch (_) {
+      // On any error, still clear local tokens to avoid inconsistent state
       await clearJwt();
       try {
         await SecureStore.delete('appwrite_session_cookie');
