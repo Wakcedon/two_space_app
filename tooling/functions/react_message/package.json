@@ -1,0 +1,12 @@
+{
+  "name": "react_message",
+  "version": "1.0.0",
+  "description": "Appwrite function to atomically toggle reactions on messages (emoji -> userIds)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "node-appwrite": "^10.0.0"
+  }
+}

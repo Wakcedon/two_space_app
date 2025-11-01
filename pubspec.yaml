@@ -1,0 +1,136 @@
+name: two_space_app
+description: TwoSpace
+publish_to: 'none'
+version: 1.0.4-fix35
+
+environment:
+  sdk: ">=2.19.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  appwrite: ^20.2.1
+  http: ^0.13.6
+  flutter_dotenv: ^5.0.2
+  flutter_secure_storage: ^8.0.0
+  image_picker: ^0.8.7+6
+  file_picker: ^10.3.3
+  crop_your_image: ^2.0.0
+  path_provider: ^2.0.0
+  flutter_contacts: ^1.1.9+2
+  permission_handler: ^12.0.1
+  intl: ^0.20.2
+  device_info_plus: ^11.5.0
+  package_info_plus: ^8.3.1
+  material_color_utilities: ^0.11.1
+  crypto: ^3.0.2
+  shimmer: ^2.0.0
+  sembast: ^3.1.0
+  dio: ^5.2.1
+  video_player: ^2.5.0
+  share_plus: ^12.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  lints: ^6.0.0
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/icon/app_icon.png
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter/Inter-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Inter/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter/Inter-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Inter/Inter-Italic.ttf
+          style: italic
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto/Roboto-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Roboto/Roboto-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Roboto/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto/Roboto-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Roboto/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto/Roboto-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Roboto/Roboto-Italic.ttf
+          style: italic
+    - family: Noto Sans
+      fonts:
+        - asset: assets/fonts/NotoSans/NotoSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSans/NotoSans-Light.ttf
+          weight: 300
+        - asset: assets/fonts/NotoSans/NotoSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSans/NotoSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSans/NotoSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/NotoSans/NotoSans-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/NotoSans/NotoSans-Italic.ttf
+          style: italic
+    - family: Open Sans
+      fonts:
+        - asset: assets/fonts/OpenSans/OpenSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/OpenSans/OpenSans-Light.ttf
+          weight: 300
+        - asset: assets/fonts/OpenSans/OpenSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/OpenSans/OpenSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/OpenSans/OpenSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/OpenSans/OpenSans-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/OpenSans/OpenSans-Italic.ttf
+          style: italic
+        - asset: assets/fonts/OpenSans/OpenSans-SemiBoldItalic.ttf
+          weight: 600
+          style: italic
+    - family: Oswald
+      fonts:
+        - asset: assets/fonts/Oswald/Oswald-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Oswald/Oswald-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Oswald/Oswald-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Oswald/Oswald-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Oswald/Oswald-Bold.ttf
+          weight: 700
+    - family: Press Start 2P
+      fonts:
+        - asset: assets/fonts/PressStart 2P/PressStart2P-Regular.ttf
+          weight: 400
+    - family: Comic Sans MS
+      fonts:
+        - asset: assets/fonts/ComicSans MS/Comic Sans MS.ttf
+          weight: 400

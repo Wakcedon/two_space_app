@@ -1,0 +1,11 @@
+{
+  "name": "search_users",
+  "version": "1.0.0",
+  "description": "Safe user search for TwoSpace (Appwrite Function)",
+  "main": "index.js",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}

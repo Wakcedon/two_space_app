@@ -1,0 +1,13 @@
+{
+  "name": "appwrite-chat-migration",
+  "version": "1.0.0",
+  "description": "Migration script to consolidate per-owner direct chats into canonical per-pair chats for Appwrite",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.4.0",
+    "minimist": "^1.2.8"
+  }
+}
