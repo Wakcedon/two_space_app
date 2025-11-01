@@ -83,6 +83,9 @@ class AppwriteService {
   // Cached JWT stored securely for session persistence
   static String? _cachedJwt;
   static String? _cachedUserId;
+  // Controls to deduplicate and rate-limit concurrent JWT refresh attempts.
+  static Future<bool>? _refreshInProgress;
+  static DateTime? _lastRefreshAttempt;
 
   static Future<void> restoreJwt() async {
     // Restore saved JWT and check inactivity timeout configured in settings.
@@ -252,6 +255,39 @@ class AppwriteService {
   /// Try to refresh JWT using the SDK Account.createJWT(), if an SDK client exists
   /// Returns true if a new JWT was obtained and saved.
   static Future<bool> _tryRefreshJwt() async {
+    // If a refresh is already in progress, wait for its result instead of
+    // starting another one. This prevents many concurrent callers from
+    // triggering multiple network requests (which caused rate limits).
+    if (_refreshInProgress != null) {
+      try {
+        return await _refreshInProgress!;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    // Short cooldown: avoid retrying refresh repeatedly in tight loops.
+    final now = DateTime.now();
+    if (_lastRefreshAttempt != null && now.difference(_lastRefreshAttempt!).inSeconds < 10) {
+      return false;
+    }
+    _lastRefreshAttempt = now;
+
+    // Run the actual refresh logic in a helper so we can set a shared future
+    // that other callers can await.
+    final future = _performRefreshJwt();
+    _refreshInProgress = future;
+    try {
+      final res = await future;
+      return res;
+    } finally {
+      _refreshInProgress = null;
+    }
+  }
+
+  // Actual refresh implementation extracted so the public wrapper can
+  // deduplicate concurrent calls and apply a short cooldown.
+  static Future<bool> _performRefreshJwt() async {
     try {
       _ensureInitialized();
       if (_account == null) return false;
@@ -287,12 +323,12 @@ class AppwriteService {
       if (cookie != null && cookie.isNotEmpty) {
         final base = _v1Endpoint();
         final uri = Uri.parse('$base/account/jwt');
-  // Build headers but ensure we DO NOT send any existing session cookie when creating a new session.
-  // Sending a cookie may cause the server to reject session creation with "Creation of a session is prohibited when a session is active".
-  final headers = await _authHeaders();
-  headers.remove('cookie');
-  headers.remove('Cookie');
-  final res = await http.post(uri, headers: headers);
+        // Build headers but ensure we DO NOT send any existing session cookie when creating a new session.
+        // Sending a cookie may cause the server to reject session creation with "Creation of a session is prohibited when a session is active".
+        final headers = await _authHeaders();
+        headers.remove('cookie');
+        headers.remove('Cookie');
+        final res = await http.post(uri, headers: headers);
         if (res.statusCode >= 200 && res.statusCode < 300) {
           final parsed = jsonDecode(res.body) as Map<String, dynamic>;
           final jwt = parsed['jwt'] as String?;

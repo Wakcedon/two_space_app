@@ -142,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             final ss = rem.inSeconds.remainder(60).toString().padLeft(2,'0');
             setState(() {
               _loginLocked = true;
-              _errorMessage = 'Лимит запросов. Повторите через ${rem.inMinutes}:$ss (мин:сек)';
+              _errorMessage = 'Превышен лимит запросов. Повторите через ${rem.inMinutes}:$ss';
               _loading = false;
             });
           }
