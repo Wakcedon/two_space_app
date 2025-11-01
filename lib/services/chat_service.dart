@@ -247,14 +247,19 @@ class ChatService {
             else if (Environment.appwriteApiKey.isNotEmpty) headers['x-appwrite-key'] = Environment.appwriteApiKey;
             final res = await http.get(uri, headers: headers);
             if (res.statusCode >= 200 && res.statusCode < 300) {
-              final parsed = jsonDecode(res.body) as Map<String, dynamic>;
-              // Appwrite returns document body with 'data' or direct fields; normalize
-              final Map<String, dynamic> data = (parsed.containsKey('data') && parsed['data'] is Map) ? Map<String, dynamic>.from(parsed['data']) : Map<String, dynamic>.from(parsed);
-              data['\$id'] = parsed['\$id'] ?? parsed['id'] ?? docId;
-              data['owner'] = data['owner'] ?? me;
-              data['peerId'] = data['peerId'] ?? peerId;
-              return data;
-            }
+                  final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+                  // Appwrite returns document body with 'data' or direct fields; normalize
+                  final Map<String, dynamic> data = (parsed.containsKey('data') && parsed['data'] is Map) ? Map<String, dynamic>.from(parsed['data']) : Map<String, dynamic>.from(parsed);
+                  data['\$id'] = parsed['\$id'] ?? parsed['id'] ?? docId;
+                  data['owner'] = data['owner'] ?? me;
+                  data['peerId'] = data['peerId'] ?? peerId;
+                  // Ensure members is a list of strings
+                  final rawMembers = data['members'];
+                  if (rawMembers is List) data['members'] = rawMembers.map((e) => e.toString()).toList();
+                  else if (rawMembers is String && rawMembers.isNotEmpty) data['members'] = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+                  else data['members'] = [me, peerId];
+                  return data;
+                }
           } catch (restErr) {
             if (kDebugMode) debugPrint('ChatService.getOrCreateDirectChat REST fallback failed: $restErr');
           }
@@ -282,20 +287,30 @@ class ChatService {
           'createdAt': now.toIso8601String(),
         };
         final doc = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: ID.custom(docId), data: data);
-        final m = Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
-        if (!m.containsKey('\$id') && (doc as dynamic).$id != null) m['\$id'] = (doc as dynamic).$id;
-        return m;
+  final m = Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
+  if (!m.containsKey('\$id') && (doc as dynamic).$id != null) m['\$id'] = (doc as dynamic).$id;
+  // Normalize members
+  final rawMembers = m['members'];
+  if (rawMembers is List) m['members'] = rawMembers.map((e) => e.toString()).toList();
+  else if (rawMembers is String && rawMembers.isNotEmpty) m['members'] = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+  else m['members'] = [me, peerId];
+  return m;
       } catch (e) {
         final text = e.toString().toLowerCase();
         // If the server reports the document already exists, fetch it.
         if (text.contains('already') || text.contains('409') || text.contains('document already') || text.contains('unique')) {
           try {
             final doc2 = await databases.getDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: docId);
-            final data = Map<String, dynamic>.from((doc2 as dynamic).data as Map<String, dynamic>);
-            data['owner'] = data['owner'] ?? me;
-            data['peerId'] = data['peerId'] ?? peerId;
-            if (!data.containsKey('\$id') && (doc2 as dynamic).$id != null) data['\$id'] = (doc2 as dynamic).$id;
-            return data;
+          final data = Map<String, dynamic>.from((doc2 as dynamic).data as Map<String, dynamic>);
+          data['owner'] = data['owner'] ?? me;
+          data['peerId'] = data['peerId'] ?? peerId;
+          if (!data.containsKey('\$id') && (doc2 as dynamic).$id != null) data['\$id'] = (doc2 as dynamic).$id;
+          // normalize members
+          final rawMembers2 = data['members'];
+          if (rawMembers2 is List) data['members'] = rawMembers2.map((e) => e.toString()).toList();
+          else if (rawMembers2 is String && rawMembers2.isNotEmpty) data['members'] = rawMembers2.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+          else data['members'] = [me, peerId];
+          return data;
           } catch (e2) {
             if (kDebugMode) debugPrint('ChatService.getOrCreateDirectChat fallback getDocument error: $e2');
             // Try REST fallback to fetch the document raw JSON to avoid SDK type-cast issues

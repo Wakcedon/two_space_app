@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/appwrite_service.dart';
 import '../services/settings_service.dart';
@@ -20,6 +21,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _loading = false;
   bool _obscure = true;
   bool _remember = false;
+  bool _loginLocked = false; // temporary lock when rate-limited
+  DateTime? _retryAt;
+  Timer? _retryAtTimer;
   String? _errorMessage;
 
   @override
@@ -117,10 +121,38 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     } catch (e) {
       if (!mounted) return;
       final error = AppwriteService.readableError(e);
-      setState(() {
-        _errorMessage = 'Ошибка входа: $error';
-        _loading = false;
-      });
+      // If rate limit, temporarily lock the login button to avoid hammering the endpoint
+      final lower = error.toLowerCase();
+      if (lower.contains('rate limit') || lower.contains('429')) {
+        // read server-provided retry-at if available
+        final ra = await AppwriteService.getRateLimitRetryAt();
+        if (ra != null && ra.isAfter(DateTime.now())) {
+          _retryAt = ra;
+        } else {
+          _retryAt = DateTime.now().add(const Duration(seconds: 30));
+        }
+        _retryAtTimer?.cancel();
+        _retryAtTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!mounted) return;
+          if (_retryAt == null || DateTime.now().isAfter(_retryAt!)) {
+            _retryAtTimer?.cancel();
+            setState(() { _loginLocked = false; _retryAt = null; _errorMessage = null; });
+          } else {
+            final rem = _retryAt!.difference(DateTime.now());
+            final ss = rem.inSeconds.remainder(60).toString().padLeft(2,'0');
+            setState(() {
+              _loginLocked = true;
+              _errorMessage = 'Лимит запросов. Повторите через ${rem.inMinutes}:$ss (мин:сек)';
+              _loading = false;
+            });
+          }
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Ошибка входа: $error';
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -229,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg)),
                           ),
-                          onPressed: _loading ? null : _login,
+                          onPressed: (_loading || _loginLocked) ? null : _login,
                           child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Войти', style: TextStyle(color: textColor)),
                         ),
                       ),

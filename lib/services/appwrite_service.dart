@@ -397,6 +397,66 @@ class AppwriteService {
     }
   }
 
+  /// Helper to retry HTTP calls when server responds with 429 (rate limit).
+  /// fn should perform a single http call and return the Response.
+  /// Retries use exponential backoff: 1s, 2s, 4s, ... up to maxRetries.
+  static Future<http.Response> _retryOnRateLimit(Future<http.Response> Function() fn, {int maxRetries = 3}) async {
+    int attempt = 0;
+    while (true) {
+      final res = await fn();
+      if (res.statusCode != 429 && !res.body.toLowerCase().contains('rate limit')) {
+        return res;
+      }
+      // If server provided Retry-After header, persist it so UI can inform user
+      try {
+        final ra = res.headers['retry-after'] ?? res.headers['Retry-After'];
+        if (ra != null && ra.isNotEmpty) {
+          DateTime? until;
+          final asInt = int.tryParse(ra);
+          if (asInt != null) {
+            until = DateTime.now().toUtc().add(Duration(seconds: asInt));
+          } else {
+            // Try parse HTTP-date
+            try {
+              until = HttpDate.parse(ra).toUtc();
+            } catch (_) {
+              until = null;
+            }
+          }
+          if (until != null) {
+            try {
+              await SecureStore.write('appwrite_rate_limit_retry_at', until.toIso8601String());
+            } catch (_) {}
+          }
+        } else {
+          // If no header, still set a short cooldown (e.g. now + 30s) to avoid hammering
+          final until = DateTime.now().toUtc().add(const Duration(seconds: 30));
+          try { await SecureStore.write('appwrite_rate_limit_retry_at', until.toIso8601String()); } catch (_) {}
+        }
+      } catch (_) {}
+      attempt++;
+      if (attempt > maxRetries) return res; // give up
+      final delayMs = 1000 * (1 << (attempt - 1)); // 1s,2s,4s...
+      if (const bool.fromEnvironment('dart.vm.product') == false) {
+        // ignore: avoid_print
+        print('AppwriteService: rate-limited (429). retrying in ${delayMs}ms (attempt $attempt/$maxRetries)');
+      }
+      await Future.delayed(Duration(milliseconds: delayMs));
+    }
+  }
+
+  /// Read the stored rate-limit 'retry at' timestamp, if any.
+  static Future<DateTime?> getRateLimitRetryAt() async {
+    try {
+      final s = await SecureStore.read('appwrite_rate_limit_retry_at');
+      if (s == null || s.isEmpty) return null;
+      final dt = DateTime.tryParse(s);
+      return dt?.toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Create email/password session using Appwrite REST endpoint (http package)
   static Future<dynamic> createEmailSession(String email, String password) async {
     final base = _v1Endpoint();
@@ -412,11 +472,12 @@ class AppwriteService {
   final headers = await _authHeaders();
     headers.remove('cookie');
     headers.remove('Cookie');
-    final res = await http.post(
+    // Use rate-limit aware POST that will retry on 429 with exponential backoff
+    final res = await _retryOnRateLimit(() => http.post(
       uri,
       headers: headers,
       body: jsonEncode({'email': email, 'password': password}),
-    );
+    ));
 
     // If server rejects creation because a session is already active on server
     // (some Appwrite installs return 409 or a message that session creation is prohibited),
@@ -428,11 +489,11 @@ class AppwriteService {
         try {
           await deleteCurrentSession();
         } catch (_) {}
-        // retry without any cookie
-        final headers2 = await _authHeaders();
-        headers2.remove('cookie');
-        headers2.remove('Cookie');
-        final retry = await http.post(uri, headers: headers2, body: jsonEncode({'email': email, 'password': password}));
+  // retry without any cookie (also use rate-limit aware helper)
+  final headers2 = await _authHeaders();
+  headers2.remove('cookie');
+  headers2.remove('Cookie');
+  final retry = await _retryOnRateLimit(() => http.post(uri, headers: headers2, body: jsonEncode({'email': email, 'password': password})));
         if (retry.statusCode >= 200 && retry.statusCode < 300) {
           try {
             final setCookie = retry.headers['set-cookie'] ?? retry.headers['Set-Cookie'];
@@ -541,7 +602,7 @@ class AppwriteService {
     headers.remove('cookie');
     headers.remove('Cookie');
   final userId = 'user_${DateTime.now().millisecondsSinceEpoch}';
-  final res = await http.post(uri, headers: headers, body: jsonEncode({'userId': userId, 'phone': phone}));
+  final res = await _retryOnRateLimit(() => http.post(uri, headers: headers, body: jsonEncode({'userId': userId, 'phone': phone})));
     if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
     final contentType = res.headers['content-type'] ?? '';
     final isHtml = contentType.toLowerCase().contains('html') || res.body.trimLeft().startsWith('<');
@@ -563,7 +624,7 @@ class AppwriteService {
   final headers = await _authHeaders();
     headers.remove('cookie');
     headers.remove('Cookie');
-    final res = await http.post(uri, headers: headers, body: jsonEncode({'userId': userId, 'secret': secret}));
+  final res = await _retryOnRateLimit(() => http.post(uri, headers: headers, body: jsonEncode({'userId': userId, 'secret': secret})));
     if (res.statusCode >= 200 && res.statusCode < 300) {
       // Save session cookie if provided so we can refresh JWT later
       try {
@@ -589,7 +650,7 @@ class AppwriteService {
       final headers2 = await _authHeaders();
       headers2.remove('cookie');
       headers2.remove('Cookie');
-      final retry = await http.post(uri, headers: headers2, body: jsonEncode({'userId': userId, 'secret': secret}));
+  final retry = await _retryOnRateLimit(() => http.post(uri, headers: headers2, body: jsonEncode({'userId': userId, 'secret': secret})));
       if (retry.statusCode >= 200 && retry.statusCode < 300) {
         try {
           final setCookie = retry.headers['set-cookie'] ?? retry.headers['Set-Cookie'];
