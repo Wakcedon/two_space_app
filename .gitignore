@@ -52,3 +52,6 @@ app.*.map.json
 
 # Copilot Instructions
 /.github/instructions/messenger_base.instructions.md
+
+# Something
+pubspec.yaml
