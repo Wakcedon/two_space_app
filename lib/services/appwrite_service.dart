@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'dart:typed_data';
+// 'dart:typed_data' not needed; types are provided by flutter services import
 import 'package:dio/dio.dart';
 import 'package:appwrite/appwrite.dart';
 import 'package:http/http.dart' as http;
@@ -49,7 +49,9 @@ class AppwriteService {
     var ep = Environment.appwritePublicEndpoint.trim();
     if (ep.isEmpty) return '';
     // remove trailing slashes
-    while (ep.endsWith('/')) ep = ep.substring(0, ep.length - 1);
+    while (ep.endsWith('/')) {
+      ep = ep.substring(0, ep.length - 1);
+    }
     if (!ep.endsWith('/v1')) ep = '$ep/v1';
     return ep;
   }
@@ -362,6 +364,12 @@ class AppwriteService {
     return false;
   }
 
+  /// Public wrapper to attempt to refresh JWT for callers outside this file.
+  /// Returns true if a new JWT was obtained and saved.
+  static Future<bool> refreshJwt() async {
+    return await _tryRefreshJwt();
+  }
+
   /// Helper which retries the provided async function once if the failure
   /// indicates an expired JWT. The fn should throw an exception with a message
   /// containing 'Expired' or 'user_jwt_invalid' when JWT is invalid.
@@ -409,6 +417,33 @@ class AppwriteService {
       headers: headers,
       body: jsonEncode({'email': email, 'password': password}),
     );
+
+    // If server rejects creation because a session is already active on server
+    // (some Appwrite installs return 409 or a message that session creation is prohibited),
+    // attempt to delete current session server-side and retry once.
+    if (!(res.statusCode >= 200 && res.statusCode < 300)) {
+      final bodyLower = res.body.toLowerCase();
+      final looksLikeActiveSession = res.statusCode == 409 || bodyLower.contains('creation of a session is prohibited') || bodyLower.contains('session is active') || bodyLower.contains('prohibited');
+      if (looksLikeActiveSession) {
+        try {
+          await deleteCurrentSession();
+        } catch (_) {}
+        // retry without any cookie
+        final headers2 = await _authHeaders();
+        headers2.remove('cookie');
+        headers2.remove('Cookie');
+        final retry = await http.post(uri, headers: headers2, body: jsonEncode({'email': email, 'password': password}));
+        if (retry.statusCode >= 200 && retry.statusCode < 300) {
+          try {
+            final setCookie = retry.headers['set-cookie'] ?? retry.headers['Set-Cookie'];
+            if (setCookie != null && setCookie.isNotEmpty) await saveSessionCookie(setCookie);
+          } catch (_) {}
+          try { await _tryRefreshJwt(); } catch (_) {}
+          return jsonDecode(retry.body);
+        }
+        // fall through to error handling below for the original response
+      }
+    }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
       // Save session cookie if provided by server so we can refresh JWT later
@@ -529,7 +564,41 @@ class AppwriteService {
     headers.remove('cookie');
     headers.remove('Cookie');
     final res = await http.post(uri, headers: headers, body: jsonEncode({'userId': userId, 'secret': secret}));
-    if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      // Save session cookie if provided so we can refresh JWT later
+      try {
+        final setCookie = res.headers['set-cookie'] ?? res.headers['Set-Cookie'];
+        if (setCookie != null && setCookie.isNotEmpty) {
+          await saveSessionCookie(setCookie);
+        }
+      } catch (_) {}
+      // Attempt to refresh JWT so SDK client becomes authenticated immediately
+      try {
+        await _tryRefreshJwt();
+      } catch (_) {}
+      return jsonDecode(res.body);
+    }
+    // Retry-on-active-session: some Appwrite servers refuse session creation
+    // when an active session exists. Detect that case and attempt a delete+retry.
+    final bodyLower = res.body.toLowerCase();
+    final looksLikeActiveSession = res.statusCode == 409 || bodyLower.contains('creation of a session is prohibited') || bodyLower.contains('session is active') || bodyLower.contains('prohibited');
+    if (looksLikeActiveSession) {
+      try {
+        await deleteCurrentSession();
+      } catch (_) {}
+      final headers2 = await _authHeaders();
+      headers2.remove('cookie');
+      headers2.remove('Cookie');
+      final retry = await http.post(uri, headers: headers2, body: jsonEncode({'userId': userId, 'secret': secret}));
+      if (retry.statusCode >= 200 && retry.statusCode < 300) {
+        try {
+          final setCookie = retry.headers['set-cookie'] ?? retry.headers['Set-Cookie'];
+          if (setCookie != null && setCookie.isNotEmpty) await saveSessionCookie(setCookie);
+        } catch (_) {}
+        try { await _tryRefreshJwt(); } catch (_) {}
+        return jsonDecode(retry.body);
+      }
+    }
     final contentType = res.headers['content-type'] ?? '';
     final isHtml = contentType.toLowerCase().contains('html') || res.body.trimLeft().startsWith('<');
     if (isHtml) {

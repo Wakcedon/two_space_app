@@ -20,6 +20,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final AuthService _auth = AuthService();
   bool _loading = false;
   bool _obscure = true;
+  String? _errorMessage;
+  // password strength flags
+  bool _hasUpper = false;
+  bool _hasNumber = false;
+  bool _hasSpecial = false;
+  bool _hasLength = false;
 
   @override
   void dispose() {
@@ -82,41 +88,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final isHtml = fullMsg.contains('<!DOCTYPE') || fullMsg.contains('<html') || fullMsg.trimLeft().startsWith('<');
       final shortMsg = fullMsg.length > 300 ? '${fullMsg.substring(0, 300)}...' : fullMsg;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка регистрации: ${isHtml ? 'Серверная ошибка. Проверьте логи.' : shortMsg}'),
-          action: !isHtml && fullMsg.length > 300
-              ? SnackBarAction(label: 'Подробнее', onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Детали ошибки'),
-                      content: SizedBox(
-                        width: double.maxFinite,
-                        child: SingleChildScrollView(child: SelectableText(fullMsg)),
-                      ),
-                      actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Закрыть'))],
-                    ),
-                  );
-                })
-              : isHtml
-                  ? SnackBarAction(label: 'Показать логи', onPressed: () {
-                      // Explain where to find logs; don't show raw HTML in UI.
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Детали ошибки'),
-                          content: const Text('Сервер вернул HTML-страницу ошибки. Полный текст сохранён в логах (только для разработки).'),
-                          actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Закрыть'))],
-                        ),
-                      );
-                    })
-                  : null,
-        ),
-      );
+      setState(() {
+        _errorMessage = 'Ошибка регистрации: ${isHtml ? 'Серверная ошибка. Проверьте логи.' : shortMsg}';
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _onPasswordChanged(String v) {
+    setState(() {
+      _hasLength = v.length >= 8;
+      _hasUpper = v.contains(RegExp(r'[A-ZА-Я]'));
+      _hasNumber = v.contains(RegExp(r'[0-9]'));
+      _hasSpecial = v.contains(RegExp(r'[!@#\$%\^&*(),.?":{}|<>]'));
+    });
   }
 
   @override
@@ -151,6 +137,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 20),
                   Column(
                     children: [
+                      if (_errorMessage != null) Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(8)),
+                          child: Text(_errorMessage!, style: const TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                      if (_loading) const LinearProgressIndicator(minHeight: 3),
                       TextFormField(
                         controller: nameController,
                         validator: _validateName,
@@ -187,6 +183,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: passwordController,
                         obscureText: _obscure,
                         validator: _validatePassword,
+                        onChanged: _onPasswordChanged,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           hintText: 'Пароль',
@@ -203,6 +200,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: 18),
+                      // Password strength hints
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: Row(children: [
+                          _pwHint('8+ символов', _hasLength),
+                          const SizedBox(width: 8),
+                          _pwHint('Заглавная', _hasUpper),
+                          const SizedBox(width: 8),
+                          _pwHint('Цифра', _hasNumber),
+                          const SizedBox(width: 8),
+                          _pwHint('Спецсимвол', _hasSpecial),
+                        ]),
+                      ),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -229,5 +239,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
+  }
+
+  Widget _pwHint(String text, bool ok) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.greenAccent : Colors.white54, size: 16),
+      const SizedBox(width: 4),
+      Text(text, style: TextStyle(color: ok ? Colors.greenAccent : Colors.white54, fontSize: 12)),
+    ]);
   }
 }

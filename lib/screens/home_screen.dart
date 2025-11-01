@@ -31,8 +31,26 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         await account.get();
       } catch (e) {
-        if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-        return false;
+        // SDK account.get failed — try a REST fallback and refresh JWT
+        try {
+          final acct = await AppwriteService.getAccount();
+          if (acct != null) {
+            // Try to refresh JWT into SDK and retry once
+            try {
+              await AppwriteService.refreshJwt();
+              await account.get();
+            } catch (_) {
+              if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+              return false;
+            }
+          } else {
+            if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+            return false;
+          }
+        } catch (_) {
+          if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+          return false;
+        }
       }
       try {
         final resp = await account.createJWT();
@@ -264,12 +282,45 @@ class _HomeScreenState extends State<HomeScreen> {
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-                      Center(child: Column(children: [
-                        Text('Пора начать! Создай чат по кнопке ниже', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-                        const SizedBox(height: 16),
-                        Text('Нажми кнопку в правом нижнем углу', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7))),
-                      ])),
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Card(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 6,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(children: [
+                              Text('Пока нет чатов', style: Theme.of(context).textTheme.headlineSmall),
+                              const SizedBox(height: 12),
+                              Text('Начните диалог с коллегой или друзьями. Быстро найдите контакты и создайте новый чат.', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+                              const SizedBox(height: 16),
+                              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                ElevatedButton.icon(
+                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
+                                  icon: const Icon(Icons.search),
+                                  label: const Text('Найти контакт'),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    // quick create a self-favorites chat
+                                    final uid = await AppwriteService.getCurrentUserId();
+                                    if (uid != null) {
+                                      try {
+                                        final created = await chatService.getOrCreateFavoritesChat(uid);
+                                        Navigator.pushNamed(context, '/chat', arguments: Chat.fromMap(created));
+                                      } catch (_) {}
+                                    }
+                                  },
+                                  icon: const Icon(Icons.star),
+                                  label: const Text('Избранное'),
+                                ),
+                              ])
+                            ]),
+                          ),
+                        ),
+                      ),
                     ],
                   );
                 }

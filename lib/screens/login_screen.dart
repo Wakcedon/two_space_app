@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _loading = false;
   bool _obscure = true;
   bool _remember = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -115,16 +116,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     } catch (e) {
       if (!mounted) return;
-      
       final error = AppwriteService.readableError(e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка входа: $error'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      
-      setState(() => _loading = false);
+      setState(() {
+        _errorMessage = 'Ошибка входа: $error';
+        _loading = false;
+      });
     }
   }
 
@@ -163,6 +159,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                    if (_errorMessage != null) Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(8)),
+                        child: Text(_errorMessage!, style: const TextStyle(color: Colors.white)),
+                      ),
+                    ),
+                    if (_loading) const LinearProgressIndicator(minHeight: 3),
                   const Hero(tag: 'logo', child: AppLogo(large: true)),
                   const SizedBox(height: UITokens.spaceLg),
                   Text('Вход', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),

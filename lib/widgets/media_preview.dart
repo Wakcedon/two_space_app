@@ -25,7 +25,9 @@ class _MediaPreviewState extends State<MediaPreview> {
     if (widget.autoDownload) {
       // trigger a background download (ignore errors, show a tiny progress)
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _download();
+        if (mounted) {
+          _download();
+        }
       });
     }
   }
@@ -44,9 +46,11 @@ class _MediaPreviewState extends State<MediaPreview> {
         _error = AppwriteService.readableError(e);
       });
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -65,9 +69,11 @@ class _MediaPreviewState extends State<MediaPreview> {
         _error = AppwriteService.readableError(e);
       });
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -80,15 +86,19 @@ class _MediaPreviewState extends State<MediaPreview> {
       final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
       final ok = await AppwriteService.shareFile(temp, text: widget.filename);
       if (!mounted) return;
-      if (!ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
+      }
     } catch (e) {
       setState(() {
         _error = AppwriteService.readableError(e);
       });
     } finally {
-      if (mounted) setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 

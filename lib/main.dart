@@ -60,7 +60,7 @@ Future<void> main() async {
             padding: const EdgeInsets.all(20.0),
             child: SingleChildScrollView(
               child: Text(
-                'Ошибка при инициализации:\n\n' + msg,
+                'Ошибка при инициализации:\n\n$msg',
                 style: const TextStyle(color: Colors.white),
               ),
             ),
