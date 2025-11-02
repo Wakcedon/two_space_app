@@ -1,1 +1,0 @@
-This folder is used by the assistant to hold temporary cleanup notes. You can delete it after verifying changes.
