@@ -16,7 +16,7 @@
 Телеграм-канал с актуальными новостями: ***https://t.me/twospace_messenger***
 ❤️
 
-#### Лицензии
+## Лицензии
 Elastic License 2.0:
 - [русский язык](https://github.com/Wakcedon/two_space_app/blob/main/LICENSE.ru.md)
 - [english language](https://github.com/Wakcedon/two_space_app/blob/main/LICENSE.md)
