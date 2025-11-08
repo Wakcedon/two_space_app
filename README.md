@@ -1,3 +1,6 @@
+![Flutter](https://img.shields.io/badge/Flutter-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android%20%7C%20iOS-lightgrey.svg)
 # TwoSpace
 
 Мессенджер на основе *Flutter*, созданный для проектной деятельности в колледже. 
@@ -14,3 +17,4 @@
 
 ### Ссылки
 X человак который сделал форк, где вся эта драбедень будет развиваться: https://x.com/clicedvly768
+Можно ещё войти в чат Matrix: 
