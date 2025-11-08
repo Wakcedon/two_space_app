@@ -1,4 +1,4 @@
-Лицензия на русском языке [https://github.com/Wakcedon/two_space_app/blob/main/LICENSE.ru.md](доступна здесь)
+Лицензия на русском языке [доступна здесь](https://github.com/Wakcedon/two_space_app/blob/main/LICENSE.ru.md)
 
 ## Elastic License 2.0  
 #### Acceptance  
