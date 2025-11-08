@@ -1,3 +1,6 @@
+![Flutter](https://img.shields.io/badge/Flutter-blue.svg)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android%20%7C%20iOS-lightgrey.svg)
+
 # TwoSpace
 
 Мессенджер на основе *Flutter*, созданный для проекта в колледже.
