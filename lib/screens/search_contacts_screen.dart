@@ -4,6 +4,7 @@ import 'package:appwrite/appwrite.dart';
 import 'dart:async';
 
 import 'package:two_space_app/services/settings_service.dart';
+import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:two_space_app/utils/responsive.dart';
@@ -260,7 +261,12 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                               final peerId = (e['\$id'] ?? e['id'])?.toString() ?? '';
                               if (peerId.isEmpty) throw Exception('invalid peer id');
                               if (!mounted) return;
-                              Navigator.of(context).pop(peerId);
+                              // Open profile first; ProfileScreen will return a Chat or Map when "Написать" is used.
+                              final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProfileScreen(userId: peerId, initialName: name.toString(), initialAvatar: avatar)));
+                              if (res != null) {
+                                // Return whatever profile returned (Chat or Map) to the caller (HomeScreen)
+                                Navigator.of(context).pop(res);
+                              }
                             } catch (err) {
                               if (!mounted) return;
                               messenger.showSnackBar(SnackBar(content: Text('Не удалось выбрать контакт: ${AppwriteService.readableError(err)}')));

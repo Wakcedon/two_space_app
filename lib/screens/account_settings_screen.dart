@@ -338,7 +338,16 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       final nickVal = _nicknameController.text.trim().replaceAll('@', '').toLowerCase();
       final currentNick = (currentPrefs['nickname'] as String?)?.replaceAll('@', '').toLowerCase() ?? '';
       if (nickVal.isNotEmpty && nickVal != currentNick) {
+        // If our live check previously determined nickname is taken, abort and notify.
+        if (_nickStatus == 'taken') {
+          if (mounted) {
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.showSnackBar(const SnackBar(content: Text('Никнейм занят. Выберите другой.')));
+          }
+          return;
+        }
         try {
+          // Reserve (persist) nickname on save only
           await AppwriteService.reserveNickname(nickVal);
           // reserveNickname updates account prefs on success
         } catch (e) {
@@ -378,10 +387,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() {
       _nickStatus = null;
     });
-    _nickDebounce = Timer(const Duration(milliseconds: 500), () => _checkAndReserveNickname(v));
+    _nickDebounce = Timer(const Duration(milliseconds: 500), () => _checkNicknameAvailability(v));
   }
 
-  Future<void> _checkAndReserveNickname(String raw) async {
+  // Live availability check. Uses searchUsers to avoid reserving on every keystroke.
+  Future<void> _checkNicknameAvailability(String raw) async {
     final val = raw.trim().replaceAll('@', '').toLowerCase();
     if (val.isEmpty) return;
     setState(() {
@@ -389,24 +399,42 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _nickStatus = null;
     });
     try {
-      await AppwriteService.reserveNickname(val);
-      if (!mounted) return;
-      setState(() {
-        _nickStatus = 'ok';
-      });
-      // Refresh account to reflect saved nickname
-      await _loadAccount();
-    } catch (e) {
-      final msg = AppwriteService.readableError(e).toLowerCase();
-      if (msg.contains('ник') || msg.contains('занят') || msg.contains('already')) {
-        setState(() {
-          _nickStatus = 'taken';
-        });
-      } else {
-        setState(() {
-          _nickStatus = 'error';
-        });
+      // Try server-side search for the nickname. If no other user has it -> available.
+      final results = await AppwriteService.searchUsers(val, limit: 5);
+      final me = await AppwriteService.getCurrentUserId();
+      bool taken = false;
+      for (final r in results) {
+        try {
+          final id = (r['id'] ?? r['\$id'] ?? r['\$id'])?.toString();
+          String nick = '';
+          if (r is Map && r['prefs'] is Map) {
+            nick = (r['prefs']['nickname'] as String?) ?? '';
+            if (nick.startsWith('@')) nick = nick.substring(1);
+          }
+          // consider match by nickname or by direct equality in returned user id
+          if (id != null && id.isNotEmpty && id != me) {
+            if (nick.isNotEmpty) {
+              if (nick.toLowerCase() == val) {
+                taken = true;
+                break;
+              }
+            }
+            // also check name field fallback
+            final name = (r['name'] as String?) ?? '';
+            if (name.toLowerCase() == val) {
+              taken = true;
+              break;
+            }
+          }
+        } catch (_) {}
       }
+      if (taken) {
+        setState(() => _nickStatus = 'taken');
+      } else {
+        setState(() => _nickStatus = 'ok');
+      }
+    } catch (e) {
+      setState(() => _nickStatus = 'error');
     } finally {
       if (mounted) setState(() => _nickChecking = false);
     }
@@ -544,6 +572,28 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 8),
+                          // Live textual feedback under nickname field
+                          if (_nickChecking)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                              child: Text('Проверка никнейма...', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
+                            ),
+                          if (!_nickChecking && _nickStatus == 'ok')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                              child: Text('Никнейм свободен', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.green)),
+                            ),
+                          if (!_nickChecking && _nickStatus == 'taken')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                              child: Text('Никнейм уже занят', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.redAccent)),
+                            ),
+                          if (!_nickChecking && _nickStatus == 'error')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                              child: Text('Ошибка проверки никнейма', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onError)),
+                            ),
                           const SizedBox(height: 12),
                           // Delete avatar button
                           if (_avatarUrl != null || _avatarBytes != null)
@@ -633,45 +683,20 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                   children: [
                                     Expanded(
                                       child: TextField(
-                                        controller: _nicknameController,
-                                        decoration: InputDecoration(
-                                          labelText: 'Никнейм (без @)',
-                                          suffixIcon: _nickChecking
-                                              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                                              : (_nickStatus == 'ok'
-                                                  ? const Icon(Icons.check, color: Colors.green)
-                                                  : (_nickStatus == 'taken' ? const Icon(Icons.close, color: Colors.redAccent) : null)),
+                                          controller: _nicknameController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Никнейм (без @)',
+                                            suffixIcon: _nickChecking
+                                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                                : (_nickStatus == 'ok'
+                                                    ? const Icon(Icons.check, color: Colors.green)
+                                                    : (_nickStatus == 'taken' ? const Icon(Icons.close, color: Colors.redAccent) : null)),
+                                          ),
+                                          style: Theme.of(context).textTheme.bodyLarge,
+                                          maxLength: 32,
+                                          onChanged: _onNicknameChanged,
                                         ),
-                                        style: Theme.of(context).textTheme.bodyLarge,
-                                        maxLength: 32,
-                                        onChanged: _onNicknameChanged,
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton(
-                                      onPressed: _nickChecking
-                                          ? null
-                                          : () async {
-                                              final messenger = ScaffoldMessenger.of(context);
-                                              final val = _nicknameController.text.trim().replaceAll('@', '').toLowerCase();
-                                              if (val.isEmpty) return;
-                                              if (!mounted) return;
-                                              setState(() => _loading = true);
-                                              try {
-                                                await AppwriteService.reserveNickname(val);
-                                                if (!mounted) return;
-                                                // Refresh account so UI shows saved nickname immediately
-                                                await _loadAccount();
-                                                messenger.showSnackBar(const SnackBar(content: Text('Никнейм зарезервирован и сохранён')));
-                                              } catch (e) {
-                                                if (!mounted) return;
-                                                messenger.showSnackBar(SnackBar(content: Text('Не удалось зарезервировать ник: ${AppwriteService.readableError(e)}')));
-                                              } finally {
-                                                if (mounted) setState(() => _loading = false);
-                                              }
-                                            },
-                                      child: const Text('Проверить'),
-                                    ),
                                   ],
                                 ),
                               );

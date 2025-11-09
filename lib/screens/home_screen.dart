@@ -368,10 +368,29 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                                 InkWell(
                                   borderRadius: BorderRadius.circular(UITokens.corner),
-                                  onTap: () {
+                                  onTap: () async {
                                     final uid = _peerInfo[chat.id]?['userId'] as String?;
                                     if (uid != null && uid.isNotEmpty) {
-                                      Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                      final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                      // If profile returned a created Chat, select or open it
+                                      if (res != null) {
+                                        try {
+                                          if (res is Chat) {
+                                            if (MediaQuery.of(context).size.width >= 900) {
+                                              setState(() => _selectedChat = res);
+                                            } else {
+                                              Navigator.pushNamed(context, '/chat', arguments: res);
+                                            }
+                                          } else if (res is Map) {
+                                            final c = Chat.fromMap(Map<String, dynamic>.from(res as Map));
+                                            if (MediaQuery.of(context).size.width >= 900) {
+                                              setState(() => _selectedChat = c);
+                                            } else {
+                                              Navigator.pushNamed(context, '/chat', arguments: c);
+                                            }
+                                          }
+                                        } catch (_) {}
+                                      }
                                     }
                                   },
                                   child: UserAvatar(
@@ -395,10 +414,28 @@ class _HomeScreenState extends State<HomeScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           InkWell(
-                                            onTap: () {
+                                            onTap: () async {
                                               final uid = _peerInfo[chat.id]?['userId'] as String?;
                                               if (uid != null && uid.isNotEmpty) {
-                                                Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                                final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                                if (res != null) {
+                                                  try {
+                                                    if (res is Chat) {
+                                                      if (MediaQuery.of(context).size.width >= 900) {
+                                                        setState(() => _selectedChat = res);
+                                                      } else {
+                                                        Navigator.pushNamed(context, '/chat', arguments: res);
+                                                      }
+                                                    } else if (res is Map) {
+                                                      final c = Chat.fromMap(Map<String, dynamic>.from(res as Map));
+                                                      if (MediaQuery.of(context).size.width >= 900) {
+                                                        setState(() => _selectedChat = c);
+                                                      } else {
+                                                        Navigator.pushNamed(context, '/chat', arguments: c);
+                                                      }
+                                                    }
+                                                  } catch (_) {}
+                                                }
                                               }
                                             },
                                             child: Text(chat.name, style: UITokens.emphasized(context)),
@@ -541,21 +578,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const VerticalDivider(width: 1),
             Expanded(
-              child: _selectedChat != null
-                  ? ChatScreen(chat: _selectedChat)
-                  : Center(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
-                        const SizedBox(height: 12),
-                        Text('Выберите чат слева', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
-                          icon: const Icon(Icons.search),
-                          label: const Text('Найти контакт'),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                child: _selectedChat != null
+                    ? ChatScreen(key: ValueKey(_selectedChat!.id), chat: _selectedChat)
+                    : Container(
+                        key: const ValueKey('placeholder'),
+                        child: Center(
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                            const SizedBox(height: 12),
+                            Text('Выберите чат слева', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
+                              icon: const Icon(Icons.search),
+                              label: const Text('Найти контакт'),
+                            ),
+                          ]),
                         ),
-                      ]),
-                    ),
+                      ),
+              ),
             ),
           ]);
         }),
@@ -564,23 +607,44 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: () async {
           final navigator = Navigator.of(context);
           final messenger = ScaffoldMessenger.of(context);
-          final peerId = await navigator.push<String>(MaterialPageRoute(builder: (_) => const SearchContactsScreen()));
-          if (peerId != null && peerId.isNotEmpty) {
-            // Create/get chat using ChatService to preserve deterministic per-user chat ids
-            try {
-              final m = await chatService.getOrCreateDirectChat(peerId);
-              final chat = Chat.fromMap(m);
+          final res = await navigator.push<dynamic>(MaterialPageRoute(builder: (_) => const SearchContactsScreen()));
+          if (res == null) return;
+          try {
+            if (res is Chat) {
+              final chat = res;
               if (!mounted) return;
-              // If we're on large screen, select the chat in-place
               if (MediaQuery.of(context).size.width >= 900) {
                 setState(() => _selectedChat = chat);
               } else {
                 navigator.pushNamed('/chat', arguments: chat);
               }
-            } catch (e) {
-              if (!mounted) return;
-              messenger.showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
+              return;
             }
+            if (res is Map) {
+              final chat = Chat.fromMap(Map<String, dynamic>.from(res));
+              if (!mounted) return;
+              if (MediaQuery.of(context).size.width >= 900) {
+                setState(() => _selectedChat = chat);
+              } else {
+                navigator.pushNamed('/chat', arguments: chat);
+              }
+              return;
+            }
+            // Fallback: previous behavior expected a peerId string
+            final peerId = res is String ? res : (res.toString());
+            if (peerId.isNotEmpty) {
+              final m = await chatService.getOrCreateDirectChat(peerId);
+              final chat = Chat.fromMap(m);
+              if (!mounted) return;
+              if (MediaQuery.of(context).size.width >= 900) {
+                setState(() => _selectedChat = chat);
+              } else {
+                navigator.pushNamed('/chat', arguments: chat);
+              }
+            }
+          } catch (e) {
+            if (!mounted) return;
+            messenger.showSnackBar(SnackBar(content: Text('Не удалось создать/открыть чат: ${AppwriteService.readableError(e)}')));
           }
         },
         child: const Icon(Icons.chat, color: Colors.white),

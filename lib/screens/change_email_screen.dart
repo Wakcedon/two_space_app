@@ -13,6 +13,22 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
   final _emailCtrl = TextEditingController();
   final _pwdCtrl = TextEditingController();
   bool _loading = false;
+  String? _currentEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrent();
+  }
+
+  Future<void> _loadCurrent() async {
+    try {
+      final acct = await AppwriteService.getAccount();
+      if (!mounted) return;
+      final email = (acct['email'] as String?) ?? '';
+      setState(() => _currentEmail = email.isNotEmpty ? email : null);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -61,6 +77,11 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text('Введите новый email и, если требуется, текущий пароль для подтверждения.'),
+                  if (_currentEmail != null) ...[
+                    const SizedBox(height: 8),
+                    Text('Текущий: ', style: Theme.of(context).textTheme.bodySmall),
+                    Text(_currentEmail ?? '', style: Theme.of(context).textTheme.bodyMedium),
+                  ],
                   const SizedBox(height: 12),
                   TextField(controller: _emailCtrl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Новый email')),
                   const SizedBox(height: 12),

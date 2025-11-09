@@ -13,6 +13,31 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
   final _phoneCtrl = TextEditingController();
   final _pwdCtrl = TextEditingController();
   bool _loading = false;
+  String? _currentPhone;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentPhone();
+  }
+
+  Future<void> _loadCurrentPhone() async {
+    try {
+      final acct = await AppwriteService.getAccount();
+      if (!mounted) return;
+      String phoneVal = '';
+      try {
+        final acctPhone = acct['phone'];
+        if (acctPhone is String) {
+          phoneVal = acctPhone;
+        } else if (acctPhone is Map) {
+          phoneVal = (acctPhone['phone'] ?? acctPhone['number'] ?? acctPhone['value'])?.toString() ?? '';
+        }
+      } catch (_) {}
+      if (phoneVal.isEmpty) phoneVal = ((acct['prefs'] is Map) ? (acct['prefs']['phone'] as String? ?? '') : '');
+      setState(() => _currentPhone = phoneVal.isNotEmpty ? phoneVal : null);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -61,6 +86,11 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text('Введите новый номер телефона и текущий пароль.'),
+                  if (_currentPhone != null) ...[
+                    const SizedBox(height: 8),
+                    Text('Текущий: ', style: Theme.of(context).textTheme.bodySmall),
+                    Text(_currentPhone ?? '', style: Theme.of(context).textTheme.bodyMedium),
+                  ],
                   const SizedBox(height: 12),
                   TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Новый номер (+7...)')),
                   const SizedBox(height: 12),

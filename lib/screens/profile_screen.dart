@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 
@@ -17,6 +18,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _user;
   bool _loading = true;
+  bool _actionLoading = false;
 
   @override
   void initState() {
@@ -79,7 +81,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const SizedBox(height: 12),
                   Center(
-                    child: UserAvatar(avatarUrl: avatar, initials: (name.isNotEmpty ? name[0] : '?'), fullName: name, radius: 56),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: UserAvatar(key: ValueKey(avatar ?? 'noavatar_${widget.userId}'), avatarUrl: avatar, initials: (name.isNotEmpty ? name[0] : '?'), fullName: name, radius: 56),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Center(child: Text(name, style: Theme.of(context).textTheme.headlineSmall)),
@@ -90,11 +95,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        // open chat action — handled by caller later
+                      onPressed: _actionLoading ? null : () async {
+                        setState(() => _actionLoading = true);
+                        try {
+                          final cs = ChatService();
+                          final m = await cs.getOrCreateDirectChat(widget.userId);
+                          final chat = Chat.fromMap(m);
+                          if (!mounted) return;
+                          // Return created/selected chat to caller so HomeScreen can react (select on two-pane)
+                          Navigator.of(context).pop(chat);
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
+                        } finally {
+                          if (mounted) setState(() => _actionLoading = false);
+                        }
                       },
-                      icon: const Icon(Icons.chat_bubble_outline),
+                      icon: _actionLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.chat_bubble_outline),
                       label: const Text('Написать'),
                     ),
                     const SizedBox(width: 12),
