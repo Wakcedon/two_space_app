@@ -12,7 +12,7 @@ import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:appwrite/appwrite.dart';
-import 'package:two_space_app/utils/responsive.dart';
+// removed unused responsive import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -350,7 +350,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       final selected = (_selectedChat != null && _selectedChat!.id == chat.id);
                       return Card(
                         elevation: selected ? UITokens.cardElevation + 2 : UITokens.cardElevation,
-                        color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.06) : Theme.of(context).colorScheme.surface,
+                        // avoid deprecated withOpacity
+                        color: selected ? Theme.of(context).colorScheme.primary.withAlpha((0.06 * 255).round()) : Theme.of(context).colorScheme.surface,
                     margin: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
                     child: InkWell(
@@ -371,22 +372,25 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onTap: () async {
                                     final uid = _peerInfo[chat.id]?['userId'] as String?;
                                     if (uid != null && uid.isNotEmpty) {
+                                      final navigator = Navigator.of(context);
+                                      final isLarge = MediaQuery.of(context).size.width >= 900;
                                       final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
                                       // If profile returned a created Chat, select or open it
                                       if (res != null) {
                                         try {
+                                          if (!mounted) return;
                                           if (res is Chat) {
-                                            if (MediaQuery.of(context).size.width >= 900) {
+                                            if (isLarge) {
                                               setState(() => _selectedChat = res);
                                             } else {
-                                              Navigator.pushNamed(context, '/chat', arguments: res);
+                                              navigator.pushNamed('/chat', arguments: res);
                                             }
                                           } else if (res is Map) {
-                                            final c = Chat.fromMap(Map<String, dynamic>.from(res as Map));
-                                            if (MediaQuery.of(context).size.width >= 900) {
+                                            final c = Chat.fromMap(Map<String, dynamic>.from(res));
+                                            if (isLarge) {
                                               setState(() => _selectedChat = c);
                                             } else {
-                                              Navigator.pushNamed(context, '/chat', arguments: c);
+                                              navigator.pushNamed('/chat', arguments: c);
                                             }
                                           }
                                         } catch (_) {}
@@ -417,21 +421,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                             onTap: () async {
                                               final uid = _peerInfo[chat.id]?['userId'] as String?;
                                               if (uid != null && uid.isNotEmpty) {
+                                                final navigator = Navigator.of(context);
+                                                final isLarge = MediaQuery.of(context).size.width >= 900;
                                                 final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
                                                 if (res != null) {
                                                   try {
+                                                    if (!mounted) return;
                                                     if (res is Chat) {
-                                                      if (MediaQuery.of(context).size.width >= 900) {
+                                                      if (isLarge) {
                                                         setState(() => _selectedChat = res);
                                                       } else {
-                                                        Navigator.pushNamed(context, '/chat', arguments: res);
+                                                        navigator.pushNamed('/chat', arguments: res);
                                                       }
                                                     } else if (res is Map) {
-                                                      final c = Chat.fromMap(Map<String, dynamic>.from(res as Map));
-                                                      if (MediaQuery.of(context).size.width >= 900) {
+                                                      final c = Chat.fromMap(Map<String, dynamic>.from(res));
+                                                      if (isLarge) {
                                                         setState(() => _selectedChat = c);
                                                       } else {
-                                                        Navigator.pushNamed(context, '/chat', arguments: c);
+                                                        navigator.pushNamed('/chat', arguments: c);
                                                       }
                                                     }
                                                   } catch (_) {}
@@ -470,7 +477,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         final selected = (_selectedChat != null && _selectedChat!.id == chat.id);
                         return Card(
                           elevation: selected ? UITokens.cardElevation + 2 : UITokens.cardElevation,
-                          color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.06) : Theme.of(context).colorScheme.surface,
+                          // avoid deprecated withOpacity
+                          color: selected ? Theme.of(context).colorScheme.primary.withAlpha((0.06 * 255).round()) : Theme.of(context).colorScheme.surface,
                   margin: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
                   child: InkWell(
@@ -586,7 +594,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         key: const ValueKey('placeholder'),
                         child: Center(
                           child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                            // avoid deprecated withOpacity
+                            Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withAlpha((0.4 * 255).round())),
                             const SizedBox(height: 12),
                             Text('Выберите чат слева', style: Theme.of(context).textTheme.titleMedium),
                             const SizedBox(height: 12),
@@ -607,13 +616,14 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: () async {
           final navigator = Navigator.of(context);
           final messenger = ScaffoldMessenger.of(context);
+          final isLarge = MediaQuery.of(context).size.width >= 900;
           final res = await navigator.push<dynamic>(MaterialPageRoute(builder: (_) => const SearchContactsScreen()));
           if (res == null) return;
           try {
             if (res is Chat) {
               final chat = res;
               if (!mounted) return;
-              if (MediaQuery.of(context).size.width >= 900) {
+              if (isLarge) {
                 setState(() => _selectedChat = chat);
               } else {
                 navigator.pushNamed('/chat', arguments: chat);
@@ -623,7 +633,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (res is Map) {
               final chat = Chat.fromMap(Map<String, dynamic>.from(res));
               if (!mounted) return;
-              if (MediaQuery.of(context).size.width >= 900) {
+              if (isLarge) {
                 setState(() => _selectedChat = chat);
               } else {
                 navigator.pushNamed('/chat', arguments: chat);
@@ -636,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
               final m = await chatService.getOrCreateDirectChat(peerId);
               final chat = Chat.fromMap(m);
               if (!mounted) return;
-              if (MediaQuery.of(context).size.width >= 900) {
+              if (isLarge) {
                 setState(() => _selectedChat = chat);
               } else {
                 navigator.pushNamed('/chat', arguments: chat);
@@ -652,3 +662,5 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+// _SelectedChatPlaceholder removed — we now render real ChatScreen in two-pane mode.

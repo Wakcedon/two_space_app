@@ -266,18 +266,30 @@ class _ChatScreenState extends State<ChatScreen> {
         final prefs = (u['prefs'] is Map) ? Map<String, dynamic>.from(u['prefs']) : <String, dynamic>{};
         // Derive display name from several possible fields for robustness
         String displayName = '';
-        try {
-          if ((u['name'] as String?)?.trim().isNotEmpty == true) displayName = (u['name'] as String).trim();
-        } catch (_) {}
-        try {
-          if (displayName.isEmpty && (u['displayName'] as String?)?.trim().isNotEmpty == true) displayName = (u['displayName'] as String).trim();
-        } catch (_) {}
-        try {
-          if (displayName.isEmpty && (prefs['nickname'] as String?)?.trim().isNotEmpty == true) displayName = (prefs['nickname'] as String).trim();
-        } catch (_) {}
-        try {
-          if (displayName.isEmpty && (u['email'] as String?)?.isNotEmpty == true) displayName = (u['email'] as String).split('@').first;
-        } catch (_) {}
+          try {
+            final nameValue = u['name'] as String?;
+            if (nameValue?.trim().isNotEmpty == true) displayName = nameValue!.trim();
+          } catch (_) {
+            // ignore
+          }
+          try {
+            final displayNameValue = u['displayName'] as String?;
+            if (displayName.isEmpty && displayNameValue?.trim().isNotEmpty == true) displayName = displayNameValue!.trim();
+          } catch (_) {
+            // ignore
+          }
+          try {
+            final nick = prefs['nickname'] as String?;
+            if (displayName.isEmpty && nick?.trim().isNotEmpty == true) displayName = nick!.trim();
+          } catch (_) {
+            // ignore
+          }
+          try {
+            final email = u['email'] as String?;
+            if (displayName.isEmpty && email?.isNotEmpty == true) displayName = email!.split('@').first;
+          } catch (_) {
+            // ignore
+          }
         if (displayName.isEmpty) displayName = peerId;
 
         // Derive avatar URL from prefs or common fields
@@ -345,20 +357,24 @@ class _ChatScreenState extends State<ChatScreen> {
       });
 
       if (choice == null) return;
+      if (!mounted) return;
 
       if (choice == 'gallery') {
         final picker = ImagePicker();
         final result = await picker.pickMultipleMedia();
         if (result.isEmpty) return;
-        
+
+        if (!mounted) return;
         // Если выбрано несколько файлов, будем отправлять их последовательно
         for (final media in result) {
+          if (!mounted) return;
           final mimeType = media.mimeType ?? '';
           if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) {
             setState(() => _pendingImage = media);
             await _sendMessage(); // Отправляем сразу после выбора каждого файла
           }
         }
+        if (!mounted) return;
         setState(() => _pendingImage = null);
       } else if (choice == 'file') {
         final res = await FilePicker.platform.pickFiles(
@@ -368,9 +384,12 @@ class _ChatScreenState extends State<ChatScreen> {
         if (res == null || res.files.isEmpty) return;
         final f = res.files.first;
         if (f.path == null) return;
+        if (!mounted) return;
         setState(() => _pendingImage = XFile(f.path!));
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('pickImage error: $e');
+    }
   }
 
   Future<void> _enqueuePending(Map<String, dynamic> item) async {
@@ -1084,24 +1103,24 @@ class _ChatScreenState extends State<ChatScreen> {
               child: LinearProgressIndicator(value: (_uploadProgress > 0 && _uploadProgress <= 1) ? _uploadProgress : null),
             ),
           Expanded(
-            child: _loading
-                ? _buildShimmer()
-                : (_messages.isEmpty
-                    ? Center(child: Text('Нет сообщений', style: Theme.of(context).textTheme.bodyLarge))
-                    : RefreshIndicator(
-                        onRefresh: _loadMessages,
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          reverse: true,
-                          itemCount: _messages.length,
-                          itemBuilder: (c, i) => _buildMessageBubble(_messages[i]),
-                          cacheExtent: 800, // Предзагрузка элементов для плавности
-                          padding: EdgeInsets.symmetric(
-                            vertical: 8 * Responsive.scaleHeight(context),
-                            horizontal: 12 * Responsive.scaleWidth(context),
-                          ),
-                        ),
-                      ),
+            child: (() {
+              if (_loading) return _buildShimmer();
+              if (_messages.isEmpty) return Center(child: Text('Нет сообщений', style: Theme.of(context).textTheme.bodyLarge));
+              return RefreshIndicator(
+                onRefresh: _loadMessages,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  reverse: true,
+                  itemCount: _messages.length,
+                  itemBuilder: (c, i) => _buildMessageBubble(_messages[i]),
+                  cacheExtent: 800, // Предзагрузка элементов для плавности
+                  padding: EdgeInsets.symmetric(
+                    vertical: 8 * Responsive.scaleHeight(context),
+                    horizontal: 12 * Responsive.scaleWidth(context),
+                  ),
+                ),
+              );
+            })(),
           ),
           if (_replyToMessage != null)
             Container(
