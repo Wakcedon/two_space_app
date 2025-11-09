@@ -116,9 +116,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-            child: Form(
-              key: _formKey,
-              child: Column(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 320, maxWidth: 520),
+              child: Form(
+                key: _formKey,
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Hero(
@@ -231,14 +233,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: const Text('Уже есть аккаунт?', style: TextStyle(color: Colors.white70)),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _pwHint(String text, bool ok) {

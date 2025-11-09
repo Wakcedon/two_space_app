@@ -14,10 +14,34 @@ import 'services/settings_service.dart';
 import 'services/update_service.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
+import 'dart:ui' as ui show Size, Rect;
+import 'package:window_size/window_size.dart';
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // On Windows desktop, set sensible minimum/maximum window sizes and center the window.
+  if (Platform.isWindows) {
+    try {
+      setWindowTitle('TwoSpace');
+      setWindowMinSize(const ui.Size(360, 600));
+      setWindowMaxSize(const ui.Size(1200, 1200));
+      // Center a reasonable default frame after first frame is available
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final screen = await getCurrentScreen();
+          if (screen != null) {
+            final frame = screen.visibleFrame;
+            final width = 480.0;
+            final height = 800.0;
+            final left = frame.left + (frame.width - width) / 2;
+            final top = frame.top + (frame.height - height) / 2;
+            setWindowFrame(ui.Rect.fromLTWH(left, top, width, height));
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
   try {
     // Guard environment init with a short timeout so startup isn't blocked by misconfigured .env loader
     await Environment.init().timeout(const Duration(seconds: 3));
