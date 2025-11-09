@@ -470,8 +470,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Shimmer.fromColors(
-                  baseColor: Theme.of(context).colorScheme.surfaceVariant,
-                  highlightColor: Color.lerp(Theme.of(context).colorScheme.surfaceVariant, Theme.of(context).colorScheme.onSurface.withOpacity(0.06), 0.6)!,
+                  baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  highlightColor: Color.lerp(Theme.of(context).colorScheme.surfaceContainerHighest, Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round()), 0.6)!,
                   child: Column(children: [
                     Row(children: [
                       Container(width: 112, height: 112, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(56))),

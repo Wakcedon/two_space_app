@@ -21,11 +21,14 @@ import 'package:window_size/window_size.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // On Windows desktop, set sensible minimum/maximum window sizes and center the window.
-  if (Platform.isWindows) {
+      if (Platform.isWindows) {
     try {
       setWindowTitle('TwoSpace');
+      // Allow arbitrary window sizes while enforcing a sensible minimum.
+      // Previously we set a hard max size which prevented users from
+      // resizing freely; remove that to allow any size and make the UI
+      // responsive to available space.
       setWindowMinSize(const ui.Size(360, 600));
-      setWindowMaxSize(const ui.Size(1200, 1200));
       // Center a reasonable default frame after first frame is available
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {

@@ -573,15 +573,15 @@ class _ChatScreenState extends State<ChatScreen> {
       final targetId = (targetChat['\$id'] ?? targetChat['id'] ?? '').toString();
       final payload = {'content': m.content, 'type': m.type, if (m.mediaId != null) 'mediaFileId': m.mediaId, 'forwardedFrom': _meId};
       try {
-        await AppwriteService.sendMessage(targetId, payload);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Переслано')));
+  await AppwriteService.sendMessage(targetId, payload);
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Переслано')));
       } catch (e) {
         // enqueue
-        await _enqueuePending({'chatId': targetId, 'payload': payload, 'createdAt': DateTime.now().toIso8601String()});
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Переслано в очередь')));
+  await _enqueuePending({'chatId': targetId, 'payload': payload, 'createdAt': DateTime.now().toIso8601String()});
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Переслано в очередь')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка пересылки: ${AppwriteService.readableError(e)}')));
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка пересылки: ${AppwriteService.readableError(e)}')));
     }
   }
 
@@ -735,9 +735,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       Navigator.pop(c);
                       try {
                         await AppwriteService.reactMessage(_chatId!, m.id, e);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Реакция отправлена')));
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Реакция отправлена')));
                       } catch (err) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(err)}')));
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(err)}')));
                       }
                     },
                     icon: Text(e, style: const TextStyle(fontSize: 24)),

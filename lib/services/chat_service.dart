@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/utils/encrypted_content_helper.dart';
 
 class Chat {
   final String id;
@@ -436,6 +437,20 @@ class ChatService {
       final list = <Message>[];
       for (final doc in result.documents) {
         final m = Map<String, dynamic>.from(doc.data);
+        // Unpack encrypted content if stored as padded JSON
+        try {
+          if (m.containsKey('content') && m['content'] is String) {
+            m['content'] = EncryptedContentHelper.unpack(m['content'] as String);
+          }
+          // Backwards compatibility: some rows may store text field instead
+          else if ((!m.containsKey('content') || (m['content'] == null || m['content'] == '')) && m.containsKey('text') && m['text'] is String) {
+            // If text was packed previously, unpack it
+            final t = m['text'] as String;
+            if (t.trim().startsWith('{') && t.contains('"v"')) {
+              m['text'] = EncryptedContentHelper.unpack(t);
+            }
+          }
+        } catch (_) {}
         m['\$id'] = doc.$id;
         list.add(Message.fromMap(m));
       }
@@ -504,10 +519,12 @@ class ChatService {
   Future<Map<String, dynamic>> sendMessage(String chatId, String senderId, String content, {String type = 'text', String? mediaFileId}) async {
     try {
       final now = DateTime.now();
+      // Pack content so encrypted column meets minimum length requirement
+  final packed = EncryptedContentHelper.pack(content);
       final data = {
         'chatId': chatId,
         'senderId': senderId,
-        'content': content,
+        'content': packed,
         'type': type,
         if (mediaFileId != null) 'mediaFileId': mediaFileId,
         'deliveredTo': <String>[],
@@ -515,10 +532,11 @@ class ChatService {
         'time': now.toIso8601String(),
       };
       final res = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteMessagesCollectionId, documentId: ID.unique(), data: data);
-      // update chat last message
+      // update chat last message preview (store plain preview unencrypted)
       try {
+        final preview = (content.length > 256) ? content.substring(0, 256) : content;
         await databases.updateDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: chatId, data: {
-          'lastMessage': content,
+          'lastMessage': preview,
           // Ensure lastMessageTime is ISO string (legacy)
           'lastMessageTime': DateTime.now().toIso8601String(),
         });

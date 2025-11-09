@@ -153,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
   final primaryLuma = primaryColor.computeLuminance();
   final textColor = primaryLuma > 0.6 ? Colors.black : Colors.white;
-  final hintColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.65);
+  final hintColor = Theme.of(context).colorScheme.onSurface.withAlpha((0.65 * 255).round());
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0C10),
@@ -245,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     const SizedBox(height: UITokens.space),
                     TextButton(
                       onPressed: () => Navigator.pushNamed(context, '/register'),
-                      child: Text('Создать аккаунт', style: TextStyle(color: textColor.withOpacity(0.85))),
+                      child: Text('Создать аккаунт', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
                     ),
                   ],
                 ),

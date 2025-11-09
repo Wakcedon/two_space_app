@@ -30,8 +30,13 @@ module.exports = async function (req, res) {
     const project = process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID;
     const apiKey = process.env.APPWRITE_API_KEY;
     const databaseId = process.env.APPWRITE_DATABASE_ID;
-    const chatsCol = process.env.APPWRITE_CHATS_COLLECTION_ID;
-    const messagesCol = process.env.APPWRITE_MESSAGES_COLLECTION_ID;
+  const chatsCol = process.env.APPWRITE_CHATS_TABLE_ID || process.env.APPWRITE_CHATS_COLLECTION_ID;
+  const messagesCol = process.env.APPWRITE_MESSAGES_TABLE_ID || process.env.APPWRITE_MESSAGES_COLLECTION_ID;
+  const useTables = !!(process.env.APPWRITE_CHATS_TABLE_ID || process.env.APPWRITE_MESSAGES_TABLE_ID);
+  const segChats = useTables ? 'tables' : 'collections';
+  const docSegChats = useTables ? 'rows' : 'documents';
+  const segMessages = useTables ? 'tables' : 'collections';
+  const docSegMessages = useTables ? 'rows' : 'documents';
 
     if (!endpoint || !project || !apiKey || !databaseId || !chatsCol || !messagesCol) {
       return res.json({ error: 'server misconfigured' }, 500);
@@ -53,7 +58,7 @@ module.exports = async function (req, res) {
     };
 
     // Get source chat document to find owner and peerId
-    const g = await call('GET', `/databases/${databaseId}/collections/${chatsCol}/documents/${encodeURIComponent(sourceChatId)}`);
+  const g = await call('GET', `/databases/${databaseId}/${segChats}/${chatsCol}/${docSegChats}/${encodeURIComponent(sourceChatId)}`);
     if (g.status < 200 || g.status >= 300) return res.json({ error: 'source chat not found', detail: g }, 404);
     const sourceChat = g.body;
     const owner = sourceChat.owner || sourceChat.ownerId || sourceChat['owner'];
@@ -74,14 +79,14 @@ module.exports = async function (req, res) {
     };
 
     // Create message for source chat
-    const createSource = await call('POST', `/databases/${databaseId}/collections/${messagesCol}/documents`, { documentId: 'unique()', data: message });
+  const createSource = await call('POST', `/databases/${databaseId}/${segMessages}/${messagesCol}/${docSegMessages}`, { documentId: 'unique()', data: message });
     if (createSource.status < 200 || createSource.status >= 300) return res.json({ error: 'failed create source message', detail: createSource }, 500);
 
     // Try to find or create the peer's chat (owner = peerId, peerId = owner)
     let peerChatId = null;
     try {
       const candidateId = `dm_${peerId}_${owner}`;
-      const g2 = await call('GET', `/databases/${databaseId}/collections/${chatsCol}/documents/${encodeURIComponent(candidateId)}`);
+  const g2 = await call('GET', `/databases/${databaseId}/${segChats}/${chatsCol}/${docSegChats}/${encodeURIComponent(candidateId)}`);
       if (g2.status >= 200 && g2.status < 300) {
         peerChatId = g2.body['$id'] || candidateId;
       }
@@ -92,7 +97,7 @@ module.exports = async function (req, res) {
       try {
         const candidateId = `dm_${peerId}_${owner}`;
         const data = { members: [peerId, owner], owner: peerId, peerId: owner, name: '', avatarUrl: '', lastMessage: '', lastMessageTime: now, createdAt: now };
-        const c3 = await call('POST', `/databases/${databaseId}/collections/${chatsCol}/documents`, { documentId: candidateId, data });
+  const c3 = await call('POST', `/databases/${databaseId}/${segChats}/${chatsCol}/${docSegChats}`, { documentId: candidateId, data });
         if (c3.status >= 200 && c3.status < 300) peerChatId = candidateId;
       } catch (e) {}
     }
@@ -100,7 +105,7 @@ module.exports = async function (req, res) {
     // If we have peerChatId, create mirrored message for them
     if (peerChatId) {
       const mirror = { ...message, chatId: peerChatId };
-      const cpeer = await call('POST', `/databases/${databaseId}/collections/${messagesCol}/documents`, { documentId: 'unique()', data: mirror });
+  const cpeer = await call('POST', `/databases/${databaseId}/${segMessages}/${messagesCol}/${docSegMessages}`, { documentId: 'unique()', data: mirror });
       // ignore result if it fails; source message already created
     }
 

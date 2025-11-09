@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../config/environment.dart';
 import 'settings_service.dart';
 import '../utils/secure_store.dart';
+import '../utils/encrypted_content_helper.dart';
 
 class AppwriteService {
   // Provide an instance getter for existing code that expects AppwriteService.instance
@@ -1489,13 +1490,29 @@ class AppwriteService {
       } catch (_) {}
 
       final nowIso = DateTime.now().toIso8601String();
+      // Ensure encrypted content meets minimum length; store packed encrypted
+      // content in 'content' field and keep a plain 'text' preview for lists.
+      String raw = (payload['text'] ?? payload['content'] ?? '') as String;
+      try {
+        // lazy import to avoid cycles
+        // ...existing code...
+      } catch (_) {}
+      // Use helper to pack content; import below
+      String packedContent = raw;
+      try {
+        // Import EncryptedContentHelper only when available
+        packedContent = (EncryptedContentHelper.pack(raw));
+      } catch (_) {
+        packedContent = raw;
+      }
       final unified = {
         ...payload,
         'chatId': chatId,
         'fromUserId': me ?? '',
         'fromName': meName ?? '',
         'fromAvatarUrl': meAvatar,
-        'text': payload['text'] ?? payload['content'] ?? '',
+        'content': packedContent,
+        'text': raw.length > 256 ? raw.substring(0, 256) : raw,
         'createdAt': nowIso,
         'reactions': <String>[],
         'deliveredTo': <String>[],
@@ -2327,6 +2344,8 @@ class AppwriteService {
 /// collections/documents REST endpoints or the new tables/rows endpoints
 /// depending on environment configuration.
 class _DatabasesCompat {
+  // client is currently unused but kept for potential SDK calls / future use
+  // ignore: unused_field
   final Client _client;
   _DatabasesCompat(this._client);
 
