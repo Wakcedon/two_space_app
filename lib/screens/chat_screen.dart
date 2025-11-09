@@ -24,6 +24,7 @@ import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/widgets/media_viewer.dart';
 import 'package:two_space_app/widgets/media_player.dart';
 import '../utils/secure_store.dart';
+import 'package:two_space_app/screens/profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   /// peerId — id пользователя, с которым создаётся/открывается чат
@@ -1040,7 +1041,7 @@ class _ChatScreenState extends State<ChatScreen> {
               if (v == 'profile') {
                 if (_peerPrefs != null || widget.peerId != null) {
                   final uid = widget.peerId ?? _peerPrefs?['userId']?.toString();
-                  if (uid != null && uid.isNotEmpty) Navigator.pushNamed(context, '/profile', arguments: uid);
+                  if (uid != null && uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerDisplayName, initialAvatar: _peerAvatarUrl)));
                 }
               } else if (v == 'clear') {
                 if (_chatId != null) {

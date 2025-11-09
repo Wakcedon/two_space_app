@@ -8,6 +8,8 @@ import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
 import 'package:two_space_app/services/realtime_service.dart';
 import 'package:two_space_app/screens/search_contacts_screen.dart';
+import 'package:two_space_app/screens/chat_screen.dart';
+import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:appwrite/appwrite.dart';
 
@@ -84,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Chat> chats = [];
   List<Chat> filteredChats = [];
   Chat? favoritesChat;
+  Chat? _selectedChat;
   // Map chatId -> peer info (displayName, avatarUrl, prefs)
   final Map<String, Map<String, dynamic>> _peerInfo = {};
   bool isLoading = true;
@@ -148,6 +151,14 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       } catch (_) {}
       _filterChats();
+      // Auto-select first chat for large-screen usage if nothing selected yet
+      try {
+        if (_selectedChat == null && (favoritesChat != null || filteredChats.isNotEmpty)) {
+          setState(() {
+            _selectedChat = favoritesChat ?? filteredChats.first;
+          });
+        }
+      } catch (_) {}
     } catch (e) {
       debugPrint('Error loading chats: $e');
       if (mounted) {
@@ -215,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-  backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Row(
@@ -235,196 +246,318 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         // compact header - animated logo + title
       ),
-    body: isLoading
-          ? ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              itemCount: 6,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (c, i) {
-                final base = Theme.of(context).colorScheme.surfaceContainerHighest;
-                final highlight = Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round());
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: UITokens.space),
-                  child: Shimmer.fromColors(
-                    baseColor: base,
-                    highlightColor: Color.lerp(base, highlight, 0.6)!,
+    body: LayoutBuilder(builder: (context, constraints) {
+      final isTwoPane = constraints.maxWidth >= 900;
+
+      Widget chatListWidget;
+      if (isLoading) {
+        chatListWidget = ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          itemCount: 6,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (c, i) {
+            final base = Theme.of(context).colorScheme.surfaceContainerHighest;
+            final highlight = Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round());
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: UITokens.space),
+              child: Shimmer.fromColors(
+                baseColor: base,
+                highlightColor: Color.lerp(base, highlight, 0.6)!,
+                child: Card(
+                  elevation: UITokens.cardElevation,
+                  color: Theme.of(context).colorScheme.surface,
+                  margin: const EdgeInsets.symmetric(vertical: UITokens.spaceSm),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                    child: Row(children: [
+                      Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
+                      const SizedBox(width: UITokens.space),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Container(height: 14, width: double.infinity, color: Colors.white),
+                          const SizedBox(height: UITokens.spaceXS),
+                          Container(height: 12, width: 180, color: Colors.white),
+                        ]),
+                      ),
+                      const SizedBox(width: UITokens.space),
+                      Container(height: 12, width: 36, color: Colors.white),
+                    ]),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      } else {
+        chatListWidget = RefreshIndicator(
+          onRefresh: _loadChats,
+          child: (() {
+            final hasChats = (favoritesChat != null) || filteredChats.isNotEmpty;
+            if (!hasChats) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.18),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
                     child: Card(
-                      elevation: UITokens.cardElevation,
-                      color: Theme.of(context).colorScheme.surface,
-                      margin: const EdgeInsets.symmetric(vertical: UITokens.spaceSm),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 6,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(children: [
+                          Text('Пока нет чатов', style: Theme.of(context).textTheme.headlineSmall),
+                          const SizedBox(height: 12),
+                          Text('Начните диалог с коллегой или друзьями. Быстро найдите контакты и создайте новый чат.', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+                          const SizedBox(height: 16),
+                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            ElevatedButton.icon(
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
+                              icon: const Icon(Icons.search),
+                              label: const Text('Найти контакт'),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                                onPressed: () async {
+                                  // quick create a self-favorites chat
+                                  final navigator = Navigator.of(context);
+                                  final uid = await AppwriteService.getCurrentUserId();
+                                  if (uid != null) {
+                                    try {
+                                      final created = await chatService.getOrCreateFavoritesChat(uid);
+                                      navigator.pushNamed('/chat', arguments: Chat.fromMap(created));
+                                    } catch (_) {}
+                                  }
+                                },
+                              icon: const Icon(Icons.star),
+                              label: const Text('Избранное'),
+                            ),
+                          ])
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+            return ListView.builder(
+              itemCount: (favoritesChat != null ? 1 : 0) + filteredChats.length,
+              itemBuilder: (context, index) {
+                if (favoritesChat != null && index == 0) {
+                    final chat = favoritesChat!;
+                      final selected = (_selectedChat != null && _selectedChat!.id == chat.id);
+                      return Card(
+                        elevation: selected ? UITokens.cardElevation + 2 : UITokens.cardElevation,
+                        color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.06) : Theme.of(context).colorScheme.surface,
+                    margin: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(UITokens.corner),
+                      onTap: () {
+                        if (isTwoPane) {
+                          setState(() => _selectedChat = chat);
+                        } else {
+                          Navigator.pushNamed(context, '/chat', arguments: chat);
+                        }
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                        child: Row(children: [
-                          Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
-                          const SizedBox(width: UITokens.space),
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Container(height: 14, width: double.infinity, color: Colors.white),
-                              const SizedBox(height: UITokens.spaceXS),
-                              Container(height: 12, width: 180, color: Colors.white),
-                            ]),
+                        child: Row(
+                          children: [
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(UITokens.corner),
+                                  onTap: () {
+                                    final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                    if (uid != null && uid.isNotEmpty) {
+                                      Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                    }
+                                  },
+                                  child: UserAvatar(
+                                    avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
+                                    initials: (() {
+                                      final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
+                                      final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                      if (parts.isEmpty) return '?';
+                                      final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                      final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                      final res = (a + b).toUpperCase();
+                                      return res.isNotEmpty ? res : '?';
+                                    })(),
+                                    fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
+                                    radius: 26,
+                                  ),
+                                ),
+                            const SizedBox(width: UITokens.space),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          InkWell(
+                                            onTap: () {
+                                              final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                              if (uid != null && uid.isNotEmpty) {
+                                                Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                              }
+                                            },
+                                            child: Text(chat.name, style: UITokens.emphasized(context)),
+                                          ),
+                                          const SizedBox(height: UITokens.spaceXS),
+                                          Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuButton<int>(
+                                      onSelected: (v) {
+                                        if (v == 1) {
+                                          final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                          if (uid != null && uid.isNotEmpty) {
+                                            Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                          }
+                                        }
+                                      },
+                                      itemBuilder: (_) => [
+                                        const PopupMenuItem(value: 1, child: Text('Профиль')),
+                                      ],
+                                    ),
+                            const SizedBox(width: UITokens.space),
+                            Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                    final chat = filteredChats[favoritesChat != null ? index - 1 : index];
+                        final selected = (_selectedChat != null && _selectedChat!.id == chat.id);
+                        return Card(
+                          elevation: selected ? UITokens.cardElevation + 2 : UITokens.cardElevation,
+                          color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.06) : Theme.of(context).colorScheme.surface,
+                  margin: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(UITokens.corner),
+                    onTap: () {
+                      if (isTwoPane) {
+                        setState(() => _selectedChat = chat);
+                      } else {
+                        Navigator.pushNamed(context, '/chat', arguments: chat);
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(UITokens.corner),
+                            onTap: () {
+                              final uid = _peerInfo[chat.id]?['userId'] as String?;
+                              if (uid != null && uid.isNotEmpty) {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                              }
+                            },
+                            child: UserAvatar(
+                              avatarUrl: chat.avatarUrl,
+                              initials: (() {
+                                final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                if (parts.isEmpty) return '?';
+                                final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                final res = (a + b).toUpperCase();
+                                return res.isNotEmpty ? res : '?';
+                              })(),
+                              fullName: chat.name,
+                              radius: 26,
+                            ),
                           ),
                           const SizedBox(width: UITokens.space),
-                          Container(height: 12, width: 36, color: Colors.white),
-                        ]),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                InkWell(
+                                  onTap: () {
+                                    final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                    if (uid != null && uid.isNotEmpty) {
+                                      Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                    }
+                                  },
+                                  child: Text(_peerInfo[chat.id]?['displayName'] ?? chat.name, style: UITokens.emphasized(context)),
+                                ),
+                                const SizedBox(height: UITokens.spaceXS),
+                                Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+                              ],
+                            ),
+                          ),
+                          PopupMenuButton<int>(
+                            onSelected: (v) {
+                              if (v == 1) {
+                                final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                if (uid != null && uid.isNotEmpty) {
+                                  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                }
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: 1, child: Text('Профиль')),
+                            ],
+                          ),
+                          const SizedBox(width: UITokens.space),
+                          Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
+                        ],
                       ),
                     ),
                   ),
                 );
               },
-            )
-          : RefreshIndicator(
-              onRefresh: _loadChats,
-              child: (() {
-                final hasChats = (favoritesChat != null) || filteredChats.isNotEmpty;
-                if (!hasChats) {
-                  return ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.18),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Card(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 6,
-                          child: Padding(
-                            padding: const EdgeInsets.all(20.0),
-                            child: Column(children: [
-                              Text('Пока нет чатов', style: Theme.of(context).textTheme.headlineSmall),
-                              const SizedBox(height: 12),
-                              Text('Начните диалог с коллегой или друзьями. Быстро найдите контакты и создайте новый чат.', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
-                              const SizedBox(height: 16),
-                              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                ElevatedButton.icon(
-                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
-                                  icon: const Icon(Icons.search),
-                                  label: const Text('Найти контакт'),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton.icon(
-                                    onPressed: () async {
-                                      // quick create a self-favorites chat
-                                      final navigator = Navigator.of(context);
-                                      final uid = await AppwriteService.getCurrentUserId();
-                                      if (uid != null) {
-                                        try {
-                                          final created = await chatService.getOrCreateFavoritesChat(uid);
-                                          navigator.pushNamed('/chat', arguments: Chat.fromMap(created));
-                                        } catch (_) {}
-                                      }
-                                    },
-                                  icon: const Icon(Icons.star),
-                                  label: const Text('Избранное'),
-                                ),
-                              ])
-                            ]),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                return ListView.builder(
-                  itemCount: (favoritesChat != null ? 1 : 0) + filteredChats.length,
-                  itemBuilder: (context, index) {
-                    if (favoritesChat != null && index == 0) {
-                      final chat = favoritesChat!;
-                      return Card(
-                        elevation: UITokens.cardElevation,
-                        color: Theme.of(context).colorScheme.surface,
-                        margin: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(UITokens.corner),
-                          onTap: () => Navigator.pushNamed(context, '/chat', arguments: chat),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                            child: Row(
-                              children: [
-                                UserAvatar(
-                                  avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
-                                  initials: (() {
-                                    final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
-                                    final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isEmpty);
-                                    if (parts.isEmpty) return '?';
-                                    final a = parts[0].isNotEmpty ? parts[0][0] : '';
-                                    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-                                    final res = (a + b).toUpperCase();
-                                    return res.isNotEmpty ? res : '?';
-                                  })(),
-                                  fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
-                                  radius: 26,
-                                ),
-                                const SizedBox(width: UITokens.space),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(chat.name, style: UITokens.emphasized(context)),
-                                      const SizedBox(height: UITokens.spaceXS),
-                                      Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: UITokens.space),
-                                Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    final chat = filteredChats[favoritesChat != null ? index - 1 : index];
-                    return Card(
-                      elevation: UITokens.cardElevation,
-                      color: Theme.of(context).colorScheme.surface,
-                      margin: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(UITokens.corner),
-                        onTap: () {
-                          Navigator.pushNamed(context, '/chat', arguments: chat);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                          child: Row(
-                            children: [
-                              UserAvatar(
-                                avatarUrl: chat.avatarUrl,
-                                initials: (() {
-                                  final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isEmpty);
-                                  if (parts.isEmpty) return '?';
-                                  final a = parts[0].isNotEmpty ? parts[0][0] : '';
-                                  final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-                                  final res = (a + b).toUpperCase();
-                                  return res.isNotEmpty ? res : '?';
-                                })(),
-                                fullName: chat.name,
-                                radius: 26,
-                              ),
-                              const SizedBox(width: UITokens.space),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(_peerInfo[chat.id]?['displayName'] ?? chat.name, style: UITokens.emphasized(context)),
-                                    const SizedBox(height: UITokens.spaceXS),
-                                    Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: UITokens.space),
-                              Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              })(),
+            );
+          })(),
+        );
+      }
+
+          // If not two-pane, just return the chat list widget as body
+          if (!isTwoPane) {
+            return chatListWidget;
+          }
+
+          // Two-pane layout: left — list, right — selected chat or placeholder
+          return Row(children: [
+            Container(
+              width: 360,
+              color: Theme.of(context).colorScheme.surface,
+              child: Column(children: [
+                // small search / header inside left panel
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                  child: Row(children: [
+                    Expanded(child: Text('Чаты', style: Theme.of(context).textTheme.titleMedium)),
+                    IconButton(onPressed: () => Navigator.pushNamed(context, '/settings'), icon: const Icon(Icons.settings)),
+                  ]),
+                ),
+                const Divider(height: 1),
+                Expanded(child: chatListWidget),
+              ]),
             ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: _selectedChat != null
+                  ? ChatScreen(chat: _selectedChat)
+                  : Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                        const SizedBox(height: 12),
+                        Text('Выберите чат слева', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
+                          icon: const Icon(Icons.search),
+                          label: const Text('Найти контакт'),
+                        ),
+                      ]),
+                    ),
+            ),
+          ]);
+        }),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () async {
@@ -437,7 +570,12 @@ class _HomeScreenState extends State<HomeScreen> {
               final m = await chatService.getOrCreateDirectChat(peerId);
               final chat = Chat.fromMap(m);
               if (!mounted) return;
-              navigator.pushNamed('/chat', arguments: chat);
+              // If we're on large screen, select the chat in-place
+              if (MediaQuery.of(context).size.width >= 900) {
+                setState(() => _selectedChat = chat);
+              } else {
+                navigator.pushNamed('/chat', arguments: chat);
+              }
             } catch (e) {
               if (!mounted) return;
               messenger.showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
