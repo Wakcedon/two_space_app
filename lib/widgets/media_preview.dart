@@ -110,7 +110,7 @@ class _MediaPreviewState extends State<MediaPreview> {
       children: [
         AspectRatio(
           aspectRatio: 1,
-          child: Image.network(viewUrl, fit: BoxFit.cover, cacheWidth: 400, cacheHeight: 400, errorBuilder: (c, e, st) => const Center(child: Icon(Icons.broken_image))),
+          child: Image.network(viewUrl, fit: BoxFit.cover, errorBuilder: (c, e, st) => const Center(child: Icon(Icons.broken_image))),
         ),
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Ошибка: $_error', style: const TextStyle(color: Colors.red))),
         Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [

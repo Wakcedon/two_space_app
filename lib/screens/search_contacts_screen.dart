@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:appwrite/appwrite.dart';
-import 'package:two_space_app/widgets/user_avatar.dart';
 import 'dart:async';
 
 import 'package:two_space_app/services/settings_service.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:two_space_app/utils/responsive.dart';
 
 class SearchContactsScreen extends StatefulWidget {
   const SearchContactsScreen({super.key});
@@ -159,8 +159,8 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
     return Scaffold(
       appBar: AppBar(leading: BackButton(), title: const Text('Поиск контактов')),
       body: Padding(
-        padding: const EdgeInsets.all(12.0),
-          child: Column(children: [
+        padding: EdgeInsets.all(12.0 * Responsive.scaleWidth(context)),
+        child: Column(children: [
           // Modern rounded search bar
           Row(children: [
             Expanded(
@@ -209,7 +209,8 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
             child: _loading && _results.isEmpty
                 ? ListView.separated(
                     itemCount: 4,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    cacheExtent: 600,
+                    separatorBuilder: (_, __) => SizedBox(height: 8 * Responsive.scaleHeight(context)),
                     itemBuilder: (c, i) {
                       final base = Theme.of(context).colorScheme.surfaceContainerHighest;
                       final highlight = Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round());
@@ -217,15 +218,15 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                         baseColor: base,
                         highlightColor: Color.lerp(base, highlight, 0.6)!,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
+                          padding: EdgeInsets.symmetric(horizontal: 0, vertical: 6 * Responsive.scaleHeight(context)),
                           child: Row(children: [
-                            Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
-                            const SizedBox(width: 12),
+                            Container(width: 52 * Responsive.scaleWidth(context), height: 52 * Responsive.scaleWidth(context), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context)))),
+                            SizedBox(width: 12 * Responsive.scaleWidth(context)),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Container(height: 14, width: double.infinity, color: Colors.white),
-                                const SizedBox(height: 8),
-                                Container(height: 12, width: 120, color: Colors.white),
+                                Container(height: 14 * Responsive.scaleHeight(context), width: double.infinity, color: Colors.white),
+                                SizedBox(height: 8 * Responsive.scaleHeight(context)),
+                                Container(height: 12 * Responsive.scaleHeight(context), width: 120 * Responsive.scaleWidth(context), color: Colors.white),
                               ]),
                             )
                           ]),
@@ -237,7 +238,8 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                     ? Center(child: Text('Ничего не найдено', style: Theme.of(context).textTheme.bodyMedium))
                     : ListView.separated(
                     itemCount: _results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    cacheExtent: 600,
+                    separatorBuilder: (_, __) => Divider(height: 1 * Responsive.scaleHeight(context)),
                     itemBuilder: (c, i) {
                       final e = _results[i];
                       final nickname = (e['nickname'] as String?)?.toString();
@@ -248,17 +250,16 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                       final subtitle = _formatLastSeen(lastSeen, prefs);
                       return Card(
                         color: Theme.of(context).colorScheme.surface,
-                        margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        margin: EdgeInsets.symmetric(horizontal: 0, vertical: 6 * Responsive.scaleHeight(context)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context))),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context)),
                           onTap: () async {
                             final messenger = ScaffoldMessenger.of(context);
                             try {
                               final peerId = (e['\$id'] ?? e['id'])?.toString() ?? '';
                               if (peerId.isEmpty) throw Exception('invalid peer id');
                               if (!mounted) return;
-                              // Return selected peerId to caller so home can open/create the chat.
                               Navigator.of(context).pop(peerId);
                             } catch (err) {
                               if (!mounted) return;
@@ -266,19 +267,27 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                             }
                           },
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: EdgeInsets.symmetric(horizontal: 12 * Responsive.scaleWidth(context), vertical: 10 * Responsive.scaleHeight(context)),
                             child: Row(children: [
-                              UserAvatar(avatarUrl: avatar, radius: 26),
-                              const SizedBox(width: 12),
+                              avatar != null && avatar.isNotEmpty
+                                ? FadeInImage.assetNetwork(
+                                    placeholder: 'assets/icon/app_icon.png',
+                                    image: avatar,
+                                    width: 40 * Responsive.scaleWidth(context),
+                                    height: 40 * Responsive.scaleWidth(context),
+                                    fit: BoxFit.cover,
+                                  )
+                                : const Icon(Icons.person, size: 32),
+                              SizedBox(width: 12 * Responsive.scaleWidth(context)),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(name.toString(), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                                    const SizedBox(height: 6),
+                                    SizedBox(height: 6 * Responsive.scaleHeight(context)),
                                     Row(children: [
                                       if (nickname != null && nickname.isNotEmpty) Text('@$nickname', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.7 * 255).round()))),
-                                      if (nickname != null && nickname.isNotEmpty) const SizedBox(width: 8),
+                                      if (nickname != null && nickname.isNotEmpty) SizedBox(width: 8 * Responsive.scaleWidth(context)),
                                       Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.7 * 255).round()))),
                                       const Spacer(),
                                       prefs['online'] == true ? Icon(Icons.circle, size: 10, color: Colors.green.shade400) : Icon(Icons.access_time, size: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.6 * 255).round())),

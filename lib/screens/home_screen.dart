@@ -10,6 +10,7 @@ import 'package:two_space_app/services/realtime_service.dart';
 import 'package:two_space_app/screens/search_contacts_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:appwrite/appwrite.dart';
+import 'package:two_space_app/utils/responsive.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -215,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-  backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Row(
@@ -237,38 +238,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     body: isLoading
           ? ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: EdgeInsets.symmetric(vertical: 12 * Responsive.scaleHeight(context)),
               itemCount: 6,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              cacheExtent: 800,
+              separatorBuilder: (_, __) => SizedBox(height: 8 * Responsive.scaleHeight(context)),
               itemBuilder: (c, i) {
                 final base = Theme.of(context).colorScheme.surfaceContainerHighest;
                 final highlight = Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round());
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: UITokens.space),
+                  padding: EdgeInsets.symmetric(horizontal: UITokens.space * Responsive.scaleWidth(context)),
                   child: Shimmer.fromColors(
                     baseColor: base,
                     highlightColor: Color.lerp(base, highlight, 0.6)!,
-                    child: Card(
+                    child: const Card(
                       elevation: UITokens.cardElevation,
-                      color: Theme.of(context).colorScheme.surface,
-                      margin: const EdgeInsets.symmetric(vertical: UITokens.spaceSm),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                        child: Row(children: [
-                          Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
-                          const SizedBox(width: UITokens.space),
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Container(height: 14, width: double.infinity, color: Colors.white),
-                              const SizedBox(height: UITokens.spaceXS),
-                              Container(height: 12, width: 180, color: Colors.white),
-                            ]),
-                          ),
-                          const SizedBox(width: UITokens.space),
-                          Container(height: 12, width: 36, color: Colors.white),
-                        ]),
-                      ),
+                      color: Colors.white,
+                      margin: EdgeInsets.symmetric(vertical: UITokens.spaceSm),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.corner))),
+                      child: SizedBox(height: 60, width: double.infinity),
                     ),
                   ),
                 );
@@ -284,27 +271,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       SizedBox(height: MediaQuery.of(context).size.height * 0.18),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        padding: EdgeInsets.symmetric(horizontal: 24.0 * Responsive.scaleWidth(context)),
                         child: Card(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context))),
                           elevation: 6,
                           child: Padding(
-                            padding: const EdgeInsets.all(20.0),
+                            padding: EdgeInsets.all(20.0 * Responsive.scaleFor(context)),
                             child: Column(children: [
                               Text('Пока нет чатов', style: Theme.of(context).textTheme.headlineSmall),
-                              const SizedBox(height: 12),
+                              SizedBox(height: 12 * Responsive.scaleHeight(context)),
                               Text('Начните диалог с коллегой или друзьями. Быстро найдите контакты и создайте новый чат.', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
-                              const SizedBox(height: 16),
+                              SizedBox(height: 16 * Responsive.scaleHeight(context)),
                               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                                 ElevatedButton.icon(
                                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
                                   icon: const Icon(Icons.search),
                                   label: const Text('Найти контакт'),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12 * Responsive.scaleWidth(context)),
                                 ElevatedButton.icon(
                                     onPressed: () async {
-                                      // quick create a self-favorites chat
                                       final navigator = Navigator.of(context);
                                       final uid = await AppwriteService.getCurrentUserId();
                                       if (uid != null) {
@@ -327,6 +313,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
                 return ListView.builder(
                   itemCount: (favoritesChat != null ? 1 : 0) + filteredChats.length,
+                  cacheExtent: 800,
+                  padding: EdgeInsets.symmetric(
+                    vertical: 8 * Responsive.scaleHeight(context),
+                    horizontal: 12 * Responsive.scaleWidth(context),
+                  ),
                   itemBuilder: (context, index) {
                     if (favoritesChat != null && index == 0) {
                       final chat = favoritesChat!;

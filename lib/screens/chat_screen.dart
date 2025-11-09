@@ -7,6 +7,7 @@ import '../widgets/media_preview.dart';
 import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:two_space_app/utils/responsive.dart';
 import 'package:file_picker/file_picker.dart';
 // share_plus removed in favor of platform channel wrapper (AppwriteService.shareFile)
 // gallery_saver removed due to Android build namespace issues; using platform channel save instead
@@ -922,14 +923,15 @@ class _ChatScreenState extends State<ChatScreen> {
                                     width: 220,
                                     height: 220,
                                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                    child: Image.network(
-                                      AppwriteService.getFileViewUrl(m.mediaId!).toString(),
-                                      width: 220,
-                                      height: 220,
+                                    child: FadeInImage.assetNetwork(
+                                      placeholder: 'assets/icon/app_icon.png',
+                                      image: AppwriteService.getFileViewUrl(m.mediaId!).toString(),
+                                      width: 220 * Responsive.scaleWidth(context),
+                                      height: 220 * Responsive.scaleWidth(context),
                                       fit: BoxFit.cover,
-                                      cacheWidth: 220,
-                                      cacheHeight: 220,
-                                      errorBuilder: (c, e, st) => Center(child: Icon(Icons.broken_image, size: 40, color: Theme.of(context).iconTheme.color)),
+                                      imageErrorBuilder: (c, e, st) => Center(child: Icon(Icons.broken_image, size: 40, color: Theme.of(context).iconTheme.color)),
+                                      fadeInDuration: const Duration(milliseconds: 200),
+                                      fadeOutDuration: const Duration(milliseconds: 100),
                                     ),
                                   ),
                                 ),
@@ -1091,12 +1093,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           controller: _scrollController,
                           reverse: true,
                           itemCount: _messages.length,
-                          cacheExtent: 1200,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemBuilder: (c, i) => RepaintBoundary(child: _buildMessageBubble(_messages[i])),
+                          itemBuilder: (c, i) => _buildMessageBubble(_messages[i]),
+                          cacheExtent: 800, // Предзагрузка элементов для плавности
+                          padding: EdgeInsets.symmetric(
+                            vertical: 8 * Responsive.scaleHeight(context),
+                            horizontal: 12 * Responsive.scaleWidth(context),
+                          ),
                         ),
-                      )
-                  ),
+                      ),
           ),
           if (_replyToMessage != null)
             Container(
