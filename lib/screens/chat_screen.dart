@@ -927,6 +927,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                       width: 220,
                                       height: 220,
                                       fit: BoxFit.cover,
+                                      cacheWidth: 220,
+                                      cacheHeight: 220,
                                       errorBuilder: (c, e, st) => Center(child: Icon(Icons.broken_image, size: 40, color: Theme.of(context).iconTheme.color)),
                                     ),
                                   ),
@@ -1083,7 +1085,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 ? _buildShimmer()
                 : (_messages.isEmpty
                     ? Center(child: Text('Нет сообщений', style: Theme.of(context).textTheme.bodyLarge))
-                    : RefreshIndicator(onRefresh: _loadMessages, child: ListView.builder(controller: _scrollController, reverse: true, itemCount: _messages.length, itemBuilder: (c, i) => _buildMessageBubble(_messages[i])))),
+                    : RefreshIndicator(
+                        onRefresh: _loadMessages,
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          reverse: true,
+                          itemCount: _messages.length,
+                          cacheExtent: 1200,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemBuilder: (c, i) => RepaintBoundary(child: _buildMessageBubble(_messages[i])),
+                        ),
+                      )
+                  ),
           ),
           if (_replyToMessage != null)
             Container(
