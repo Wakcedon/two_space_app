@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+  backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Row(
@@ -241,8 +241,8 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: 6,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (c, i) {
-                final base = Theme.of(context).colorScheme.surfaceVariant;
-                final highlight = Theme.of(context).colorScheme.onSurface.withOpacity(0.06);
+                final base = Theme.of(context).colorScheme.surfaceContainerHighest;
+                final highlight = Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round());
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: UITokens.space),
                   child: Shimmer.fromColors(
@@ -303,16 +303,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(width: 12),
                                 ElevatedButton.icon(
-                                  onPressed: () async {
-                                    // quick create a self-favorites chat
-                                    final uid = await AppwriteService.getCurrentUserId();
-                                    if (uid != null) {
-                                      try {
-                                        final created = await chatService.getOrCreateFavoritesChat(uid);
-                                        Navigator.pushNamed(context, '/chat', arguments: Chat.fromMap(created));
-                                      } catch (_) {}
-                                    }
-                                  },
+                                    onPressed: () async {
+                                      // quick create a self-favorites chat
+                                      final navigator = Navigator.of(context);
+                                      final uid = await AppwriteService.getCurrentUserId();
+                                      if (uid != null) {
+                                        try {
+                                          final created = await chatService.getOrCreateFavoritesChat(uid);
+                                          navigator.pushNamed('/chat', arguments: Chat.fromMap(created));
+                                        } catch (_) {}
+                                      }
+                                    },
                                   icon: const Icon(Icons.star),
                                   label: const Text('Избранное'),
                                 ),
@@ -427,17 +428,19 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () async {
-          final peerId = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const SearchContactsScreen()));
+          final navigator = Navigator.of(context);
+          final messenger = ScaffoldMessenger.of(context);
+          final peerId = await navigator.push<String>(MaterialPageRoute(builder: (_) => const SearchContactsScreen()));
           if (peerId != null && peerId.isNotEmpty) {
             // Create/get chat using ChatService to preserve deterministic per-user chat ids
             try {
               final m = await chatService.getOrCreateDirectChat(peerId);
               final chat = Chat.fromMap(m);
               if (!mounted) return;
-              Navigator.pushNamed(context, '/chat', arguments: chat);
+              navigator.pushNamed('/chat', arguments: chat);
             } catch (e) {
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
+              messenger.showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
             }
           }
         },

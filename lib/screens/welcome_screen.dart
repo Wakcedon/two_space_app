@@ -50,7 +50,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+  backgroundColor: Theme.of(context).colorScheme.surface,
       body: Center(
         child: FadeTransition(
           opacity: _opacity,
@@ -67,7 +67,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
                   Text(widget.name, style: Theme.of(context).textTheme.headlineSmall),
                   const SizedBox(height: 6),
                   if (widget.description != null && widget.description!.isNotEmpty) Text(widget.description!, style: Theme.of(context).textTheme.bodyMedium),
-                  if (widget.phone != null && widget.phone!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6.0), child: Text(widget.phone!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8)))),
+                  if (widget.phone != null && widget.phone!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6.0), child: Text(widget.phone!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.8 * 255).round())))),
                   const SizedBox(height: 8),
                   Text(_g, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.primary)),
                 ]),

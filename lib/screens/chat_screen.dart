@@ -807,7 +807,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageBubble(Message m) {
     final isMe = m.senderId == _meId;
-    final bg = isMe ? Color(SettingsService.themeNotifier.value.primaryColorValue) : Theme.of(context).colorScheme.surfaceVariant;
+  final bg = isMe ? Color(SettingsService.themeNotifier.value.primaryColorValue) : Theme.of(context).colorScheme.surfaceContainerHighest;
     final Color? textColor = isMe ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color;
     final radius = BorderRadius.circular(UITokens.corner);
 
@@ -864,7 +864,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               padding: const EdgeInsets.all(12),
                               width: 220,
                               decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surfaceVariant,
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -906,21 +906,22 @@ class _ChatScreenState extends State<ChatScreen> {
                               else
                                 GestureDetector(
                                   onTap: () async {
+                                    final navigator = Navigator.of(context);
                                     try {
                                       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
                                       final local = await AppwriteService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
-                                      Navigator.of(context).pop();
+                                      navigator.pop();
                                       if (!mounted) return;
-                                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => MediaViewer(localPath: local, title: m.content.isNotEmpty ? m.content : null)));
+                                      navigator.push(MaterialPageRoute(builder: (_) => MediaViewer(localPath: local, title: m.content.isNotEmpty ? m.content : null)));
                                     } catch (e) {
-                                      try { Navigator.of(context).pop(); } catch (_) {}
+                                      try { navigator.pop(); } catch (_) {}
                                       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось открыть медиа: ${AppwriteService.readableError(e)}')));
                                     }
                                   },
                                   child: Container(
                                     width: 220,
                                     height: 220,
-                                    color: Theme.of(context).colorScheme.surfaceVariant,
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                     child: Image.network(
                                       AppwriteService.getFileViewUrl(m.mediaId!).toString(),
                                       width: 220,
@@ -939,7 +940,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(_formatTime(m.time), style: TextStyle(fontSize: 11, color: textColor?.withOpacity(0.8) ?? Colors.black54)),
+                                  Text(_formatTime(m.time), style: TextStyle(fontSize: 11, color: textColor?.withAlpha((0.8 * 255).round()) ?? Colors.black54)),
                                   if (m.readBy.isNotEmpty) const SizedBox(width: 6),
                                   if (m.readBy.isNotEmpty) const Icon(Icons.done_all, size: 14),
                                   if (m.id.startsWith('local_')) const SizedBox(width: 6),
@@ -1024,10 +1025,11 @@ class _ChatScreenState extends State<ChatScreen> {
               ? Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
               : IconButton(
                   onPressed: () async {
+                    final scaffold = ScaffoldMessenger.of(context);
                     setState(() => _syncing = true);
                     try {
                       await _syncFromServer();
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Чат обновлён')));
+                      if (mounted) scaffold.showSnackBar(const SnackBar(content: Text('Чат обновлён')));
                     } catch (_) {}
                     if (mounted) setState(() => _syncing = false);
                   },
@@ -1047,14 +1049,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 }
               } else if (v == 'delete') {
                 if (_chatId != null) {
+                  final scaffold = ScaffoldMessenger.of(context);
+                  final navigator = Navigator.of(context);
                   try {
                     await AppwriteService.deleteChat(_chatId!, false);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Чат скрыт')));
-                      Navigator.of(context).pop();
+                      scaffold.showSnackBar(const SnackBar(content: Text('Чат скрыт')));
+                      navigator.pop();
                     }
                   } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось удалить чат: ${AppwriteService.readableError(e)}')));
+                    if (mounted) scaffold.showSnackBar(SnackBar(content: Text('Не удалось удалить чат: ${AppwriteService.readableError(e)}')));
                   }
                 }
               }
@@ -1084,7 +1088,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_replyToMessage != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Row(
                 children: [
                   Expanded(child: Text('Ответ: ${_replyToMessage!.content}', maxLines: 1, overflow: TextOverflow.ellipsis)),

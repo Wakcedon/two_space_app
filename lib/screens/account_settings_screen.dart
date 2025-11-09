@@ -233,12 +233,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       try {
                         final dyn = croppedData as dynamic;
                         List<int> outBytes = <int>[];
-                        if (dyn is Uint8List) outBytes = dyn.toList();
-                        else if (dyn is List<int>) outBytes = dyn;
-                        else {
+                        if (dyn is Uint8List) {
+                          outBytes = dyn.toList();
+                        } else if (dyn is List<int>) {
+                          outBytes = dyn;
+                        } else {
                           try {
-                            if (dyn.bytes != null) outBytes = List<int>.from(dyn.bytes as Iterable);
-                            else if (dyn.data != null) outBytes = List<int>.from(dyn.data as Iterable);
+                            if (dyn.bytes != null) {
+                              outBytes = List<int>.from(dyn.bytes as Iterable);
+                            } else if (dyn.data != null) {
+                              outBytes = List<int>.from(dyn.data as Iterable);
+                            }
                           } catch (_) {}
                         }
 
@@ -789,10 +794,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         Row(children: [
                           Text('Версия: $_appVersion', style: Theme.of(context).textTheme.bodySmall),
                           const SizedBox(width: 10),
-                          if (_deviceAbi.isNotEmpty) Text('ABI: $_deviceAbi', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
+                          if (_deviceAbi.isNotEmpty) Text('ABI: $_deviceAbi', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round()))),
                         ]),
                         const SizedBox(height: 4),
-                        Text('Для вопросов и багов: vaksedon@gmail.com', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8))),
+                        Text('Для вопросов и багов: vaksedon@gmail.com', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.8 * 255).round()))),
                       ],
                     ),
                   ),

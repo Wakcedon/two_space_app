@@ -113,16 +113,16 @@ class _UpdateScreenState extends State<UpdateScreen> {
                           Container(
                             width: 84,
                             height: 84,
-                            decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.14), borderRadius: BorderRadius.circular(22)),
+                            decoration: BoxDecoration(color: theme.colorScheme.primary.withAlpha((0.14 * 255).round()), borderRadius: BorderRadius.circular(22)),
                             child: Icon(Icons.system_update, size: 44, color: theme.colorScheme.primary),
                           ),
                           const SizedBox(height: 16),
                           Text('Доступно обновление', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                           const SizedBox(height: 6),
-                          Text(widget.info.latestVersion, style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.9))),
+                          Text(widget.info.latestVersion, style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface.withAlpha((0.9 * 255).round()))),
                           if (_selectedAbi.isNotEmpty) ...[
                             const SizedBox(height: 6),
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: Text(_selectedAbi, style: theme.textTheme.bodySmall)),
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: theme.colorScheme.primary.withAlpha((0.12 * 255).round()), borderRadius: BorderRadius.circular(8)), child: Text(_selectedAbi, style: theme.textTheme.bodySmall)),
                           ],
                           const SizedBox(height: 18),
                           Align(alignment: Alignment.centerLeft, child: Text('Что нового', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
@@ -130,7 +130,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
                           Container(
                             height: 160,
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: theme.scaffoldBackgroundColor.withOpacity(0.03), borderRadius: BorderRadius.circular(12)),
+                            decoration: BoxDecoration(color: theme.scaffoldBackgroundColor.withAlpha((0.03 * 255).round()), borderRadius: BorderRadius.circular(12)),
                             child: SingleChildScrollView(child: Text(widget.info.notes.isNotEmpty ? widget.info.notes : 'Описание отсутствует', style: theme.textTheme.bodyMedium)),
                           ),
                           const SizedBox(height: 18),

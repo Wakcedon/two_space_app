@@ -27,8 +27,8 @@ class _MediaPlayerState extends State<MediaPlayer> {
   Future<void> _initializePlayer() async {
     try {
       if (widget.networkUrl != null) {
-        _controller = VideoPlayerController.network(
-          widget.networkUrl!,
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(widget.networkUrl!),
           videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
         );
       } else {
@@ -119,7 +119,7 @@ class _MediaPlayerState extends State<MediaPlayer> {
                                 ? Icons.pause_circle_outline
                                 : Icons.play_circle_outline,
                             size: 64.0,
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withAlpha((0.7 * 255).round()),
                           ),
                         ),
                       ),

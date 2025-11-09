@@ -61,7 +61,10 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
       await action();
       return true;
     } catch (e) {
-      if (mounted) WidgetsBinding.instance.addPostFrameCallback((_) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка аутентификации: $e'))));
+      if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        WidgetsBinding.instance.addPostFrameCallback((_) => messenger.showSnackBar(SnackBar(content: Text('Ошибка аутентификации: $e'))));
+      }
       return false;
     }
   }
@@ -101,6 +104,7 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
       if (text.contains('no authentication available') || text.toLowerCase().contains('not authenticated') || text.toLowerCase().contains('401')) {
         // Prompt user to login since search requires authentication or API key
         if (mounted) {
+          final navigator = Navigator.of(context);
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             final res = await showDialog<bool>(
               context: context,
@@ -113,11 +117,14 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                 ],
               ),
             );
-            if (res == true) Navigator.of(context).pushReplacementNamed('/login');
+            if (res == true) navigator.pushReplacementNamed('/login');
           });
         }
       } else {
-        if (mounted) WidgetsBinding.instance.addPostFrameCallback((_) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка поиска: $e'))));
+        if (mounted) {
+          final messenger = ScaffoldMessenger.of(context);
+          WidgetsBinding.instance.addPostFrameCallback((_) => messenger.showSnackBar(SnackBar(content: Text('Ошибка поиска: $e'))));
+        }
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -164,7 +171,7 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                     decoration: BoxDecoration(
                       color: pale ? const Color(0xFFF6F0FF) : Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Theme.of(context).shadowColor.withOpacity(0.03), blurRadius: 6)],
+                      boxShadow: [BoxShadow(color: Theme.of(context).shadowColor.withAlpha((0.03 * 255).round()), blurRadius: 6)],
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Builder(builder: (ctx) {
@@ -176,7 +183,7 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                           prefixIcon: const Icon(Icons.search),
                           prefixIconColor: iconColor,
                           hintText: 'Никнейм или номер телефона',
-                          hintStyle: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: iconColor.withOpacity(0.6)),
+                          hintStyle: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: iconColor.withAlpha((0.6 * 255).round())),
                           border: InputBorder.none,
                           suffixIcon: _ctrl.text.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: () { setState(() { _ctrl.clear(); _results = []; }); }) : null,
                         ),
@@ -204,8 +211,8 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                     itemCount: 4,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (c, i) {
-                      final base = Theme.of(context).colorScheme.surfaceVariant;
-                      final highlight = Theme.of(context).colorScheme.onSurface.withOpacity(0.06);
+                      final base = Theme.of(context).colorScheme.surfaceContainerHighest;
+                      final highlight = Theme.of(context).colorScheme.onSurface.withAlpha((0.06 * 255).round());
                       return Shimmer.fromColors(
                         baseColor: base,
                         highlightColor: Color.lerp(base, highlight, 0.6)!,
@@ -270,11 +277,11 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                                     Text(name.toString(), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                                     const SizedBox(height: 6),
                                     Row(children: [
-                                      if (nickname != null && nickname.isNotEmpty) Text('@$nickname', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7))),
+                                      if (nickname != null && nickname.isNotEmpty) Text('@$nickname', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.7 * 255).round()))),
                                       if (nickname != null && nickname.isNotEmpty) const SizedBox(width: 8),
-                                      Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7))),
+                                      Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.7 * 255).round()))),
                                       const Spacer(),
-                                      prefs['online'] == true ? Icon(Icons.circle, size: 10, color: Colors.green.shade400) : Icon(Icons.access_time, size: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                                      prefs['online'] == true ? Icon(Icons.circle, size: 10, color: Colors.green.shade400) : Icon(Icons.access_time, size: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.6 * 255).round())),
                                     ]),
                                   ],
                                 ),

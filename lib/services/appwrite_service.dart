@@ -1353,7 +1353,7 @@ class AppwriteService {
       final raw = <dynamic>[];
       if (parsed is Map && parsed.containsKey('users')) {
         raw.addAll(parsed['users'] as List<dynamic>);
-      } else if (parsed is List) raw.addAll(parsed);
+      } else if (parsed is List) { raw.addAll(parsed); }
 
       final List<Map<String, dynamic>> out = [];
       for (final u in raw) {
@@ -1364,7 +1364,7 @@ class AppwriteService {
             final lastSeen = (prefs['hideLastSeen'] == true) ? null : (prefs['lastSeen']?.toString());
             var nickname = (prefs['nickname'] is String && (prefs['nickname'] as String).isNotEmpty) ? prefs['nickname'] as String : (u['nickname'] as String?) ?? '';
             // Normalize nickname to remove leading @ when present
-            if (nickname.startsWith('@')) nickname = nickname.substring(1);
+            if (nickname.startsWith('@')) { nickname = nickname.substring(1); }
             out.add({'id': u['\$id'] ?? u['id'], 'name': u['name'] ?? nickname ?? '', 'prefs': prefs, 'nickname': nickname, 'lastSeen': lastSeen});
           }
         } catch (_) {}
@@ -2361,8 +2361,8 @@ class _DatabasesCompat {
       // normalize: Appwrite collection endpoints return {"data": {...}} while
       // tables may return row body directly or under 'data'. Try both.
       Map<String, dynamic> data = {};
-      if (parsed.containsKey('data') && parsed['data'] is Map) data = Map<String, dynamic>.from(parsed['data']);
-      else data = Map<String, dynamic>.from(parsed);
+  if (parsed.containsKey('data') && parsed['data'] is Map) { data = Map<String, dynamic>.from(parsed['data']); }
+  else { data = Map<String, dynamic>.from(parsed); }
       final id = parsed[r'$id'] ?? parsed['id'] ?? documentId;
       return _DocLike(data, id.toString());
     }
@@ -2385,8 +2385,8 @@ class _DatabasesCompat {
     final headers = await AppwriteService._authHeaders();
     final body = jsonEncode({'data': data});
     http.Response res;
-    if (method == 'PUT') res = await http.put(uri, headers: headers, body: body);
-    else res = await http.post(uri, headers: headers, body: body);
+  if (method == 'PUT') { res = await http.put(uri, headers: headers, body: body); }
+  else { res = await http.post(uri, headers: headers, body: body); }
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final parsed = jsonDecode(res.body) as Map<String, dynamic>;
       final m = (parsed.containsKey('data') && parsed['data'] is Map) ? Map<String, dynamic>.from(parsed['data']) : Map<String, dynamic>.from(parsed);

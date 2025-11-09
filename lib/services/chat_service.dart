@@ -27,16 +27,16 @@ class Chat {
     // Defensive parsing: Appwrite document fields can sometimes be arrays or
     // other types if the collection schema was misconfigured. Coerce common
     // shapes into expected Dart types to avoid runtime type cast errors.
-    dynamic rawId = map['\$id'] ?? map['id'];
-    String id = '';
-    if (rawId is String) id = rawId;
-    else if (rawId != null) id = rawId.toString();
+  dynamic rawId = map['\$id'] ?? map['id'];
+  String id = '';
+  if (rawId is String) { id = rawId; }
+  else if (rawId != null) { id = rawId.toString(); }
 
   dynamic rawName = map['name'] ?? map['title'];
     String name = '';
-    if (rawName is String) name = rawName;
-    else if (rawName is List && rawName.isNotEmpty) name = rawName.first.toString();
-    else if (rawName != null) name = rawName.toString();
+    if (rawName is String) { name = rawName; }
+    else if (rawName is List && rawName.isNotEmpty) { name = rawName.first.toString(); }
+    else if (rawName != null) { name = rawName.toString(); }
 
     List<String> members = <String>[];
     final rawMembers = map['members'];
@@ -47,16 +47,16 @@ class Chat {
       members = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     }
 
-    dynamic rawAvatar = map['avatarUrl'] ?? map['avatar'];
-    String avatarUrl = '';
-    if (rawAvatar is String) avatarUrl = rawAvatar;
-    else if (rawAvatar != null) avatarUrl = rawAvatar.toString();
+  dynamic rawAvatar = map['avatarUrl'] ?? map['avatar'];
+  String avatarUrl = '';
+  if (rawAvatar is String) { avatarUrl = rawAvatar; }
+  else if (rawAvatar != null) { avatarUrl = rawAvatar.toString(); }
 
   dynamic rawLastMessage = map['lastMessage'] ?? map['lastMessagePreview'];
     String lastMessage = '';
-    if (rawLastMessage is String) lastMessage = rawLastMessage;
-    else if (rawLastMessage is List && rawLastMessage.isNotEmpty) lastMessage = rawLastMessage.first.toString();
-    else if (rawLastMessage != null) lastMessage = rawLastMessage.toString();
+    if (rawLastMessage is String) { lastMessage = rawLastMessage; }
+    else if (rawLastMessage is List && rawLastMessage.isNotEmpty) { lastMessage = rawLastMessage.first.toString(); }
+    else if (rawLastMessage != null) { lastMessage = rawLastMessage.toString(); }
 
     DateTime lastMessageTime = DateTime.now();
     try {
@@ -108,50 +108,50 @@ class Message {
 
   factory Message.fromMap(Map<String, dynamic> map) {
     // Defensive parsing similar to Chat.fromMap
-    dynamic rawId = map['\$id'] ?? map['id'];
-    String id = '';
-    if (rawId is String) id = rawId;
-    else if (rawId != null) id = rawId.toString();
+  dynamic rawId = map['\$id'] ?? map['id'];
+  String id = '';
+  if (rawId is String) { id = rawId; }
+  else if (rawId != null) { id = rawId.toString(); }
 
-    String senderId = '';
-    final rawSender = map['senderId'] ?? map['fromUserId'];
-    if (rawSender is String) senderId = rawSender;
-    else if (rawSender is List && rawSender.isNotEmpty) senderId = rawSender.first.toString();
-    else if (rawSender != null) senderId = rawSender.toString();
+  String senderId = '';
+  final rawSender = map['senderId'] ?? map['fromUserId'];
+  if (rawSender is String) { senderId = rawSender; }
+  else if (rawSender is List && rawSender.isNotEmpty) { senderId = rawSender.first.toString(); }
+  else if (rawSender != null) { senderId = rawSender.toString(); }
 
-    String content = '';
-    final rawContent = map['content'] ?? map['text'] ?? map['message'];
-    if (rawContent is String) content = rawContent;
-    else if (rawContent is List && rawContent.isNotEmpty) content = rawContent.first.toString();
-    else if (rawContent != null) content = rawContent.toString();
+  String content = '';
+  final rawContent = map['content'] ?? map['text'] ?? map['message'];
+  if (rawContent is String) { content = rawContent; }
+  else if (rawContent is List && rawContent.isNotEmpty) { content = rawContent.first.toString(); }
+  else if (rawContent != null) { content = rawContent.toString(); }
 
     DateTime time = DateTime.now();
     try {
       final rawTime = map['time'] ?? map['createdAt'] ?? map['createdAt'];
-      if (rawTime is String && rawTime.isNotEmpty) time = DateTime.tryParse(rawTime) ?? time;
-      else if (rawTime is int) time = DateTime.fromMillisecondsSinceEpoch(rawTime);
-      else if (rawTime is List && rawTime.isNotEmpty) time = DateTime.tryParse(rawTime.first.toString()) ?? time;
+      if (rawTime is String && rawTime.isNotEmpty) { time = DateTime.tryParse(rawTime) ?? time; }
+      else if (rawTime is int) { time = DateTime.fromMillisecondsSinceEpoch(rawTime); }
+      else if (rawTime is List && rawTime.isNotEmpty) { time = DateTime.tryParse(rawTime.first.toString()) ?? time; }
     } catch (_) {}
 
-    String type = 'text';
-    final rawType = map['type'];
-    if (rawType is String) type = rawType; else if (rawType != null) type = rawType.toString();
+  String type = 'text';
+  final rawType = map['type'];
+  if (rawType is String) { type = rawType; } else if (rawType != null) { type = rawType.toString(); }
 
-    String? mediaId;
-    final rawMedia = map['mediaFileId'] ?? map['mediaId'];
-    if (rawMedia is String) mediaId = rawMedia; else if (rawMedia != null) mediaId = rawMedia.toString();
+  String? mediaId;
+  final rawMedia = map['mediaFileId'] ?? map['mediaId'];
+  if (rawMedia is String) { mediaId = rawMedia; } else if (rawMedia != null) { mediaId = rawMedia.toString(); }
 
     final deliveredTo = <String>[];
     final rawDelivered = map['deliveredTo'];
-    if (rawDelivered is List) deliveredTo.addAll(rawDelivered.map((e) => e.toString()));
+  if (rawDelivered is List) { deliveredTo.addAll(rawDelivered.map((e) => e.toString())); }
 
     final readBy = <String>[];
     final rawRead = map['readBy'];
-    if (rawRead is List) readBy.addAll(rawRead.map((e) => e.toString()));
+  if (rawRead is List) { readBy.addAll(rawRead.map((e) => e.toString())); }
 
     String? replyTo;
     final rawReply = map['replyTo'] ?? map['replyToMessageId'] ?? map['replyToId'];
-    if (rawReply is String) replyTo = rawReply; else if (rawReply != null) replyTo = rawReply.toString();
+  if (rawReply is String) { replyTo = rawReply; } else if (rawReply != null) { replyTo = rawReply.toString(); }
 
     return Message(
       id: id,
@@ -243,9 +243,9 @@ class ChatService {
             final headers = <String, String>{'x-appwrite-project': Environment.appwriteProjectId, 'content-type': 'application/json'};
             final jwt = await AppwriteService.getJwt();
             final cookie = await AppwriteService.getSessionCookie();
-            if (cookie != null && cookie.isNotEmpty) headers['cookie'] = cookie;
-            else if (jwt != null && jwt.isNotEmpty) headers['x-appwrite-jwt'] = jwt;
-            else if (Environment.appwriteApiKey.isNotEmpty) headers['x-appwrite-key'] = Environment.appwriteApiKey;
+            if (cookie != null && cookie.isNotEmpty) { headers['cookie'] = cookie; }
+            else if (jwt != null && jwt.isNotEmpty) { headers['x-appwrite-jwt'] = jwt; }
+            else if (Environment.appwriteApiKey.isNotEmpty) { headers['x-appwrite-key'] = Environment.appwriteApiKey; }
             final res = await http.get(uri, headers: headers);
             if (res.statusCode >= 200 && res.statusCode < 300) {
                   final parsed = jsonDecode(res.body) as Map<String, dynamic>;
@@ -256,9 +256,9 @@ class ChatService {
                   data['peerId'] = data['peerId'] ?? peerId;
                   // Ensure members is a list of strings
                   final rawMembers = data['members'];
-                  if (rawMembers is List) data['members'] = rawMembers.map((e) => e.toString()).toList();
-                  else if (rawMembers is String && rawMembers.isNotEmpty) data['members'] = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-                  else data['members'] = [me, peerId];
+                  if (rawMembers is List) { data['members'] = rawMembers.map((e) => e.toString()).toList(); }
+                  else if (rawMembers is String && rawMembers.isNotEmpty) { data['members'] = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList(); }
+                  else { data['members'] = [me, peerId]; }
                   return data;
                 }
           } catch (restErr) {
@@ -289,28 +289,28 @@ class ChatService {
         };
         final doc = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: ID.custom(docId), data: data);
   final m = Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
-  if (!m.containsKey('\$id') && (doc as dynamic).$id != null) m['\$id'] = (doc as dynamic).$id;
+  if (!m.containsKey('\$id') && (doc as dynamic).$id != null) { m['\$id'] = (doc as dynamic).$id; }
   // Normalize members
   final rawMembers = m['members'];
-  if (rawMembers is List) m['members'] = rawMembers.map((e) => e.toString()).toList();
-  else if (rawMembers is String && rawMembers.isNotEmpty) m['members'] = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-  else m['members'] = [me, peerId];
+  if (rawMembers is List) { m['members'] = rawMembers.map((e) => e.toString()).toList(); }
+  else if (rawMembers is String && rawMembers.isNotEmpty) { m['members'] = rawMembers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList(); }
+  else { m['members'] = [me, peerId]; }
   return m;
       } catch (e) {
         final text = e.toString().toLowerCase();
         // If the server reports the document already exists, fetch it.
-        if (text.contains('already') || text.contains('409') || text.contains('document already') || text.contains('unique')) {
+          if (text.contains('already') || text.contains('409') || text.contains('document already') || text.contains('unique')) {
           try {
             final doc2 = await databases.getDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: docId);
           final data = Map<String, dynamic>.from((doc2 as dynamic).data as Map<String, dynamic>);
           data['owner'] = data['owner'] ?? me;
           data['peerId'] = data['peerId'] ?? peerId;
-          if (!data.containsKey('\$id') && (doc2 as dynamic).$id != null) data['\$id'] = (doc2 as dynamic).$id;
+          if (!data.containsKey('\$id') && (doc2 as dynamic).$id != null) { data['\$id'] = (doc2 as dynamic).$id; }
           // normalize members
           final rawMembers2 = data['members'];
-          if (rawMembers2 is List) data['members'] = rawMembers2.map((e) => e.toString()).toList();
-          else if (rawMembers2 is String && rawMembers2.isNotEmpty) data['members'] = rawMembers2.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-          else data['members'] = [me, peerId];
+          if (rawMembers2 is List) { data['members'] = rawMembers2.map((e) => e.toString()).toList(); }
+          else if (rawMembers2 is String && rawMembers2.isNotEmpty) { data['members'] = rawMembers2.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList(); }
+          else { data['members'] = [me, peerId]; }
           return data;
           } catch (e2) {
             if (kDebugMode) debugPrint('ChatService.getOrCreateDirectChat fallback getDocument error: $e2');
