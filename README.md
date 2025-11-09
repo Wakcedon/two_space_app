@@ -19,7 +19,8 @@
 ❤️
 
 ## Лицензии
-Проект разрабатывается Synapse Corp.
+Проект разрабатывается Synapse Corp. и защищён авторскими правами.
+
 Elastic License 2.0:
 - [русский язык](https://github.com/Wakcedon/two_space_app/blob/main/LICENSE.ru.md)
 - [english language](https://github.com/Wakcedon/two_space_app/blob/main/LICENSE.md)
