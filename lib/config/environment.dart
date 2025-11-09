@@ -24,7 +24,13 @@ class Environment {
 
   static String get appwriteDeleteFunctionId => _get('APPWRITE_DELETE_FUNCTION_ID');
   static String get appwriteReserveNicknameFunctionId => _get('APPWRITE_RESERVE_NICKNAME_FUNCTION_ID');
-  static String get appwriteUserHandlesCollectionId => _get('APPWRITE_USER_HANDLES_COLLECTION_ID');
+  // Prefer new TABLE env vars if present, fall back to COLLECTION names for
+  // backward compatibility with older .env files.
+  static String get appwriteUserHandlesCollectionId {
+    final t = _get('APPWRITE_USER_HANDLES_TABLE_ID');
+    if (t.isNotEmpty) return t;
+    return _get('APPWRITE_USER_HANDLES_COLLECTION_ID');
+  }
   // Optional server function id that performs safe user search and enforces privacy (recommended)
   static String get appwriteSearchUsersFunctionId => _get('APPWRITE_SEARCH_USERS_FUNCTION_ID');
   static String get appwriteReactFunctionId => _get('APPWRITE_REACT_FUNCTION_ID');
@@ -35,15 +41,48 @@ class Environment {
   // APPWRITE_MIRROR_MESSAGE_FUNCTION_ID in your .env.
   static String get appwriteMirrorMessageFunctionId => _get('APPWRITE_MIRROR_MESSAGE_FUNCTION_ID');
   // Collection id that stores update documents (optional). Document should contain fields: version, notes, apkFileId or apkUrl
-  static String get appwriteUpdatesCollectionId => _get('APPWRITE_UPDATES_COLLECTION_ID');
+  static String get appwriteUpdatesCollectionId {
+    final t = _get('APPWRITE_UPDATES_TABLE_ID');
+    if (t.isNotEmpty) return t;
+    return _get('APPWRITE_UPDATES_COLLECTION_ID');
+  }
   // Collection id that stores chat messages
-  static String get appwriteMessagesCollectionId => _get('APPWRITE_MESSAGES_COLLECTION_ID');
-  static String get appwriteChatsCollectionId => _get('APPWRITE_CHATS_COLLECTION_ID');
+  static String get appwriteMessagesCollectionId {
+    final t = _get('APPWRITE_MESSAGES_TABLE_ID');
+    if (t.isNotEmpty) return t;
+    return _get('APPWRITE_MESSAGES_COLLECTION_ID');
+  }
+
+  static String get appwriteChatsCollectionId {
+    final t = _get('APPWRITE_CHATS_TABLE_ID');
+    if (t.isNotEmpty) return t;
+    return _get('APPWRITE_CHATS_COLLECTION_ID');
+  }
   static String get appwriteProjectName => 'TwoSpace';
 
   // Collection IDs
-  static String get appwriteUsersCollectionId => _get('APPWRITE_USERS_COLLECTION_ID');
-  static String get appwritePresenceCollectionId => _get('APPWRITE_PRESENCE_COLLECTION_ID');
+  static String get appwriteUsersCollectionId {
+    final t = _get('APPWRITE_USERS_TABLE_ID');
+    if (t.isNotEmpty) return t;
+    return _get('APPWRITE_USERS_COLLECTION_ID');
+  }
+
+  static String get appwritePresenceCollectionId {
+    final t = _get('APPWRITE_PRESENCE_TABLE_ID');
+    if (t.isNotEmpty) return t;
+    return _get('APPWRITE_PRESENCE_COLLECTION_ID');
+  }
+
+  // Whether environment prefers tables over collections. We detect this by
+  // presence of any *_TABLE_ID env var. This is used to build realtime topics
+  // and REST endpoints (tables use 'tables'/'rows' while collections use
+  // 'collections'/'documents').
+  static bool get appwriteUseTables {
+    return _get('APPWRITE_MESSAGES_TABLE_ID').isNotEmpty || _get('APPWRITE_CHATS_TABLE_ID').isNotEmpty || _get('APPWRITE_UPDATES_TABLE_ID').isNotEmpty || _get('APPWRITE_USERS_TABLE_ID').isNotEmpty;
+  }
+
+  static String get appwriteCollectionsSegment => appwriteUseTables ? 'tables' : 'collections';
+  static String get appwriteDocumentsSegment => appwriteUseTables ? 'rows' : 'documents';
   
   // URL for remote update check. Provide as UPDATE_CHECK_URL in .env; if empty the app skips update checks.
   static String get updateCheckUrl => _get('UPDATE_CHECK_URL');

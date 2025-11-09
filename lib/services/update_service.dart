@@ -92,7 +92,9 @@ class UpdateService {
       if (AppwriteService.isConfigured && coll.isNotEmpty) {
         final base = AppwriteService.v1Endpoint();
         // Fetch up to 20 recent documents (newest first)
-        final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/$coll/documents?limit=20&orderField=%24createdAt&orderType=DESC');
+  final seg = Environment.appwriteCollectionsSegment;
+  final docSeg = Environment.appwriteDocumentsSegment;
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/$seg/$coll/$docSeg?limit=20&orderField=%24createdAt&orderType=DESC');
         final headers = <String, String>{'x-appwrite-project': Environment.appwriteProjectId};
         if (Environment.appwriteApiKey.isNotEmpty) headers['x-appwrite-key'] = Environment.appwriteApiKey;
         final cookie = await AppwriteService.getSessionCookie();

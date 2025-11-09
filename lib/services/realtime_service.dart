@@ -19,7 +19,7 @@ class RealtimeService {
   /// Returns a subscription object (SDK-specific) — typed as dynamic to avoid
   /// compile-time dependency on a particular SDK version.
   dynamic subscribeMessages(String collectionId) {
-    final sub = _realtime.subscribe(['databases.${Environment.appwriteDatabaseId}.collections.$collectionId.documents']);
+    final sub = _realtime.subscribe(['databases.${Environment.appwriteDatabaseId}.${Environment.appwriteCollectionsSegment}.$collectionId.${Environment.appwriteDocumentsSegment}']);
     sub.stream.listen((event) {
       try {
         final payload = event.payload as dynamic;
@@ -43,7 +43,7 @@ class RealtimeService {
 
   /// Subscribe to chats collection updates
   dynamic subscribeChats(String collectionId) {
-    final sub = _realtime.subscribe(['databases.${Environment.appwriteDatabaseId}.collections.$collectionId.documents']);
+    final sub = _realtime.subscribe(['databases.${Environment.appwriteDatabaseId}.${Environment.appwriteCollectionsSegment}.$collectionId.${Environment.appwriteDocumentsSegment}']);
     sub.stream.listen((event) {
       try {
         final payload = event.payload as dynamic;

@@ -167,15 +167,15 @@ class Message {
 }
 
 class ChatService {
-  final Databases databases;
+  final dynamic databases;
 
   /// ChatService prefers to reuse the centralized Appwrite SDK client from
   /// `AppwriteService.database` to ensure the same authentication (JWT/API key)
   /// and endpoint configuration are used across the app. A caller may still
   /// pass an explicit `client` for testing or advanced use-cases.
   ChatService({Client? client}) : databases = (client != null)
-      ? Databases(client)
-      : (AppwriteService.database ?? Databases(Client()..setEndpoint(AppwriteService.v1Endpoint())..setProject(Environment.appwriteProjectId)));
+    ? Databases(client)
+    : (AppwriteService.database ?? Databases(Client()..setEndpoint(AppwriteService.v1Endpoint())..setProject(Environment.appwriteProjectId)));
 
   /// Find or create a direct chat between current user and [peerId].
   /// This lists chats in the collection and looks for one with both members.
@@ -238,7 +238,7 @@ class ChatService {
           // Attempt REST fallback to fetch raw JSON (avoids SDK type-cast issues)
           try {
             final base = AppwriteService.v1Endpoint();
-            final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteChatsCollectionId}/documents/$docId');
+            final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteChatsCollectionId}/${Environment.appwriteDocumentsSegment}/$docId');
             final headers = <String, String>{'x-appwrite-project': Environment.appwriteProjectId, 'content-type': 'application/json'};
             final jwt = await AppwriteService.getJwt();
             final cookie = await AppwriteService.getSessionCookie();
@@ -316,7 +316,7 @@ class ChatService {
             // Try REST fallback to fetch the document raw JSON to avoid SDK type-cast issues
             try {
               final base = AppwriteService.v1Endpoint();
-              final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteChatsCollectionId}/documents/$docId');
+              final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteChatsCollectionId}/${Environment.appwriteDocumentsSegment}/$docId');
               final headers = <String, String>{'x-appwrite-project': Environment.appwriteProjectId, 'content-type': 'application/json'};
               final jwt = await AppwriteService.getJwt();
               final cookie = await AppwriteService.getSessionCookie();
@@ -430,9 +430,8 @@ class ChatService {
       final result = await databases.listDocuments(
         databaseId: Environment.appwriteDatabaseId,
         collectionId: Environment.appwriteMessagesCollectionId,
-        // Query for messages in this chat. If the server supports optimized
-        // queries for large chats consider migrating to Tables API later.
-        queries: [Query.equal('chatId', chatId)],
+        // Query for messages in this chat (REST-compatible filter string)
+        queries: ['chatId==$chatId'],
       );
       final list = <Message>[];
       for (final doc in result.documents) {

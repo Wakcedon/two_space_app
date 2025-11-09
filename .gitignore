@@ -56,3 +56,4 @@ app.*.map.json
 # Something
 pubspec.yaml
 pubspec.lock
+TABLES_MIGRATION.md

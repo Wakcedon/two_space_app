@@ -20,7 +20,13 @@ class AppwriteService {
   // issues (white screen) when Environment values were empty.
   static Client? _client;
   static Account? _account;
-  static Databases? _database;
+  // We keep a compatibility wrapper here. New Appwrite versions may replace
+  // collections with tables; this file exposes a lightweight compatibility
+  // wrapper that implements the common Databases methods used across the app
+  // (getDocument, createDocument, listDocuments, updateDocument) but routes
+  // them to the appropriate REST endpoint (tables/rows or collections/documents)
+  // depending on environment settings.
+  static dynamic _database;
   static Storage? _storage;
 
   static bool get isConfigured => Environment.appwritePublicEndpoint.isNotEmpty && Environment.appwriteProjectId.isNotEmpty;
@@ -36,7 +42,10 @@ class AppwriteService {
       ..setEndpoint(ep)
       ..setProject(Environment.appwriteProjectId);
     _account = Account(_client!);
-    _database = Databases(_client!);
+    // Use compatibility wrapper which routes SDK-like calls to REST endpoints
+    // that support either collections/documents or tables/rows depending on
+    // environment settings.
+    _database = _DatabasesCompat(_client!);
   }
 
   static Account? get account {
@@ -59,7 +68,7 @@ class AppwriteService {
   // Public wrapper for other files to get the v1 endpoint
   static String v1Endpoint() => _v1Endpoint();
 
-  static Databases? get database {
+  static dynamic get database {
     if (!isConfigured) return null;
     _ensureInitialized();
     return _database;
@@ -1247,7 +1256,7 @@ class AppwriteService {
     return await _retryOnAuth(() async {
       final base = _v1Endpoint();
       if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
-      final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents?filters=chatId==$chatId&limit=$limit');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}?filters=${Uri.encodeComponent('chatId==$chatId')}&limit=$limit');
       final headers = await _authHeaders();
       var res = await http.get(uri, headers: headers);
       // If unauthorized and original headers used a JWT, retry with API key if configured
@@ -1542,7 +1551,7 @@ class AppwriteService {
       } catch (_) {}
 
       // REST fallback: include 'data' wrapper and documentId
-      final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}');
       final headers = await _authHeaders();
       final body = {'documentId': 'unique()', 'data': unified};
       var res = await http.post(uri, headers: headers, body: jsonEncode(body));
@@ -1573,7 +1582,7 @@ class AppwriteService {
       if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
       final jwt = await _getJwt();
       if (jwt == null || jwt.isEmpty) throw Exception('Not authenticated');
-      final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents/$messageId');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}/$messageId');
       final headers = await _authHeaders();
       var res = await http.delete(uri, headers: headers);
       if (res.statusCode == 401 && headers.containsKey('x-appwrite-jwt') && Environment.appwriteApiKey.isNotEmpty) {
@@ -1600,7 +1609,7 @@ class AppwriteService {
       if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
       final jwt = await _getJwt();
       if (jwt == null || jwt.isEmpty) throw Exception('Not authenticated');
-      final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents/$messageId');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}/$messageId');
       final headers = await _authHeaders();
       // If a server-side react function is configured prefer it (atomic toggle)
       if (Environment.appwriteReactFunctionId.isNotEmpty) {
@@ -1637,7 +1646,7 @@ class AppwriteService {
     if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
     final jwt = await _getJwt();
     if (jwt == null || jwt.isEmpty) throw Exception('Not authenticated');
-    final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents/$messageId');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}/$messageId');
     final headers = await _authHeaders();
     var getRes = await http.get(uri, headers: await _authHeaders());
     if (getRes.statusCode == 401 && Environment.appwriteApiKey.isNotEmpty) {
@@ -1663,7 +1672,7 @@ class AppwriteService {
     if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
     final jwt = await _getJwt();
     if (jwt == null || jwt.isEmpty) throw Exception('Not authenticated');
-    final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents/$messageId');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}/$messageId');
     final headers = await _authHeaders();
     var getRes = await http.get(uri, headers: await _authHeaders());
     if (getRes.statusCode == 401 && Environment.appwriteApiKey.isNotEmpty) {
@@ -1700,7 +1709,7 @@ class AppwriteService {
       }
 
       // Fallback: attempt to delete documents directly (may require API key/admin permissions)
-      final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}');
       final headers = await _authHeaders();
       // Fetch matching documents
       var res = await http.get(Uri.parse('$uri?filters=chatId==$chatId'), headers: headers);
@@ -1714,7 +1723,7 @@ class AppwriteService {
         for (final d in docs) {
           final id = (d is Map && (d['\$id'] != null)) ? d['\$id'] : (d is Map && d['id'] != null ? d['id'] : null);
           if (id != null) {
-            await http.delete(Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteMessagesCollectionId}/documents/$id'), headers: headers);
+            await http.delete(Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteMessagesCollectionId}/${Environment.appwriteDocumentsSegment}/$id'), headers: headers);
           }
         }
         return;
@@ -1743,7 +1752,7 @@ class AppwriteService {
 
     final headers = await _authHeaders();
     // Try to find existing chat where members array contains both ids. Appwrite Databases filters are limited; simplest approach is to fetch chats for current user and find matching.
-    final queryUri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteChatsCollectionId}/documents?filters=members CONTAINS $me&limit=50');
+  final queryUri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteChatsCollectionId}/${Environment.appwriteDocumentsSegment}?filters=${Uri.encodeComponent('members CONTAINS $me')}&limit=50');
     var qRes = await http.get(queryUri, headers: headers);
     if (qRes.statusCode == 401 && headers.containsKey('x-appwrite-jwt') && Environment.appwriteApiKey.isNotEmpty) {
   qRes = await http.get(queryUri, headers: await _apiKeyHeaders());
@@ -1861,7 +1870,7 @@ class AppwriteService {
     } catch (_) {}
 
     // Fallback to REST: wrap data under 'data' field and include a generated documentId
-    final createUri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteChatsCollectionId}/documents');
+  final createUri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteChatsCollectionId}/${Environment.appwriteDocumentsSegment}');
     final now2 = DateTime.now();
     final body = {
       'documentId': 'unique()',
@@ -2025,7 +2034,7 @@ class AppwriteService {
       }
 
       // REST fallback: attempt to create document with documentId
-  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/collections/${Environment.appwriteUserHandlesCollectionId}/documents');
+  final uri = Uri.parse('$base/databases/${Environment.appwriteDatabaseId}/${Environment.appwriteCollectionsSegment}/${Environment.appwriteUserHandlesCollectionId}/${Environment.appwriteDocumentsSegment}');
   final headers = await _authHeaders();
   final body = {'documentId': nickname, 'data': {'owner': me, 'createdAt': DateTime.now().toIso8601String()}};
   final res = await http.post(uri, headers: headers, body: jsonEncode(body));
@@ -2310,4 +2319,136 @@ class AppwriteService {
       return 'Unknown error occurred';
     }
   }
+}
+
+/// Compatibility wrapper that provides a small subset of the Databases SDK
+/// interface used across the app (getDocument, createDocument, listDocuments,
+/// updateDocument, deleteDocument) while routing calls to either the old
+/// collections/documents REST endpoints or the new tables/rows endpoints
+/// depending on environment configuration.
+class _DatabasesCompat {
+  final Client _client;
+  _DatabasesCompat(this._client);
+
+  Future<_DocLike> getDocument({required String databaseId, required String collectionId, required String documentId}) async {
+    final base = AppwriteService.v1Endpoint();
+    final seg = Environment.appwriteCollectionsSegment;
+    final docSeg = Environment.appwriteDocumentsSegment;
+    final uri = Uri.parse('$base/databases/$databaseId/$seg/$collectionId/$docSeg/$documentId');
+    final headers = await AppwriteService._authHeaders();
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+      // normalize: Appwrite collection endpoints return {"data": {...}} while
+      // tables may return row body directly or under 'data'. Try both.
+      Map<String, dynamic> data = {};
+      if (parsed.containsKey('data') && parsed['data'] is Map) data = Map<String, dynamic>.from(parsed['data']);
+      else data = Map<String, dynamic>.from(parsed);
+      final id = parsed[r'$id'] ?? parsed['id'] ?? documentId;
+      return _DocLike(data, id.toString());
+    }
+    throw Exception('getDocument failed: ${res.statusCode} ${res.body}');
+  }
+
+  Future<_DocLike> createDocument({required String databaseId, required String collectionId, String? documentId, required Map<String, dynamic> data}) async {
+    final base = AppwriteService.v1Endpoint();
+    final seg = Environment.appwriteCollectionsSegment;
+    final docSeg = Environment.appwriteDocumentsSegment;
+    Uri uri;
+    String method = 'POST';
+    if (documentId != null && documentId.isNotEmpty) {
+      // Try to create with custom id by PUT to the specific row/document id
+      uri = Uri.parse('$base/databases/$databaseId/$seg/$collectionId/$docSeg/$documentId');
+      method = 'PUT';
+    } else {
+      uri = Uri.parse('$base/databases/$databaseId/$seg/$collectionId/$docSeg');
+    }
+    final headers = await AppwriteService._authHeaders();
+    final body = jsonEncode({'data': data});
+    http.Response res;
+    if (method == 'PUT') res = await http.put(uri, headers: headers, body: body);
+    else res = await http.post(uri, headers: headers, body: body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+      final m = (parsed.containsKey('data') && parsed['data'] is Map) ? Map<String, dynamic>.from(parsed['data']) : Map<String, dynamic>.from(parsed);
+      final id = parsed[r'$id'] ?? parsed['id'] ?? documentId ?? m[r'$id'] ?? '';
+      return _DocLike(m, id.toString());
+    }
+    throw Exception('createDocument failed: ${res.statusCode} ${res.body}');
+  }
+
+  Future<_ListResult> listDocuments({required String databaseId, required String collectionId, List? queries, int? limit}) async {
+    final base = AppwriteService.v1Endpoint();
+    final seg = Environment.appwriteCollectionsSegment;
+    final docSeg = Environment.appwriteDocumentsSegment;
+    final params = <String>[];
+    if (limit != null) params.add('limit=$limit');
+    if (queries != null) {
+      for (final q in queries) {
+        if (q is String) params.add('filters=${Uri.encodeComponent(q)}');
+        else if (q is Map) {
+          // support passing simple maps like {'field':'value'} -> field==value
+          q.forEach((k, v) {
+            params.add('filters=${Uri.encodeComponent('$k==$v')}');
+          });
+        }
+      }
+    }
+    final uriStr = '$base/databases/$databaseId/$seg/$collectionId/$docSeg' + (params.isNotEmpty ? '?${params.join('&')}' : '');
+    final uri = Uri.parse(uriStr);
+    final headers = await AppwriteService._authHeaders();
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+      final List docsRaw = parsed['documents'] ?? parsed['rows'] ?? parsed['data'] ?? [];
+      final docs = docsRaw.map((d) {
+        if (d is Map<String, dynamic>) {
+          final id = d[r'$id'] ?? d['id'] ?? '';
+          final data = (d.containsKey('data') && d['data'] is Map) ? Map<String, dynamic>.from(d['data']) : Map<String, dynamic>.from(d);
+          return _DocLike(data, id.toString());
+        }
+        return null;
+      }).where((e) => e != null).cast<_DocLike>().toList();
+      return _ListResult(docs);
+    }
+    throw Exception('listDocuments failed: ${res.statusCode} ${res.body}');
+  }
+
+  Future<_DocLike> updateDocument({required String databaseId, required String collectionId, required String documentId, required Map<String, dynamic> data}) async {
+    final base = AppwriteService.v1Endpoint();
+    final seg = Environment.appwriteCollectionsSegment;
+    final docSeg = Environment.appwriteDocumentsSegment;
+    final uri = Uri.parse('$base/databases/$databaseId/$seg/$collectionId/$docSeg/$documentId');
+    final headers = await AppwriteService._authHeaders();
+    final res = await http.patch(uri, headers: headers, body: jsonEncode({'data': data}));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+      final m = (parsed.containsKey('data') && parsed['data'] is Map) ? Map<String, dynamic>.from(parsed['data']) : Map<String, dynamic>.from(parsed);
+      final id = parsed[r'$id'] ?? parsed['id'] ?? documentId;
+      return _DocLike(m, id.toString());
+    }
+    throw Exception('updateDocument failed: ${res.statusCode} ${res.body}');
+  }
+
+  Future<void> deleteDocument({required String databaseId, required String collectionId, required String documentId}) async {
+    final base = AppwriteService.v1Endpoint();
+    final seg = Environment.appwriteCollectionsSegment;
+    final docSeg = Environment.appwriteDocumentsSegment;
+    final uri = Uri.parse('$base/databases/$databaseId/$seg/$collectionId/$docSeg/$documentId');
+    final headers = await AppwriteService._authHeaders();
+    final res = await http.delete(uri, headers: headers);
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    throw Exception('deleteDocument failed: ${res.statusCode} ${res.body}');
+  }
+}
+
+class _DocLike {
+  final Map<String, dynamic> data;
+  final String $id;
+  _DocLike(this.data, this.$id);
+}
+
+class _ListResult {
+  final List<_DocLike> documents;
+  _ListResult(this.documents);
 }
