@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/appwrite_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/app_logo.dart';
+import 'package:two_space_app/utils/responsive.dart';
 import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -115,9 +116,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+            padding: EdgeInsets.symmetric(horizontal: 24 * Responsive.scaleWidth(context), vertical: 36 * Responsive.scaleHeight(context)),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 320, maxWidth: 520),
+              constraints: BoxConstraints(
+                minWidth: 320 * Responsive.scaleWidth(context),
+                maxWidth: 520 * Responsive.scaleWidth(context),
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -126,7 +130,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Hero(
                     tag: 'logo',
                     flightShuttleBuilder: (flightContext, animation, flightDirection, fromHeroContext, toHeroContext) {
-                      // Use a transparent Material to render the destination widget during flight
                       return Material(
                         color: Colors.transparent,
                         child: toHeroContext.widget,
@@ -134,17 +137,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                     child: const AppLogo(large: true),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20 * Responsive.scaleHeight(context)),
                   Text('Регистрация', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20 * Responsive.scaleHeight(context)),
                   Column(
                     children: [
                       if (_errorMessage != null) Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
+                        padding: EdgeInsets.only(bottom: 12.0 * Responsive.scaleHeight(context)),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(8)),
+                          padding: EdgeInsets.all(12 * Responsive.scaleFor(context)),
+                          decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(8 * Responsive.scaleWidth(context))),
                           child: Text(_errorMessage!, style: const TextStyle(color: Colors.white)),
                         ),
                       ),
@@ -159,8 +162,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           filled: true,
                           fillColor: themeFill,
                           prefixIcon: const Icon(Icons.person, color: Colors.white54),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -176,8 +179,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           filled: true,
                           fillColor: themeFill,
                           prefixIcon: const Icon(Icons.email, color: Colors.white54),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -197,14 +200,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Colors.white54),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
                       ),
                       const SizedBox(height: 18),
                       // Password strength hints
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        padding: EdgeInsets.symmetric(vertical: 6.0 * Responsive.scaleHeight(context)),
                         child: Row(children: [
                           _pwHint('8+ символов', _hasLength),
                           const SizedBox(width: 8),
@@ -220,8 +223,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryColor,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            padding: EdgeInsets.symmetric(vertical: 14 * Responsive.scaleHeight(context)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context))),
                           ),
                           onPressed: _loading ? null : _register,
                           child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Зарегистрироваться', style: TextStyle(color: Theme.of(context).primaryColor.computeLuminance() > 0.6 ? Colors.black : Colors.white)),

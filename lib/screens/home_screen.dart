@@ -12,6 +12,7 @@ import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:appwrite/appwrite.dart';
+import 'package:two_space_app/utils/responsive.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
