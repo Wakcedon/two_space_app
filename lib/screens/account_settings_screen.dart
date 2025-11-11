@@ -496,10 +496,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     // simplified relevant parts: avatar, fields, save button, logout
-    return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
-      body: _loading
-          ? SingleChildScrollView(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Настройки'),
+          bottom: const TabBar(tabs: [Tab(text: 'Профиль'), Tab(text: 'Общие')]),
+        ),
+        body: _loading
+            ? SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Shimmer.fromColors(
@@ -523,284 +528,356 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 ),
               ]),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Material(
-                    elevation: UITokens.cardElevation,
-                    color: Theme.of(context).colorScheme.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(UITokens.space),
-                      child: Column(
-                        children: [
-                          Stack(
-                            alignment: Alignment.bottomRight,
+            : TabBarView(children: [
+                // Profile tab (avatar, nickname, description, save)
+                SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Material(
+                        elevation: UITokens.cardElevation,
+                        color: Theme.of(context).colorScheme.surface,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(UITokens.space),
+                          child: Column(
                             children: [
-                              UserAvatar(
-                                avatarUrl: _avatarUrl,
-                                // also provide file id so UserAvatar can try authenticated fetch
-                                avatarFileId: _avatarFileId,
-                                initials: (() {
-                                  final first = _firstNameController.text.trim();
-                                  final last = _lastNameController.text.trim();
-                                  final a = (first.isNotEmpty ? first[0] : '');
-                                  final b = (last.isNotEmpty ? last[0] : '');
-                                  final res = (a + b).toUpperCase();
-                                  return res.isNotEmpty ? res : null;
-                                })(),
-                                fullName: '${_firstNameController.text} ${_lastNameController.text}'.trim(),
-                                radius: 56,
-                              ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Material(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  shape: const CircleBorder(),
-                                  child: InkWell(
-                                    onTap: _pickAndUploadAvatar,
-                                    customBorder: const CircleBorder(),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(8.0),
-                                      child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                              Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  UserAvatar(
+                                    avatarUrl: _avatarUrl,
+                                    avatarFileId: _avatarFileId,
+                                    initials: (() {
+                                      final first = _firstNameController.text.trim();
+                                      final last = _lastNameController.text.trim();
+                                      final a = (first.isNotEmpty ? first[0] : '');
+                                      final b = (last.isNotEmpty ? last[0] : '');
+                                      final res = (a + b).toUpperCase();
+                                      return res.isNotEmpty ? res : null;
+                                    })(),
+                                    fullName: '${_firstNameController.text} ${_lastNameController.text}'.trim(),
+                                    radius: 56,
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Material(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      shape: const CircleBorder(),
+                                      child: InkWell(
+                                        onTap: _pickAndUploadAvatar,
+                                        customBorder: const CircleBorder(),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                                        ),
+                                      ),
                                     ),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (_nickChecking)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                                  child: Text('Проверка никнейма...', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round()))),
+                                ),
+                              if (!_nickChecking && _nickStatus == 'ok')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                                  child: Text('Никнейм свободен', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.green)),
+                                ),
+                              if (!_nickChecking && _nickStatus == 'taken')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                                  child: Text('Никнейм уже занят', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.redAccent)),
+                                ),
+                              if (!_nickChecking && _nickStatus == 'error')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6.0, left: 2.0),
+                                  child: Text('Ошибка проверки никнейма', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onError)),
+                                ),
+                              const SizedBox(height: 12),
+                              if (_avatarUrl != null || _avatarBytes != null)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: () async {
+                                      final messenger = ScaffoldMessenger.of(context);
+                                      final ok = await showDialog<bool>(
+                                        context: context,
+                                        builder: (c) => AlertDialog(
+                                          title: const Text('Удалить аватар?'),
+                                          content: const Text('Вы уверены, что хотите удалить текущую аватарку?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Отмена')),
+                                            TextButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Удалить')),
+                                          ],
+                                        ),
+                                      );
+                                      if (ok != true) return;
+                                      if (!mounted) return;
+                                      setState(() => _loading = true);
+                                      try {
+                                        await AppwriteService.deleteAvatarForCurrentUser();
+                                        try {
+                                          await SettingsService.clearCachedProfile();
+                                        } catch (_) {}
+                                        await _loadAccount();
+                                        if (!mounted) return;
+                                        messenger.showSnackBar(const SnackBar(content: Text('Аватар удалён')));
+                                      } catch (e) {
+                                        if (!mounted) return;
+                                        messenger.showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: $e')));
+                                      } finally {
+                                        if (mounted) setState(() => _loading = false);
+                                      }
+                                    },
+                                    icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                                    label: const Text('Удалить аватар', style: TextStyle(color: Colors.redAccent)),
+                                  ),
+                                ),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: SettingsService.paleVioletNotifier,
+                                builder: (c, pale, _) {
+                                  final base = Theme.of(context).copyWith(
+                                    inputDecorationTheme: InputDecorationTheme(
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      filled: pale,
+                                      fillColor: pale ? const Color(0xFFF6F0FF) : null,
+                                    ),
+                                  );
+                                  return Theme(
+                                    data: base,
+                                    child: Row(
+                                      children: [
+                                        Expanded(child: TextField(controller: _firstNameController, maxLength: 30, decoration: const InputDecoration(labelText: 'Имя'))),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: TextField(controller: _lastNameController, maxLength: 30, decoration: const InputDecoration(labelText: 'Фамилия'))),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: SettingsService.paleVioletNotifier,
+                                builder: (c2, pale2, _) {
+                                  final base = Theme.of(context).copyWith(
+                                    inputDecorationTheme: InputDecorationTheme(
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      filled: pale2,
+                                      fillColor: pale2 ? const Color(0xFFF6F0FF) : null,
+                                    ),
+                                  );
+                                  return Theme(
+                                    data: base,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _nicknameController,
+                                            decoration: InputDecoration(
+                                              labelText: 'Никнейм (без @)',
+                                              suffixIcon: _nickChecking
+                                                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                                  : (_nickStatus == 'ok'
+                                                      ? const Icon(Icons.check, color: Colors.green)
+                                                      : (_nickStatus == 'taken' ? const Icon(Icons.close, color: Colors.redAccent) : null)),
+                                            ),
+                                            style: Theme.of(context).textTheme.bodyLarge,
+                                            maxLength: 32,
+                                            onChanged: _onNicknameChanged,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: SettingsService.paleVioletNotifier,
+                                builder: (c3, pale3, _) {
+                                  final base2 = Theme.of(context).copyWith(
+                                    inputDecorationTheme: InputDecorationTheme(
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
+                                      filled: pale3,
+                                      fillColor: pale3 ? const Color(0xFFF6F0FF) : null,
+                                    ),
+                                  );
+                                  return Theme(
+                                    data: base2,
+                                    child: TextField(
+                                      controller: _descriptionController,
+                                      decoration: const InputDecoration(labelText: 'Описание'),
+                                      style: Theme.of(context).textTheme.bodyLarge,
+                                      maxLines: 4,
+                                      maxLength: 200,
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _saveProfile,
+                                  icon: const Icon(Icons.save_rounded),
+                                  label: const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                                    child: Text('Сохранить', style: TextStyle(fontSize: 16)),
+                                  ),
+                                  style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          // Live textual feedback under nickname field
-                          if (_nickChecking)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
-                              child: Text('Проверка никнейма...', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
-                            ),
-                          if (!_nickChecking && _nickStatus == 'ok')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
-                              child: Text('Никнейм свободен', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.green)),
-                            ),
-                          if (!_nickChecking && _nickStatus == 'taken')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
-                              child: Text('Никнейм уже занят', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.redAccent)),
-                            ),
-                          if (!_nickChecking && _nickStatus == 'error')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6.0, left: 2.0),
-                              child: Text('Ошибка проверки никнейма', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onError)),
-                            ),
-                          const SizedBox(height: 12),
-                          // Delete avatar button
-                          if (_avatarUrl != null || _avatarBytes != null)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () async {
-                                  final messenger = ScaffoldMessenger.of(context);
-                                  final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (c) => AlertDialog(
-                                      title: const Text('Удалить аватар?'),
-                                      content: const Text('Вы уверены, что хотите удалить текущую аватарку?'),
-                                      actions: [
-                                        TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Отмена')),
-                                        TextButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Удалить')),
-                                      ],
-                                    ),
-                                  );
-                                  if (ok != true) return;
-                                  if (!mounted) return;
-                                  setState(() => _loading = true);
-
-                                  // perform delete: delete on server first, then clear cached profile and reload
-                                  try {
-                                    await AppwriteService.deleteAvatarForCurrentUser();
-                                    try {
-                                      await SettingsService.clearCachedProfile();
-                                    } catch (_) {}
-                                    // Reload account to get updated prefs and avatar state
-                                    await _loadAccount();
-                                    if (!mounted) return;
-                                    messenger.showSnackBar(const SnackBar(content: Text('Аватар удалён')));
-                                  } catch (e) {
-                                    if (!mounted) return;
-                                    messenger.showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: $e')));
-                                  } finally {
-                                    if (mounted) setState(() => _loading = false);
-                                  }
-                                },
-                                icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                                label: const Text('Удалить аватар', style: TextStyle(color: Colors.redAccent)),
-                              ),
-                            ),
-                          // Apply local InputDecoration theme to slightly round fields
-                          // If Pale Violet light-mode is enabled, use a subtle filled background to increase contrast
-                          ValueListenableBuilder<bool>(
-                            valueListenable: SettingsService.paleVioletNotifier,
-                            builder: (c, pale, _) {
-                              final base = Theme.of(context).copyWith(
-                                inputDecorationTheme: InputDecorationTheme(
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  filled: pale,
-                                  fillColor: pale ? const Color(0xFFF6F0FF) : null,
-                                ),
-                              );
-                              return Theme(
-                                data: base,
-                                child: Row(
-                                  children: [
-                                    Expanded(child: TextField(controller: _firstNameController, maxLength: 30, decoration: const InputDecoration(labelText: 'Имя'))),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: TextField(controller: _lastNameController, maxLength: 30, decoration: const InputDecoration(labelText: 'Фамилия'))),
-                                  ],
-                                ),
-                              );
-                            },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Links to change email and phone
+                      Material(
+                        color: Theme.of(context).colorScheme.surface,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(UITokens.corner),
+                          onTap: () => Navigator.of(context).pushNamed('/change_email'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            child: Row(children: [
+                              const Icon(Icons.email),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text('Изменить почту', style: Theme.of(context).textTheme.titleMedium)),
+                              const Icon(Icons.chevron_right),
+                            ]),
                           ),
-                          const SizedBox(height: 12),
-                          ValueListenableBuilder<bool>(
-                            valueListenable: SettingsService.paleVioletNotifier,
-                            builder: (c2, pale2, _) {
-                              final base = Theme.of(context).copyWith(
-                                inputDecorationTheme: InputDecorationTheme(
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  filled: pale2,
-                                  fillColor: pale2 ? const Color(0xFFF6F0FF) : null,
-                                ),
-                              );
-                              return Theme(
-                                data: base,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                          controller: _nicknameController,
-                                          decoration: InputDecoration(
-                                            labelText: 'Никнейм (без @)',
-                                            suffixIcon: _nickChecking
-                                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                                                : (_nickStatus == 'ok'
-                                                    ? const Icon(Icons.check, color: Colors.green)
-                                                    : (_nickStatus == 'taken' ? const Icon(Icons.close, color: Colors.redAccent) : null)),
-                                          ),
-                                          style: Theme.of(context).textTheme.bodyLarge,
-                                          maxLength: 32,
-                                          onChanged: _onNicknameChanged,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Material(
+                        color: Theme.of(context).colorScheme.surface,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(UITokens.corner),
+                          onTap: () => Navigator.of(context).pushNamed('/change_phone'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            child: Row(children: [
+                              const Icon(Icons.phone),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text('Изменить номер телефона', style: Theme.of(context).textTheme.titleMedium)),
+                              const Icon(Icons.chevron_right),
+                            ]),
                           ),
-                          const SizedBox(height: 12),
-                          ValueListenableBuilder<bool>(
-                            valueListenable: SettingsService.paleVioletNotifier,
-                            builder: (c3, pale3, _) {
-                              final base2 = Theme.of(context).copyWith(
-                                inputDecorationTheme: InputDecorationTheme(
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(UITokens.cornerSm))),
-                                  filled: pale3,
-                                  fillColor: pale3 ? const Color(0xFFF6F0FF) : null,
-                                ),
-                              );
-                              return Theme(
-                                data: base2,
-                                child: TextField(
-                                  controller: _descriptionController,
-                                  decoration: const InputDecoration(labelText: 'Описание'),
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                  maxLines: 4,
-                                  maxLength: 200,
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          // Телефон редактируется в разделе "Приватность" (Отдельный экран)
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _saveProfile,
-                              icon: const Icon(Icons.save_rounded),
-                              label: const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 12.0),
-                                child: Text('Сохранить', style: TextStyle(fontSize: 16)),
-                              ),
-                              style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                            ),
-                          ),
-                        ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // General/Other settings tab
+                SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    // Option to move chat list to right
+                    ValueListenableBuilder<bool>(
+                      valueListenable: SettingsService.chatListOnRightNotifier,
+                      builder: (c, val, _) {
+                        return SwitchListTile(
+                          title: const Text('Переместить список чатов направо'),
+                          value: val,
+                          onChanged: (v) => SettingsService.setChatListOnRight(v),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: SettingsService.showEmailNotifier,
+                      builder: (c, val, _) {
+                        return SwitchListTile(
+                          title: const Text('Показывать email в профиле'),
+                          value: val,
+                          onChanged: (v) => SettingsService.setShowEmail(v),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: SettingsService.showPhoneNotifier,
+                      builder: (c, val, _) {
+                        return SwitchListTile(
+                          title: const Text('Показывать телефон в профиле'),
+                          value: val,
+                          onChanged: (v) => SettingsService.setShowPhone(v),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(UITokens.corner),
+                        onTap: () => Navigator.of(context).pushNamed('/customization'),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          child: Row(children: [
+                            const Icon(Icons.format_paint),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Кастомизация', style: Theme.of(context).textTheme.titleMedium)),
+                            const Icon(Icons.chevron_right),
+                          ]),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Material(
-                    color: Theme.of(context).colorScheme.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(UITokens.corner),
-                      onTap: () => Navigator.of(context).pushNamed('/customization'),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        child: Row(children: [
-                          const Icon(Icons.format_paint),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text('Кастомизация', style: Theme.of(context).textTheme.titleMedium)),
-                          const Icon(Icons.chevron_right),
-                        ]),
+                    const SizedBox(height: 10),
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(UITokens.corner),
+                        onTap: () => Navigator.of(context).pushNamed('/privacy'),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          child: Row(children: [
+                            const Icon(Icons.privacy_tip),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Приватность', style: Theme.of(context).textTheme.titleMedium)),
+                            const Icon(Icons.chevron_right),
+                          ]),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Material(
-                    color: Theme.of(context).colorScheme.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(UITokens.corner),
-                      onTap: () => Navigator.of(context).pushNamed('/privacy'),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        child: Row(children: [
-                          const Icon(Icons.privacy_tip),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text('Приватность', style: Theme.of(context).textTheme.titleMedium)),
-                          const Icon(Icons.chevron_right),
-                        ]),
+                    const SizedBox(height: 18),
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(UITokens.corner),
+                        onTap: _confirmLogout,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          child: Row(children: [
+                            const Icon(Icons.logout),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Выйти из аккаунта', style: Theme.of(context).textTheme.titleMedium)),
+                            const Icon(Icons.chevron_right),
+                          ]),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  // Logout and delete actions placed near bottom
-                  Material(
-                    color: Theme.of(context).colorScheme.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(UITokens.corner),
-                      onTap: _confirmLogout,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        child: Row(children: [
-                          const Icon(Icons.logout),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text('Выйти из аккаунта', style: Theme.of(context).textTheme.titleMedium)),
-                          const Icon(Icons.chevron_right),
-                        ]),
-                      ),
-                    ),
-                  ),
+                  ]),
+                ),
+              ]),
                   const SizedBox(height: 8),
                   Center(
                     child: TextButton.icon(
@@ -819,7 +896,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                         Row(children: [
                           Text('Версия: $_appVersion', style: Theme.of(context).textTheme.bodySmall),
                           const SizedBox(width: 10),
-                          if (_deviceAbi.isNotEmpty) Text('ABI: $_deviceAbi', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round()))),
+                          if (_deviceAbi.isNotEmpty) Text('Архитектура: $_deviceAbi', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round()))),
                         ]),
                         const SizedBox(height: 4),
                         Text('Для вопросов и багов: vaksedon@gmail.com', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.8 * 255).round()))),

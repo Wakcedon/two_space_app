@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/services/chat_service.dart';
+import 'package:two_space_app/services/settings_service.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 
@@ -19,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _user;
   bool _loading = true;
   bool _actionLoading = false;
+  bool _isMe = false;
 
   @override
   void initState() {
@@ -29,8 +31,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUser() async {
     try {
       final u = await AppwriteService.getUserById(widget.userId);
+      final me = await AppwriteService.getCurrentUserId();
       if (mounted) setState(() {
         _user = u.isNotEmpty ? Map<String, dynamic>.from(u) : null;
+        _isMe = (me != null && me == widget.userId);
         _loading = false;
       });
     } catch (_) {
@@ -136,8 +140,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         _buildInfoRow('О себе', (_user != null) ? (_user!['prefs']?['about'] ?? _user!['bio'] ?? '') : ''),
                         const Divider(),
-                        _buildInfoRow('Телефон', (_user != null) ? (_user!['phone'] ?? '') : ''),
-                        const Divider(),
+                        // Email: show depending on user's preferences or local settings if viewing own profile
+                        if (_user != null)
+                          Builder(builder: (c) {
+                            final prefs = (_user!['prefs'] is Map) ? Map<String, dynamic>.from(_user!['prefs']) : <String, dynamic>{};
+                            final serverShowEmail = prefs['showEmail'] == true;
+                            final email = (_user!['email'] as String?) ?? '';
+                            final shouldShowEmail = (_isMe ? SettingsService.showEmailNotifier.value : serverShowEmail);
+                            if (email.isNotEmpty && shouldShowEmail) return Column(children: [
+                              _buildInfoRow('Email', email),
+                              const Divider(),
+                            ]);
+                            return const SizedBox.shrink();
+                          }),
+
+                        // Phone: similar visibility rules
+                        if (_user != null)
+                          Builder(builder: (c) {
+                            final prefs = (_user!['prefs'] is Map) ? Map<String, dynamic>.from(_user!['prefs']) : <String, dynamic>{};
+                            final serverShowPhone = prefs['showPhone'] == true;
+                            final phone = (_user!['phone'] as String?) ?? '';
+                            final shouldShowPhone = (_isMe ? SettingsService.showPhoneNotifier.value : serverShowPhone);
+                            if (phone.isNotEmpty && shouldShowPhone) return Column(children: [
+                              _buildInfoRow('Телефон', phone),
+                              const Divider(),
+                            ]);
+                            return const SizedBox.shrink();
+                          }),
+
                         _buildInfoRow('Никнейм', (_user != null) ? (_user!['prefs']?['nickname'] ?? '') : ''),
                         const Divider(),
                         _buildInfoRow('Место', (_user != null) ? (_user!['location'] ?? '') : ''),

@@ -7,6 +7,7 @@ import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
 import 'package:two_space_app/services/realtime_service.dart';
+import 'package:two_space_app/services/settings_service.dart';
 import 'package:two_space_app/screens/search_contacts_screen.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
@@ -224,6 +225,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return DateFormat('HH:mm').format(time);
   }
 
+  Widget _buildRightPane() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      child: _selectedChat != null
+          ? ChatScreen(key: ValueKey(_selectedChat!.id), chat: _selectedChat)
+          : Container(
+              key: const ValueKey('placeholder'),
+              child: Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withAlpha((0.4 * 255).round())),
+                  const SizedBox(height: 12),
+                  Text('Выберите чат слева', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
+                    icon: const Icon(Icons.search),
+                    label: const Text('Найти контакт'),
+                  ),
+                ]),
+              ),
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -234,7 +259,6 @@ class _HomeScreenState extends State<HomeScreen> {
           children: const [
             AppLogo(large: false),
             SizedBox(width: 8),
-            Text('Чаты'),
           ],
         ),
         centerTitle: false,
@@ -567,49 +591,50 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           // Two-pane layout: left — list, right — selected chat or placeholder
-          return Row(children: [
-            Container(
-              width: 360,
-              color: Theme.of(context).colorScheme.surface,
-              child: Column(children: [
-                // small search / header inside left panel
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                  child: Row(children: [
-                    Expanded(child: Text('Чаты', style: Theme.of(context).textTheme.titleMedium)),
-                    IconButton(onPressed: () => Navigator.pushNamed(context, '/settings'), icon: const Icon(Icons.settings)),
+          return ValueListenableBuilder<bool>(
+            valueListenable: SettingsService.chatListOnRightNotifier,
+            builder: (context, chatListRight, _) {
+              // If chatListRight is true, show messages on left and list on right
+              if (!chatListRight) {
+                return Row(children: [
+                  Container(
+                    width: 360,
+                    color: Theme.of(context).colorScheme.surface,
+                    child: Column(children: [
+                      // small search / header inside left panel
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                        child: Row(children: [
+                          Expanded(child: SizedBox.shrink()),
+                        ]),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(child: chatListWidget),
+                    ]),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _buildRightPane()),
+                ]);
+              }
+              // chat list on right: messages left, list right
+              return Row(children: [
+                Expanded(child: _buildRightPane()),
+                const VerticalDivider(width: 1),
+                Container(
+                  width: 360,
+                  color: Theme.of(context).colorScheme.surface,
+                  child: Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                      child: Row(children: [Expanded(child: SizedBox.shrink())]),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(child: chatListWidget),
                   ]),
                 ),
-                const Divider(height: 1),
-                Expanded(child: chatListWidget),
-              ]),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                child: _selectedChat != null
-                    ? ChatScreen(key: ValueKey(_selectedChat!.id), chat: _selectedChat)
-                    : Container(
-                        key: const ValueKey('placeholder'),
-                        child: Center(
-                          child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            // avoid deprecated withOpacity
-                            Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurface.withAlpha((0.4 * 255).round())),
-                            const SizedBox(height: 12),
-                            Text('Выберите чат слева', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
-                              icon: const Icon(Icons.search),
-                              label: const Text('Найти контакт'),
-                            ),
-                          ]),
-                        ),
-                      ),
-              ),
-            ),
-          ]);
+              ]);
+            },
+          );
         }),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.primary,

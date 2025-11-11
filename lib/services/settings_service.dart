@@ -36,6 +36,15 @@ class SettingsService {
   static final ValueNotifier<int> sessionTimeoutDaysNotifier = ValueNotifier<int>(180);
   // Notifier for Pale Violet light-mode
   static final ValueNotifier<bool> paleVioletNotifier = ValueNotifier<bool>(false);
+  // Chat list position: false = left (default), true = right
+  static final ValueNotifier<bool> chatListOnRightNotifier = ValueNotifier<bool>(false);
+  static const _chatListOnRightKey = 'ui_chat_list_on_right';
+
+  // Profile visibility toggles (email/phone). Default: hidden (false)
+  static final ValueNotifier<bool> showEmailNotifier = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> showPhoneNotifier = ValueNotifier<bool>(false);
+  static const _showEmailKey = 'ui_show_email';
+  static const _showPhoneKey = 'ui_show_phone';
 
   static Future<void> load() async {
     final font = await SecureStore.read(_fontKey) ?? 'Inter';
@@ -51,6 +60,14 @@ class SettingsService {
     // If set to '1' it means Pale Violet light-mode is enabled
     final enabled = pv != null && pv == '1';
     paleVioletNotifier.value = enabled;
+    // chat list position
+    final chatRight = await SecureStore.read(_chatListOnRightKey);
+    chatListOnRightNotifier.value = chatRight != null && chatRight == '1';
+    // profile visibility
+    final showEmail = await SecureStore.read(_showEmailKey);
+    showEmailNotifier.value = showEmail != null && showEmail == '1';
+    final showPhone = await SecureStore.read(_showPhoneKey);
+    showPhoneNotifier.value = showPhone != null && showPhone == '1';
   }
 
   static Future<void> setFont(String font) async {
@@ -76,6 +93,21 @@ class SettingsService {
   static Future<void> setPaleVioletMode(bool enabled) async {
     await SecureStore.write(_paleVioletModeKey, enabled ? '1' : '0');
     paleVioletNotifier.value = enabled;
+  }
+
+  static Future<void> setChatListOnRight(bool enabled) async {
+    await SecureStore.write(_chatListOnRightKey, enabled ? '1' : '0');
+    chatListOnRightNotifier.value = enabled;
+  }
+
+  static Future<void> setShowEmail(bool enabled) async {
+    await SecureStore.write(_showEmailKey, enabled ? '1' : '0');
+    showEmailNotifier.value = enabled;
+  }
+
+  static Future<void> setShowPhone(bool enabled) async {
+    await SecureStore.write(_showPhoneKey, enabled ? '1' : '0');
+    showPhoneNotifier.value = enabled;
   }
 
   static Future<bool> getPaleVioletMode() async {
