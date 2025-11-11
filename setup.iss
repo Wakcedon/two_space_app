@@ -22,10 +22,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 OutputDir=.
-MinimizeToTray=no
 WindowVisible=yes
-; Запрос 300 МБ свободного места
-DiskSpaceRequired=314572800
 ; --- Язык интерфейса ---
 ShowLanguageDialog=yes
 ; ------------------------
