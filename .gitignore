@@ -57,3 +57,4 @@ app.*.map.json
 pubspec.yaml
 pubspec.lock
 TABLES_MIGRATION.md
+TwoSpace_setup_*.exe

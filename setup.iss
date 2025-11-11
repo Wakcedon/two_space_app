@@ -50,20 +50,6 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Запустить {#MyAppName}
 Type: filesandordirs; Name: "{app}"
 
 [Code]
-function InitializeSetup(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  // Завершить процесс, если он уже запущен
-  if IsAppRunning(ExpandConstant('{#MyAppExeName}')) then
-  begin
-    MsgBox(ExpandConstant('{#MyAppName} сейчас запущен. Пожалуйста, закройте приложение и нажмите "Повторить".'), mbError, MB_OK);
-    Result := False;
-  end
-  else
-    Result := True;
-end;
-
 function IsAppRunning(const FileName: string): Boolean;
 var
   FSWbemLocator: Variant;
@@ -78,6 +64,18 @@ begin
     if not VarIsNull(FWbemObjectSet) and (FWbemObjectSet.Count > 0) then
       Result := True;
   except
-    // Игнорировать ошибки (например, на старых Windows без WMI)
+    // Игнорируем ошибки (например, на старых Windows без WMI)
   end;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  // Завершить процесс, если он уже запущен
+  if IsAppRunning(ExpandConstant('{#MyAppExeName}')) then
+  begin
+    MsgBox(ExpandConstant('{#MyAppName} сейчас запущен. Пожалуйста, закройте приложение и нажмите "Повторить".'), mbError, MB_OK);
+    Result := False;
+  end
+  else
+    Result := True;
 end;
