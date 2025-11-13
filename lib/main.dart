@@ -170,8 +170,12 @@ class TwoSpaceApp extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(settings.primaryColorValue),
                     foregroundColor: onPrimary,
+                    minimumSize: const Size(88, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
+                // TabBar styling is applied locally where needed to avoid SDK type mismatches
               ),
               home: const AuthGate(),
               routes: {

@@ -228,7 +228,21 @@ class AppwriteService {
     try {
       if (cookie == null) {
         await SecureStore.delete('appwrite_session_cookie');
-      } else {
+        return;
+      }
+      // The Set-Cookie header can contain attributes (Path, HttpOnly, Secure, SameSite, expires, etc.).
+      // Store only the cookie name=value pairs (the portion before the first ';') so that sending
+      // the stored value back in a 'Cookie' header produces a valid cookie string for Appwrite.
+      // If multiple Set-Cookie headers are present (comma-separated), keep only the cookie parts.
+      try {
+        final parts = cookie.split(',');
+        final kept = parts.map((p) {
+          final semi = p.indexOf(';');
+          return semi > 0 ? p.substring(0, semi).trim() : p.trim();
+        }).where((s) => s.isNotEmpty).join('; ');
+        await SecureStore.write('appwrite_session_cookie', kept);
+      } catch (_) {
+        // Fallback: save the raw header if parsing fails
         await SecureStore.write('appwrite_session_cookie', cookie);
       }
     } catch (_) {}

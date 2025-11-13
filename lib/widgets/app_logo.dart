@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'gradient_text.dart';
 
 class AppLogo extends StatefulWidget {
   const AppLogo({super.key, this.large = true});
@@ -22,10 +23,10 @@ class _AppLogoState extends State<AppLogo> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final fontSize = widget.large ? 40.0 : 24.0;
     final textStyle = TextStyle(
-      fontSize: widget.large ? 40 : 24,
+      fontSize: fontSize,
       fontWeight: FontWeight.bold,
-      color: Colors.white,
       letterSpacing: 1.2,
     );
 
@@ -34,15 +35,18 @@ class _AppLogoState extends State<AppLogo> with SingleTickerProviderStateMixin {
       builder: (context, child) {
         final t = _controller.value;
         final gradient = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Color.lerp(Colors.white24, Colors.white, t)!,
-            Color.lerp(Colors.white54, Colors.white70, t)!,
+            Color.lerp(Colors.blue.shade300, Colors.purple.shade300, t)!,
+            Color.lerp(Colors.pink.shade200, Colors.orange.shade200, t)!,
           ],
         );
 
-        return ShaderMask(
-          shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
-          child: Text('TwoSpace', style: textStyle),
+        return GradientText(
+          'TwoSpace',
+          gradient: gradient,
+          style: textStyle.copyWith(color: Colors.white),
         );
       },
     );
