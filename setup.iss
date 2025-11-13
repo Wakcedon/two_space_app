@@ -24,7 +24,7 @@ ArchitecturesInstallIn64BitMode=x64
 OutputDir=.
 WindowVisible=yes
 ; --- Язык интерфейса ---
-ShowLanguageDialog=yes
+ShowLanguageDialog=no
 ; ------------------------
 
 [Languages]
