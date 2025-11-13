@@ -32,7 +32,7 @@ Future<void> main() async {
       // Previously we set a hard max size which prevented users from
       // resizing freely; remove that to allow any size and make the UI
       // responsive to available space.
-      setWindowMinSize(const ui.Size(360, 600));
+  setWindowMinSize(const ui.Size(480, 800));
       // Center a reasonable default frame after first frame is available
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {

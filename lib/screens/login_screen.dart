@@ -150,10 +150,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-  final themeFill = Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).colorScheme.surface;
+  final theme = Theme.of(context);
+  final themeFill = theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
   final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
-  final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
-  final hintColor = Theme.of(context).hintColor;
+  final textColor = theme.textTheme.bodyLarge?.color ?? theme.colorScheme.onBackground;
+  final hintColor = theme.hintColor;
 
   final canSubmit = !_loading && !_loginLocked && _validateEmailOrPhone(emailController.text) == null && _validatePassword(passwordController.text) == null;
 
@@ -184,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     if (_loading) const LinearProgressIndicator(minHeight: 3),
                     const Hero(tag: 'logo', child: AppLogo(large: true)),
                     const SizedBox(height: UITokens.spaceLg),
-                    Text('Вход', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
+                    Text('Вход', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: textColor)),
                     const SizedBox(height: UITokens.spaceLg),
 
                     // Form fields
@@ -198,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         hintStyle: TextStyle(color: hintColor),
                         filled: true,
                         fillColor: themeFill,
-                        prefixIcon: emailController.text.trim().startsWith('+') ? const Icon(Icons.phone, color: Colors.white54) : const Icon(Icons.email, color: Colors.white54),
+                        prefixIcon: emailController.text.trim().startsWith('+') ? Icon(Icons.phone, color: theme.colorScheme.onSurface.withAlpha(140)) : Icon(Icons.email, color: theme.colorScheme.onSurface.withAlpha(140)),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg), borderSide: BorderSide.none),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                       ),
@@ -208,15 +209,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       controller: passwordController,
                       obscureText: _obscure,
                       validator: _validatePassword,
-                      style: TextStyle(color: textColor),
+                        style: TextStyle(color: textColor),
                       decoration: InputDecoration(
                         hintText: 'Пароль',
-                        hintStyle: TextStyle(color: hintColor),
+                          hintStyle: TextStyle(color: hintColor),
                         filled: true,
                         fillColor: themeFill,
-                        prefixIcon: Icon(Icons.lock, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
+                          prefixIcon: Icon(Icons.lock, color: theme.colorScheme.onSurface.withAlpha(180)),
+                          suffixIcon: IconButton(
+                          icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: theme.colorScheme.onSurface.withAlpha(180)),
                           onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg), borderSide: BorderSide.none),
@@ -246,8 +247,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                     ),
                     const SizedBox(height: UITokens.space),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.spaceBetween,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pushNamed(context, '/register'),

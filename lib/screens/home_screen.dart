@@ -336,13 +336,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 12),
                           Text('Начните диалог с коллегой или друзьями. Быстро найдите контакты и создайте новый чат.', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
                           const SizedBox(height: 16),
-                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Wrap(spacing: 12, runSpacing: 8, alignment: WrapAlignment.center, children: [
                             ElevatedButton.icon(
                               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchContactsScreen())),
                               icon: const Icon(Icons.search),
                               label: const Text('Найти контакт'),
                             ),
-                            const SizedBox(width: 12),
                             ElevatedButton.icon(
                                 onPressed: () async {
                                   // quick create a self-favorites chat

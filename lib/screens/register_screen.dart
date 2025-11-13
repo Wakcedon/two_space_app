@@ -27,6 +27,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _hasNumber = false;
   bool _hasSpecial = false;
   bool _hasLength = false;
+  bool _showPwDetails = false;
 
   @override
   void dispose() {
@@ -108,9 +109,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeFill = Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).colorScheme.surface;
-    final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
-    final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
+  final theme = Theme.of(context);
+  final themeFill = theme.inputDecorationTheme.fillColor ?? theme.colorScheme.surface;
+  final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
+  final textColor = theme.textTheme.bodyLarge?.color ?? theme.colorScheme.onBackground;
+  final hintColor = theme.hintColor;
     final canRegister = !_loading && _validateName(nameController.text) == null && _validateEmailOrPhone(emailController.text) == null && _hasLength && (_hasUpper || _hasNumber || _hasSpecial);
 
     return Scaffold(
@@ -160,10 +163,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           hintText: 'Имя',
-                          hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                          hintStyle: TextStyle(color: hintColor),
                           filled: true,
                           fillColor: themeFill,
-                          prefixIcon: Icon(Icons.person, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
+                          prefixIcon: Icon(Icons.person, color: theme.colorScheme.onSurface.withAlpha(180)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
                           contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
@@ -177,10 +180,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           hintText: 'Email',
-                          hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                          hintStyle: TextStyle(color: hintColor),
                           filled: true,
                           fillColor: themeFill,
-                          prefixIcon: Icon(Icons.email, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
+                          prefixIcon: Icon(Icons.email, color: theme.colorScheme.onSurface.withAlpha(180)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
                           contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
@@ -194,32 +197,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           hintText: 'Пароль',
-                          hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                          hintStyle: TextStyle(color: hintColor),
                           filled: true,
                           fillColor: themeFill,
-                          prefixIcon: Icon(Icons.lock, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
+                          prefixIcon: Icon(Icons.lock, color: theme.colorScheme.onSurface.withAlpha(180)),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
+                            icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: theme.colorScheme.onSurface.withAlpha(180)),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
                           contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      // Password strength hints
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 6.0 * Responsive.scaleHeight(context)),
-                        child: Row(children: [
-                          _pwHint('8+ символов', _hasLength),
-                          const SizedBox(width: 8),
-                          _pwHint('Заглавная', _hasUpper),
-                          const SizedBox(width: 8),
-                          _pwHint('Цифра', _hasNumber),
-                          const SizedBox(width: 8),
-                          _pwHint('Спецсимвол', _hasSpecial),
-                        ]),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () => setState(() => _showPwDetails = !_showPwDetails),
+                          child: Text(_showPwDetails ? 'Скрыть' : 'Подробнее', style: TextStyle(color: theme.colorScheme.primary)),
+                        ),
                       ),
+                      if (_showPwDetails)
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6.0 * Responsive.scaleHeight(context)),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            _pwHint('8+ символов', _hasLength, theme: theme),
+                            const SizedBox(height: 6),
+                            _pwHint('Заглавная буква', _hasUpper, theme: theme),
+                            const SizedBox(height: 6),
+                            _pwHint('Цифра', _hasNumber, theme: theme),
+                            const SizedBox(height: 6),
+                            _pwHint('Спецсимвол', _hasSpecial, theme: theme),
+                          ]),
+                        ),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -229,13 +239,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context))),
                           ),
                           onPressed: canRegister ? _register : null,
-                          child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Зарегистрироваться', style: TextStyle(color: Theme.of(context).primaryColor.computeLuminance() > 0.6 ? Colors.black : Colors.white)),
+                          child: _loading ? SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimary)) : Text('Зарегистрироваться', style: TextStyle(color: theme.colorScheme.onPrimary)),
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () => Navigator.pushNamed(context, '/login'),
-                        child: const Text('Уже есть аккаунт?', style: TextStyle(color: Colors.white70)),
+                        child: Text('Уже есть аккаунт?', style: TextStyle(color: theme.colorScheme.onBackground.withAlpha((0.85 * 255).round()))),
                       ),
                     ],
                   ),
@@ -248,11 +258,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ));
   }
 
-  Widget _pwHint(String text, bool ok) {
+  Widget _pwHint(String text, bool ok, {ThemeData? theme}) {
+    final th = theme ?? Theme.of(context);
+    final okColor = Colors.greenAccent;
+    final badColor = th.colorScheme.onBackground.withAlpha((0.6 * 255).round());
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.greenAccent : Colors.white54, size: 16),
-      const SizedBox(width: 4),
-      Text(text, style: TextStyle(color: ok ? Colors.greenAccent : Colors.white54, fontSize: 12)),
+      Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? okColor : badColor, size: 16),
+      const SizedBox(width: 8),
+      Text(text, style: TextStyle(color: ok ? okColor : badColor, fontSize: 13)),
     ]);
   }
 }

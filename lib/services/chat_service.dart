@@ -405,10 +405,33 @@ class ChatService {
   Future<List<Chat>> loadChats() async {
     try {
       final currentUser = await AppwriteService.getCurrentUserId();
-      final result = await databases.listDocuments(
-        databaseId: Environment.appwriteDatabaseId,
-        collectionId: Environment.appwriteChatsCollectionId,
-      );
+      late final dynamic result;
+      try {
+        result = await databases.listDocuments(
+          databaseId: Environment.appwriteDatabaseId,
+          collectionId: Environment.appwriteChatsCollectionId,
+        );
+      } catch (e) {
+        // If we get an auth-related failure, attempt to refresh JWT and retry once.
+        final lower = e.toString().toLowerCase();
+        if (lower.contains('unauthor') || lower.contains('401') || lower.contains('user_unauthorized') || lower.contains('user_jwt_invalid')) {
+          try {
+            final ok = await AppwriteService.refreshJwt();
+            if (ok) {
+              result = await databases.listDocuments(
+                databaseId: Environment.appwriteDatabaseId,
+                collectionId: Environment.appwriteChatsCollectionId,
+              );
+            } else {
+              rethrow;
+            }
+          } catch (_) {
+            rethrow;
+          }
+        } else {
+          rethrow;
+        }
+      }
       final out = <Chat>[];
       for (final doc in result.documents) {
         final m = Map<String, dynamic>.from(doc.data);
