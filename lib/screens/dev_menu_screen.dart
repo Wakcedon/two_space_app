@@ -55,13 +55,54 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
             ),
           ),
           const Divider(),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(children: [
-            ElevatedButton.icon(onPressed: () async { DevLogger.log('Check for updates (dev menu)'); try { final info = await UpdateService.checkForUpdate(); DevLogger.log('Update check: ${info != null}'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Update check finished (см. логи)'))); } catch (e) { DevLogger.log('Update check failed: $e'); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка проверки: $e'))); } }, icon: const Icon(Icons.system_update), label: const Text('Check updates')),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(onPressed: () async { DevLogger.log('Clear settings cache'); await SettingsService.clearCachedProfile(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cached profile cleared'))); }, icon: const Icon(Icons.delete), label: const Text('Clear profile cache')),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(onPressed: () async { DevLogger.log('Clear JWT & session'); try { await AppwriteService.clearJwt(); await AppwriteService.deleteCurrentSession(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cleared session'))); } catch (e) { DevLogger.log('Clear session failed: $e'); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e'))); } }, icon: const Icon(Icons.logout), label: const Text('Clear session')),
-          ])),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    DevLogger.log('Check for updates (dev menu)');
+                    try {
+                      final info = await UpdateService.checkForUpdate();
+                      DevLogger.log('Update check: ${info != null}');
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Update check finished (см. логи)')));
+                    } catch (e) {
+                      DevLogger.log('Update check failed: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка проверки: $e')));
+                    }
+                  },
+                  icon: const Icon(Icons.system_update),
+                  label: const Text('Check updates'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    DevLogger.log('Clear settings cache');
+                    await SettingsService.clearCachedProfile();
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cached profile cleared')));
+                  },
+                  icon: const Icon(Icons.delete),
+                  label: const Text('Clear profile cache'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    DevLogger.log('Clear JWT & session');
+                    try {
+                      await AppwriteService.clearJwt();
+                      await AppwriteService.deleteCurrentSession();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cleared session')));
+                    } catch (e) {
+                      DevLogger.log('Clear session failed: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+                    }
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Clear session'),
+                ),
+              ],
+            ),
+          ),
           const Divider(),
           Expanded(child: StreamBuilder<List<String>>(stream: _logStream, initialData: DevLogger.all, builder: (context, snap) {
             final logs = snap.data ?? [];

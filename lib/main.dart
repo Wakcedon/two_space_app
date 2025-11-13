@@ -13,6 +13,7 @@ import 'package:two_space_app/services/chat_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:two_space_app/widgets/dev_fab.dart';
 import 'services/appwrite_service.dart';
+import 'services/navigation_service.dart';
 import 'services/settings_service.dart';
 import 'services/update_service.dart';
 import 'dart:io' show Platform;
@@ -153,6 +154,7 @@ class TwoSpaceApp extends StatelessWidget {
             );
 
             final app = MaterialApp(
+              navigatorKey: appNavigatorKey,
               title: 'TwoSpace',
               debugShowCheckedModeBanner: false,
               theme: baseTheme.copyWith(
@@ -201,7 +203,12 @@ class TwoSpaceApp extends StatelessWidget {
             );
             // Overlay dev FAB in debug or when enabled via env
             if (kDebugMode || Environment.enableDevTools) {
-              return Stack(children: [app, const DevFab()]);
+              // Stack sits above MaterialApp, so it may not have a Directionality yet.
+              // Provide an explicit Directionality to avoid startup errors on some platforms.
+              return Directionality(
+                textDirection: TextDirection.ltr,
+                child: Stack(children: [app, const DevFab()]),
+              );
             }
             return app;
           },
