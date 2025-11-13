@@ -23,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  double? _dragStartWidth;
   // Ensure authenticated before executing sensitive actions
   Future<bool> withAuth(Future<void> Function() action) async {
     try {
@@ -265,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             onPressed: () => Navigator.pushNamed(context, '/settings'),
-            icon: const Icon(Icons.settings, color: Colors.white),
+            icon: const Icon(Icons.settings),
             tooltip: 'Настройки',
           ),
         ],
@@ -278,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (isLoading) {
         chatListWidget = ListView.separated(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          itemCount: 6,
+          itemCount: 5,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (c, i) {
             final base = Theme.of(context).colorScheme.surfaceContainerHighest;
@@ -475,18 +476,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ],
                                       ),
                                     ),
-                                    PopupMenuButton<int>(
-                                      onSelected: (v) {
-                                        if (v == 1) {
-                                          final uid = _peerInfo[chat.id]?['userId'] as String?;
-                                          if (uid != null && uid.isNotEmpty) {
-                                            Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(minWidth: 0),
+                                      child: PopupMenuButton<int>(
+                                        padding: EdgeInsets.zero,
+                                        onSelected: (v) {
+                                          if (v == 1) {
+                                            final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                            if (uid != null && uid.isNotEmpty) {
+                                              Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                            }
                                           }
-                                        }
-                                      },
-                                      itemBuilder: (_) => [
-                                        const PopupMenuItem(value: 1, child: Text('Профиль')),
-                                      ],
+                                        },
+                                        itemBuilder: (_) => [
+                                          const PopupMenuItem(value: 1, child: Text('Профиль')),
+                                        ],
+                                      ),
                                     ),
                             const SizedBox(width: UITokens.space),
                             Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
@@ -558,18 +563,22 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                          PopupMenuButton<int>(
-                            onSelected: (v) {
-                              if (v == 1) {
-                                final uid = _peerInfo[chat.id]?['userId'] as String?;
-                                if (uid != null && uid.isNotEmpty) {
-                                  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: 0),
+                            child: PopupMenuButton<int>(
+                              padding: EdgeInsets.zero,
+                              onSelected: (v) {
+                                if (v == 1) {
+                                  final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                  if (uid != null && uid.isNotEmpty) {
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                  }
                                 }
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(value: 1, child: Text('Профиль')),
-                            ],
+                              },
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(value: 1, child: Text('Профиль')),
+                              ],
+                            ),
                           ),
                           const SizedBox(width: UITokens.space),
                           Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
@@ -595,43 +604,99 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, chatListRight, _) {
               // If chatListRight is true, show messages on left and list on right
               if (!chatListRight) {
-                return Row(children: [
-                  Container(
-                    width: 360,
-                    color: Theme.of(context).colorScheme.surface,
-                    child: Column(children: [
-                      // small search / header inside left panel
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                        child: Row(children: [
-                          Expanded(child: SizedBox.shrink()),
-                        ]),
+                return ValueListenableBuilder<double>(
+                  valueListenable: SettingsService.chatListWidthNotifier,
+                  builder: (context, chatWidth, __) {
+                    final minWidth = 80.0;
+                    final maxWidth = (constraints.maxWidth - 480).clamp(minWidth, constraints.maxWidth);
+                    final width = chatWidth.clamp(minWidth, maxWidth);
+                    return Row(children: [
+                      SizedBox(
+                        width: width,
+                        child: Container(
+                          color: Theme.of(context).colorScheme.surface,
+                          child: Column(children: [
+                            // small search / header inside left panel
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                              child: Row(children: [Expanded(child: SizedBox.shrink())]),
+                            ),
+                            const Divider(height: 1),
+                            Expanded(child: chatListWidget),
+                          ]),
+                        ),
                       ),
-                      const Divider(height: 1),
-                      Expanded(child: chatListWidget),
-                    ]),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: _buildRightPane()),
-                ]);
+                      // draggable divider
+                      MouseRegion(
+                        cursor: SystemMouseCursors.resizeColumn,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onPanStart: (details) {
+                            _dragStartWidth = width;
+                          },
+                          onPanUpdate: (details) {
+                            if (_dragStartWidth == null) return;
+                            // accumulate delta so each update moves from the previous position
+                            _dragStartWidth = (_dragStartWidth! + details.delta.dx).clamp(minWidth, maxWidth);
+                            SettingsService.setChatListWidth(_dragStartWidth!);
+                          },
+                          onPanEnd: (_) {
+                            _dragStartWidth = null;
+                          },
+                          child: Container(width: 8, color: Colors.transparent, alignment: Alignment.center, child: Container(width: 1, color: Theme.of(context).dividerColor)),
+                        ),
+                      ),
+                      Expanded(child: _buildRightPane()),
+                    ]);
+                  },
+                );
               }
               // chat list on right: messages left, list right
-              return Row(children: [
-                Expanded(child: _buildRightPane()),
-                const VerticalDivider(width: 1),
-                Container(
-                  width: 360,
-                  color: Theme.of(context).colorScheme.surface,
-                  child: Column(children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                      child: Row(children: [Expanded(child: SizedBox.shrink())]),
+              return ValueListenableBuilder<double>(
+                valueListenable: SettingsService.chatListWidthNotifier,
+                builder: (context, chatWidth, __) {
+                  final minWidth = 80.0;
+                  final maxWidth = (constraints.maxWidth - 480).clamp(minWidth, constraints.maxWidth);
+                  final width = chatWidth.clamp(minWidth, maxWidth);
+                  return Row(children: [
+                    Expanded(child: _buildRightPane()),
+                    // draggable divider for right-side list
+                    MouseRegion(
+                      cursor: SystemMouseCursors.resizeColumn,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onPanStart: (details) {
+                          _dragStartWidth = width;
+                        },
+                        onPanUpdate: (details) {
+                          if (_dragStartWidth == null) return;
+                          // accumulate delta; dragging right should decrease right-panel width
+                          _dragStartWidth = (_dragStartWidth! - details.delta.dx).clamp(minWidth, maxWidth);
+                          SettingsService.setChatListWidth(_dragStartWidth!);
+                        },
+                        onPanEnd: (_) {
+                          _dragStartWidth = null;
+                        },
+                        child: Container(width: 8, color: Colors.transparent, alignment: Alignment.center, child: Container(width: 1, color: Theme.of(context).dividerColor)),
+                      ),
                     ),
-                    const Divider(height: 1),
-                    Expanded(child: chatListWidget),
-                  ]),
-                ),
-              ]);
+                    SizedBox(
+                      width: width,
+                      child: Container(
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Column(children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
+                            child: Row(children: [Expanded(child: SizedBox.shrink())]),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(child: chatListWidget),
+                        ]),
+                      ),
+                    ),
+                  ]);
+                },
+              );
             },
           );
         }),

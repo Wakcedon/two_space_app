@@ -167,9 +167,10 @@ class TwoSpaceApp extends StatelessWidget {
                   backgroundColor: primaryColor,
                   foregroundColor: onPrimary,
                 ),
-                inputDecorationTheme: const InputDecorationTheme(
+                inputDecorationTheme: InputDecorationTheme(
                   filled: true,
-                  fillColor: Color(0xFF221233),
+                  // Use a light fill for paleViolet (light) theme, otherwise keep the dark fill
+                  fillColor: paleVioletEnabled ? const Color(0xFFF7F4FF) : const Color(0xFF221233),
                 ),
                 elevatedButtonTheme: ElevatedButtonThemeData(
                   style: ElevatedButton.styleFrom(

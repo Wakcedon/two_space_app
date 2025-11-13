@@ -39,6 +39,9 @@ class SettingsService {
   // Chat list position: false = left (default), true = right
   static final ValueNotifier<bool> chatListOnRightNotifier = ValueNotifier<bool>(false);
   static const _chatListOnRightKey = 'ui_chat_list_on_right';
+  // Chat list width in pixels for two-pane layout. Default 360.
+  static final ValueNotifier<double> chatListWidthNotifier = ValueNotifier<double>(360);
+  static const _chatListWidthKey = 'ui_chat_list_width';
 
   // Profile visibility toggles (email/phone). Default: hidden (false)
   static final ValueNotifier<bool> showEmailNotifier = ValueNotifier<bool>(false);
@@ -63,6 +66,12 @@ class SettingsService {
     // chat list position
     final chatRight = await SecureStore.read(_chatListOnRightKey);
     chatListOnRightNotifier.value = chatRight != null && chatRight == '1';
+    // chat list width
+    final chatWidth = await SecureStore.read(_chatListWidthKey);
+    if (chatWidth != null) {
+      final w = double.tryParse(chatWidth) ?? 360;
+      chatListWidthNotifier.value = w;
+    }
     // profile visibility
     final showEmail = await SecureStore.read(_showEmailKey);
     showEmailNotifier.value = showEmail != null && showEmail == '1';
@@ -98,6 +107,13 @@ class SettingsService {
   static Future<void> setChatListOnRight(bool enabled) async {
     await SecureStore.write(_chatListOnRightKey, enabled ? '1' : '0');
     chatListOnRightNotifier.value = enabled;
+  }
+
+  static Future<void> setChatListWidth(double width) async {
+    try {
+      await SecureStore.write(_chatListWidthKey, width.toString());
+    } catch (_) {}
+    chatListWidthNotifier.value = width;
   }
 
   static Future<void> setShowEmail(bool enabled) async {

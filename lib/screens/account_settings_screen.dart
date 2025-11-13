@@ -524,11 +524,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           title: const Text('Настройки'),
           bottom: TabBar(
             tabs: const [Tab(text: 'Профиль'), Tab(text: 'Общие')],
-              indicator: BoxDecoration(
+            indicator: BoxDecoration(
               color: Theme.of(context).colorScheme.surface.withAlpha((0.12 * 255).round()),
               borderRadius: BorderRadius.circular(8),
             ),
             labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+            // Ensure selected/unselected labels remain readable across themes
+            labelColor: Theme.of(context).colorScheme.onSurface,
+            unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withAlpha((0.65 * 255).round()),
           ),
         ),
         body: AnimatedSwitcher(
