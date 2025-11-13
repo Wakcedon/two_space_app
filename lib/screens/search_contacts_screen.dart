@@ -4,6 +4,7 @@ import 'package:appwrite/appwrite.dart';
 import 'dart:async';
 
 import 'package:two_space_app/services/settings_service.dart';
+import 'package:two_space_app/services/navigation_service.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -24,16 +25,16 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
       final client = AppwriteService.client;
       if (client == null) {
         // No client configured, redirect to login
-        if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+        appNavigatorKey.currentState?.pushReplacementNamed('/login');
         return false;
       }
       final account = Account(client);
       // Check if current session is valid
       try {
         await account.get();
-      } catch (e) {
+        } catch (e) {
         // Not authenticated
-        if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+        appNavigatorKey.currentState?.pushReplacementNamed('/login');
                   return false;
       }
       // Ensure we have a JWT set on the client for server-side calls
@@ -62,9 +63,9 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
       await action();
       return true;
     } catch (e) {
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        WidgetsBinding.instance.addPostFrameCallback((_) => messenger.showSnackBar(SnackBar(content: Text('Ошибка аутентификации: $e'))));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка аутентификации: $e'))));
       }
       return false;
     }
@@ -104,11 +105,11 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
       final text = e.toString();
       if (text.contains('no authentication available') || text.toLowerCase().contains('not authenticated') || text.toLowerCase().contains('401')) {
         // Prompt user to login since search requires authentication or API key
-        if (mounted) {
-          final navigator = Navigator.of(context);
+        final navCtx = appNavigatorKey.currentContext;
+        if (navCtx != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             final res = await showDialog<bool>(
-              context: context,
+              context: navCtx,
               builder: (ctx) => AlertDialog(
                 title: const Text('Требуется вход'),
                 content: const Text('Для поиска контактов необходим вход в аккаунт. Хотите перейти на экран входа?'),
@@ -118,14 +119,12 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                 ],
               ),
             );
-            if (res == true) navigator.pushReplacementNamed('/login');
+            if (res == true) appNavigatorKey.currentState?.pushReplacementNamed('/login');
           });
         }
       } else {
-        if (mounted) {
-          final messenger = ScaffoldMessenger.of(context);
-          WidgetsBinding.instance.addPostFrameCallback((_) => messenger.showSnackBar(SnackBar(content: Text('Ошибка поиска: $e'))));
-        }
+        final navCtx = appNavigatorKey.currentContext;
+        if (navCtx != null) WidgetsBinding.instance.addPostFrameCallback((_) => ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка поиска: $e'))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -256,20 +255,20 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context)),
                           onTap: () async {
-                            final messenger = ScaffoldMessenger.of(context);
                             try {
                               final peerId = (e['\$id'] ?? e['id'])?.toString() ?? '';
                               if (peerId.isEmpty) throw Exception('invalid peer id');
                               if (!mounted) return;
                               // Open profile first; ProfileScreen will return a Chat or Map when "Написать" is used.
-                              final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProfileScreen(userId: peerId, initialName: name.toString(), initialAvatar: avatar)));
+                              final res = await appNavigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => ProfileScreen(userId: peerId, initialName: name.toString(), initialAvatar: avatar)));
                               if (res != null) {
                                 // Return whatever profile returned (Chat or Map) to the caller (HomeScreen)
-                                Navigator.of(context).pop(res);
+                                appNavigatorKey.currentState?.pop(res);
                               }
                             } catch (err) {
                               if (!mounted) return;
-                              messenger.showSnackBar(SnackBar(content: Text('Не удалось выбрать контакт: ${AppwriteService.readableError(err)}')));
+                              final navCtx = appNavigatorKey.currentContext;
+                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось выбрать контакт: ${AppwriteService.readableError(err)}')));
                             }
                           },
                           child: Padding(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/settings_service.dart';
+import 'package:two_space_app/services/navigation_service.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 
@@ -94,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Center(child: Text(name, style: Theme.of(context).textTheme.headlineSmall)),
                   const SizedBox(height: 6),
                   if (_user != null) ...[
-                    Center(child: Text('@${_user!['prefs']?['nickname'] ?? _user!['name'] ?? ''}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)))),
+                    Center(child: Text('@${_user!['prefs']?['nickname'] ?? _user!['name'] ?? ''}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round())))),
                     const SizedBox(height: 16),
                   ],
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -107,10 +108,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           final chat = Chat.fromMap(m);
                           if (!mounted) return;
                           // Return created/selected chat to caller so HomeScreen can react (select on two-pane)
-                          Navigator.of(context).pop(chat);
+                          appNavigatorKey.currentState?.pop(chat);
                         } catch (e) {
                           if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
+                          final navCtx = appNavigatorKey.currentContext;
+                          if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
                         } finally {
                           if (mounted) setState(() => _actionLoading = false);
                         }
@@ -188,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(value?.isNotEmpty == true ? value! : '-', style: Theme.of(context).textTheme.bodyLarge),
         const SizedBox(height: 4),
-        Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+  Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round()))),
       ]),
     );
   }

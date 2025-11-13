@@ -60,8 +60,9 @@ class _DevFabState extends State<DevFab> {
   }
 
   Widget _buildButton({double opacity = 1.0}) {
+    final base = Theme.of(context).colorScheme.primary;
     return Material(
-      color: Theme.of(context).colorScheme.primary.withOpacity(opacity),
+      color: base.withAlpha((opacity * 255).round()),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       elevation: 8,
       child: SizedBox(

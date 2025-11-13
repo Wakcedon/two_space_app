@@ -3,6 +3,7 @@ import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/screens/change_email_screen.dart';
 import 'package:two_space_app/screens/change_phone_screen.dart';
 import 'package:two_space_app/services/settings_service.dart';
+import 'package:two_space_app/services/navigation_service.dart';
 
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
@@ -44,7 +45,8 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       if (!mounted) return;
       setState(() => _hideFromSearch = v);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось обновить приватность: $e')));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось обновить приватность: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -57,7 +59,8 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       if (!mounted) return;
       setState(() => _hideLastSeen = v);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось обновить настройку: $e')));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось обновить настройку: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -118,13 +121,13 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
                               ],
                             ),
                           );
-                          if (ok == true) {
-                            final v = int.tryParse(controller.text.trim()) ?? days;
-                            final newV = v.clamp(7, 365);
-                            final messenger = ScaffoldMessenger.of(context);
-                            await SettingsService.setSessionTimeoutDays(newV);
-                            if (mounted) messenger.showSnackBar(SnackBar(content: Text('Срок входа установлен: $newV дней')));
-                          }
+                            if (ok == true) {
+                              final v = int.tryParse(controller.text.trim()) ?? days;
+                              final newV = v.clamp(7, 365);
+                              final navCtx = appNavigatorKey.currentContext;
+                              await SettingsService.setSessionTimeoutDays(newV);
+                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Срок входа установлен: $newV дней')));
+                            }
                         },
                 ),
               ),

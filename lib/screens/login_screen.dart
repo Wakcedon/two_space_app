@@ -150,16 +150,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-  const themeFill = Color(0xFF111217);
+  final themeFill = Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).colorScheme.surface;
   final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
-  final primaryLuma = primaryColor.computeLuminance();
-  final textColor = primaryLuma > 0.6 ? Colors.black : Colors.white;
-  final hintColor = Theme.of(context).colorScheme.onSurface.withAlpha((0.65 * 255).round());
+  final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
+  final hintColor = Theme.of(context).hintColor;
 
   final canSubmit = !_loading && !_loginLocked && _validateEmailOrPhone(emailController.text) == null && _validatePassword(passwordController.text) == null;
 
   return Scaffold(
-      backgroundColor: const Color(0xFF0B0C10),
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -191,9 +190,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     // Form fields
                     TextFormField(
                       controller: emailController,
-                      validator: _validateEmailOrPhone,
+                        validator: _validateEmailOrPhone,
                       onChanged: (v) => setState(() {}),
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: textColor),
                       decoration: InputDecoration(
                         hintText: 'Email или +7...',
                         hintStyle: TextStyle(color: hintColor),
@@ -209,15 +208,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       controller: passwordController,
                       obscureText: _obscure,
                       validator: _validatePassword,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: textColor),
                       decoration: InputDecoration(
                         hintText: 'Пароль',
                         hintStyle: TextStyle(color: hintColor),
                         filled: true,
                         fillColor: themeFill,
-                        prefixIcon: const Icon(Icons.lock, color: Colors.white54),
+                        prefixIcon: Icon(Icons.lock, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Colors.white54),
+                          icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
                           onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg), borderSide: BorderSide.none),
@@ -228,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     CheckboxListTile(
                       value: _remember,
                       onChanged: (v) => setState(() => _remember = v ?? false),
-                      title: const Text('Запомнить вход (для автоматического входа)'),
+                      title: Text('Запомнить вход (для автоматического входа)', style: TextStyle(color: textColor)),
                       controlAffinity: ListTileControlAffinity.leading,
                       activeColor: primaryColor,
                       contentPadding: EdgeInsets.zero,
@@ -243,7 +242,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg)),
                         ),
                         onPressed: canSubmit ? _login : null,
-                        child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Войти', style: TextStyle(color: textColor)),
+                        child: _loading ? SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.onPrimary)) : Text('Войти', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
                       ),
                     ),
                     const SizedBox(height: UITokens.space),

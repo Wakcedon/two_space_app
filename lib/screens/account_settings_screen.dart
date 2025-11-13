@@ -15,6 +15,7 @@ import 'package:two_space_app/screens/update_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
+import 'package:two_space_app/services/navigation_service.dart';
 
 /// Clean account settings screen
 class AccountSettingsScreen extends StatefulWidget {
@@ -82,9 +83,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _avatarFileId = user.prefs['avatarId'];
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка загрузки данных: ${AppwriteService.readableError(e)}')),
-        );
+        final navCtx = appNavigatorKey.currentContext;
+        if (navCtx != null) {
+          ScaffoldMessenger.of(navCtx).showSnackBar(
+            SnackBar(content: Text('Ошибка загрузки данных: ${AppwriteService.readableError(e)}')),
+          );
+        }
       }
     }
     // Try to load cached profile first for instant UI responsiveness.
@@ -188,9 +192,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       }
       } catch (e) {
       debugPrint('Load account failed: $e');
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.showSnackBar(SnackBar(content: Text('Не удалось загрузить аккаунт: $e')));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) {
+        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось загрузить аккаунт: $e')));
       }
     } finally {
       if (mounted) {
@@ -305,13 +309,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         } catch (_) {}
       }
   if (!mounted) return;
-  final messenger = ScaffoldMessenger.of(context);
-  messenger.showSnackBar(const SnackBar(content: Text('Аватарка обновлена')));
+  final navCtx = appNavigatorKey.currentContext;
+  if (navCtx != null) {
+    ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Аватарка обновлена')));
+  }
     } catch (e) {
       debugPrint('Avatar upload failed: $e');
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.showSnackBar(SnackBar(content: Text('Ошибка загрузки фото: $e')));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) {
+        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка загрузки фото: $e')));
       }
     } finally {
       if (mounted) {
@@ -340,9 +346,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (nickVal.isNotEmpty && nickVal != currentNick) {
         // If our live check previously determined nickname is taken, abort and notify.
         if (_nickStatus == 'taken') {
-          if (mounted) {
-            final messenger = ScaffoldMessenger.of(context);
-            messenger.showSnackBar(const SnackBar(content: Text('Никнейм занят. Выберите другой.')));
+          final navCtx = appNavigatorKey.currentContext;
+          if (navCtx != null) {
+            ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Никнейм занят. Выберите другой.')));
           }
           return;
         }
@@ -351,9 +357,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           await AppwriteService.reserveNickname(nickVal);
           // reserveNickname updates account prefs on success
         } catch (e) {
-          if (mounted) {
-            final messenger = ScaffoldMessenger.of(context);
-            messenger.showSnackBar(SnackBar(content: Text('Не удалось зарезервировать ник: ${AppwriteService.readableError(e)}')));
+          final navCtx = appNavigatorKey.currentContext;
+          if (navCtx != null) {
+            ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось зарезервировать ник: ${AppwriteService.readableError(e)}')));
           }
         }
       }
@@ -367,13 +373,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   await _loadAccount();
   if (!mounted) return;
-  final messenger = ScaffoldMessenger.of(context);
-  messenger.showSnackBar(const SnackBar(content: Text('Профиль сохранён')));
+  final navCtx = appNavigatorKey.currentContext;
+  if (navCtx != null) {
+    ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Профиль сохранён')));
+  }
     } catch (e) {
       debugPrint('Save profile error: $e');
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.showSnackBar(SnackBar(content: Text('Ошибка сохранения: $e')));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) {
+        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка сохранения: $e')));
       }
     } finally {
       if (mounted) {
@@ -459,18 +467,16 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     try {
       final info = await UpdateService.checkForUpdate();
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
+      final navCtx = appNavigatorKey.currentContext;
       if (info == null) {
-        messenger.showSnackBar(const SnackBar(content: Text('Обновлений не найдено')));
+        if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Обновлений не найдено')));
       } else {
         // Navigate to full-screen update page
-        Navigator.of(context).push(MaterialPageRoute(builder: (c) => UpdateScreen(info: info)));
+        appNavigatorKey.currentState?.push(MaterialPageRoute(builder: (c) => UpdateScreen(info: info)));
       }
     } catch (e) {
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.showSnackBar(SnackBar(content: Text('Ошибка проверки обновлений: $e')));
-      }
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка проверки обновлений: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -490,7 +496,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
     if (ok == true) {
       await AppwriteService.deleteCurrentSession();
-      if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
+      // Use global navigator key to avoid using a potentially stale BuildContext
+      appNavigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
     }
   }
 
@@ -517,8 +524,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           title: const Text('Настройки'),
           bottom: TabBar(
             tabs: const [Tab(text: 'Профиль'), Tab(text: 'Общие')],
-            indicator: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withOpacity(0.12),
+              indicator: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withAlpha((0.12 * 255).round()),
               borderRadius: BorderRadius.circular(8),
             ),
             labelPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -625,9 +632,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                                               // Call AppwriteService helper to delete avatar file and clear prefs
                                                               await AppwriteService.deleteAvatarForCurrentUser();
                                                               await _loadAccount();
-                                                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Аватар удалён')));
+                                                              if (!mounted) return;
+                                                              final navCtx = appNavigatorKey.currentContext;
+                                                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Аватар удалён')));
                                                             } catch (e) {
-                                                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: ${AppwriteService.readableError(e)}')));
+                                                              if (!mounted) return;
+                                                              final navCtx = appNavigatorKey.currentContext;
+                                                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: ${AppwriteService.readableError(e)}')));
                                                             } finally {
                                                               if (mounted) setState(() => _loading = false);
                                                             }

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/dev_logger.dart';
 import 'package:two_space_app/services/update_service.dart';
@@ -11,9 +10,10 @@ import 'package:two_space_app/screens/customization_screen.dart';
 import 'package:two_space_app/screens/privacy_screen.dart';
 // Chat screen import removed from dev menu (not used currently)
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/navigation_service.dart';
 
 class DevMenuScreen extends StatefulWidget {
-  const DevMenuScreen({Key? key}) : super(key: key);
+  const DevMenuScreen({super.key});
 
   @override
   State<DevMenuScreen> createState() => _DevMenuScreenState();
@@ -67,10 +67,14 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
                     try {
                       final info = await UpdateService.checkForUpdate();
                       DevLogger.log('Update check: ${info != null}');
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Update check finished (см. логи)')));
+                      if (!mounted) return;
+                      final navCtx = appNavigatorKey.currentContext;
+                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Update check finished (см. логи)')));
                     } catch (e) {
                       DevLogger.log('Update check failed: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка проверки: $e')));
+                      if (!mounted) return;
+                      final navCtx = appNavigatorKey.currentContext;
+                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка проверки: $e')));
                     }
                   },
                   icon: const Icon(Icons.system_update),
@@ -80,7 +84,9 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
                   onPressed: () async {
                     DevLogger.log('Clear settings cache');
                     await SettingsService.clearCachedProfile();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cached profile cleared')));
+                    if (!mounted) return;
+                    final navCtx = appNavigatorKey.currentContext;
+                    if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Cached profile cleared')));
                   },
                   icon: const Icon(Icons.delete),
                   label: const Text('Clear profile cache'),
@@ -91,10 +97,14 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
                     try {
                       await AppwriteService.clearJwt();
                       await AppwriteService.deleteCurrentSession();
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cleared session')));
+                      if (!mounted) return;
+                      final navCtx = appNavigatorKey.currentContext;
+                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Cleared session')));
                     } catch (e) {
                       DevLogger.log('Clear session failed: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+                      if (!mounted) return;
+                      final navCtx = appNavigatorKey.currentContext;
+                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
                     }
                   },
                   icon: const Icon(Icons.logout),

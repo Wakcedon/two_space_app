@@ -108,12 +108,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const themeFill = Color(0xFF111217);
+    final themeFill = Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).colorScheme.surface;
     final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
     final canRegister = !_loading && _validateName(nameController.text) == null && _validateEmailOrPhone(emailController.text) == null && _hasLength && (_hasUpper || _hasNumber || _hasSpecial);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0C10),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -139,7 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: const AppLogo(large: true),
                   ),
                   SizedBox(height: 20 * Responsive.scaleHeight(context)),
-                  Text('Регистрация', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
+                  Text('Регистрация', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: textColor)),
                   SizedBox(height: 20 * Responsive.scaleHeight(context)),
                   Column(
                     children: [
@@ -156,13 +157,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       TextFormField(
                         controller: nameController,
                         validator: _validateName,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           hintText: 'Имя',
-                          hintStyle: const TextStyle(color: Colors.white54),
+                          hintStyle: TextStyle(color: Theme.of(context).hintColor),
                           filled: true,
                           fillColor: themeFill,
-                          prefixIcon: const Icon(Icons.person, color: Colors.white54),
+                          prefixIcon: Icon(Icons.person, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
                           contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
@@ -173,13 +174,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: _validateEmailOrPhone,
                         onChanged: _onEmailFieldChanged,
                         keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           hintText: 'Email',
-                          hintStyle: const TextStyle(color: Colors.white54),
+                          hintStyle: TextStyle(color: Theme.of(context).hintColor),
                           filled: true,
                           fillColor: themeFill,
-                          prefixIcon: const Icon(Icons.email, color: Colors.white54),
+                          prefixIcon: Icon(Icons.email, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
                           contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
                         ),
@@ -190,15 +191,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: _obscure,
                         validator: _validatePassword,
                         onChanged: _onPasswordChanged,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           hintText: 'Пароль',
-                          hintStyle: const TextStyle(color: Colors.white54),
+                          hintStyle: TextStyle(color: Theme.of(context).hintColor),
                           filled: true,
                           fillColor: themeFill,
-                          prefixIcon: const Icon(Icons.lock, color: Colors.white54),
+                          prefixIcon: Icon(Icons.lock, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Colors.white54),
+                            icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Theme.of(context).iconTheme.color?.withAlpha(180)),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),

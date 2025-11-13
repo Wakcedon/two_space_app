@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/navigation_service.dart';
 // ui_tokens not needed here
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({Key? key}) : super(key: key);
+  const ForgotPasswordScreen({super.key});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -16,18 +17,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _submit() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите email')));
+      final navCtx = appNavigatorKey.currentContext;
+      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Введите email')));
       return;
     }
     setState(() => _loading = true);
     try {
       await AppwriteService.createPasswordRecovery(email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Письмо с инструкциями отправлено. Проверьте почту.')));
-      Navigator.of(context).pop();
+  if (!mounted) return;
+  final navCtx = appNavigatorKey.currentContext;
+  if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Письмо с инструкциями отправлено. Проверьте почту.')));
+  appNavigatorKey.currentState?.pop();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')));
+  if (!mounted) return;
+  final navCtx = appNavigatorKey.currentContext;
+  if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

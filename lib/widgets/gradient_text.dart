@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// GradientText renders text with a shader applied to the exact glyph bounds.
 /// This avoids ShaderMask issues when fonts or styles change.
 class GradientText extends StatelessWidget {
-  const GradientText(this.text, {Key? key, required this.gradient, this.style, this.textAlign}) : super(key: key);
+  const GradientText(this.text, {super.key, required this.gradient, this.style, this.textAlign});
 
   final String text;
   final Gradient gradient;
