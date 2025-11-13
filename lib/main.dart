@@ -8,7 +8,10 @@ import 'screens/customization_screen.dart';
 import 'screens/privacy_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/change_email_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'package:two_space_app/services/chat_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:two_space_app/widgets/dev_fab.dart';
 import 'services/appwrite_service.dart';
 import 'services/settings_service.dart';
 import 'services/update_service.dart';
@@ -149,7 +152,7 @@ class TwoSpaceApp extends StatelessWidget {
               labelSmall: tf.labelSmall?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
             );
 
-            return MaterialApp(
+            final app = MaterialApp(
               title: 'TwoSpace',
               debugShowCheckedModeBanner: false,
               theme: baseTheme.copyWith(
@@ -183,6 +186,7 @@ class TwoSpaceApp extends StatelessWidget {
                 '/home': (context) => const HomeScreen(),
                 '/register': (context) => const RegisterScreen(),
                 '/settings': (context) => const AccountSettingsScreen(),
+                '/forgot': (context) => const ForgotPasswordScreen(),
                 '/customization': (context) => const CustomizationScreen(),
                 '/privacy': (context) => const PrivacyScreen(),
                 '/change_email': (context) => const ChangeEmailScreen(),
@@ -195,6 +199,11 @@ class TwoSpaceApp extends StatelessWidget {
                 },
               },
             );
+            // Overlay dev FAB in debug or when enabled via env
+            if (kDebugMode || Environment.enableDevTools) {
+              return Stack(children: [app, const DevFab()]);
+            }
+            return app;
           },
         );
       },

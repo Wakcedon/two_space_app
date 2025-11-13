@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/appwrite_service.dart';
+import '../widgets/section_card.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/app_logo.dart';
@@ -165,9 +166,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
             child: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 320, maxWidth: 520),
-              child: Form(
+                child: Form(
                 key: _formKey,
-                child: Column(
+                child: SectionCard(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (_errorMessage != null)
@@ -253,19 +255,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           child: Text('Создать аккаунт', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
                         ),
                         TextButton(
-                          onPressed: () async {
-                            // Simple forgot password guidance dialog
-                            await showDialog<void>(context: context, builder: (c) => AlertDialog(
-                              title: const Text('Сброс пароля'),
-                              content: const Text('Если вы забыли пароль, обратитесь в поддержку: vaksedon@gmail.com или используйте восстановление на сервере (если доступно).'),
-                              actions: [TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('ОК'))],
-                            ));
-                          },
+                          onPressed: () => Navigator.pushNamed(context, '/forgot'),
                           child: Text('Забыли пароль?', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
                         ),
                       ],
                     ),
                   ],
+                ),
                 ),
               ),
             ),

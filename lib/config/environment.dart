@@ -131,4 +131,13 @@ class Environment {
       }
     }
   }
+
+  // Enable developer tools UI (dev menu, draggable FAB). Set ENABLE_DEV_TOOLS=true in .env to enable
+  static bool get enableDevTools {
+    try {
+      return (_get('ENABLE_DEV_TOOLS').toLowerCase() == 'true');
+    } catch (_) {
+      return false;
+    }
+  }
 }

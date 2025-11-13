@@ -2280,6 +2280,47 @@ class AppwriteService {
     throw Exception('deleteAccount failed: ${res.statusCode} ${res.body}');
   }
 
+  /// Initiate password recovery for the provided email.
+  /// Appwrite expects a `url` parameter which will be included in the recovery email.
+  static Future<void> createPasswordRecovery(String email, {String? url}) async {
+    final base = _v1Endpoint();
+    if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
+    final uri = Uri.parse('$base/account/recovery');
+    final body = {'email': email, 'url': url ?? _v1Endpoint()};
+    final headers = await _authHeaders();
+    // prefer API key when available for unauthenticated endpoints
+    try {
+      var res = await http.post(uri, headers: headers, body: jsonEncode(body));
+      if (res.statusCode == 401 && Environment.appwriteApiKey.isNotEmpty) {
+        res = await http.post(uri, headers: await _apiKeyHeaders(), body: jsonEncode(body));
+      }
+      if (res.statusCode >= 200 && res.statusCode < 300) return;
+      throw Exception('createPasswordRecovery failed: ${res.statusCode} ${res.body}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Complete password recovery by providing userId, secret and new password.
+  /// This corresponds to Appwrite REST: PUT /v1/account/recovery?userId=...&secret=...
+  static Future<void> updatePasswordWithRecovery(String userId, String secret, String password) async {
+    final base = _v1Endpoint();
+    if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
+    final uri = Uri.parse('$base/account/recovery?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}');
+    final body = {'password': password};
+    final headers = await _authHeaders();
+    try {
+      var res = await http.put(uri, headers: headers, body: jsonEncode(body));
+      if (res.statusCode == 401 && Environment.appwriteApiKey.isNotEmpty) {
+        res = await http.put(uri, headers: await _apiKeyHeaders(), body: jsonEncode(body));
+      }
+      if (res.statusCode >= 200 && res.statusCode < 300) return;
+      throw Exception('updatePasswordWithRecovery failed: ${res.statusCode} ${res.body}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// Execute a server-side Appwrite Function to delete the account securely.
   /// The function id must be set in Environment.appwriteDeleteFunctionId.
   /// The function should validate the provided password server-side and perform deletion with admin privileges.
