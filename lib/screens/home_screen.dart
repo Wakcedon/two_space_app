@@ -389,114 +389,148 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                        child: Row(
-                          children: [
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(UITokens.corner),
-                                  onTap: () async {
-                                    final uid = _peerInfo[chat.id]?['userId'] as String?;
-                                    if (uid != null && uid.isNotEmpty) {
-                                      final navigator = Navigator.of(context);
-                                      final isLarge = MediaQuery.of(context).size.width >= 900;
-                                      final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
-                                      // If profile returned a created Chat, select or open it
-                                      if (res != null) {
-                                        try {
-                                          if (!mounted) return;
-                                          if (res is Chat) {
-                                            if (isLarge) {
-                                              setState(() => _selectedChat = res);
-                                            } else {
-                                              navigator.pushNamed('/chat', arguments: res);
-                                            }
-                                          } else if (res is Map) {
-                                            final c = Chat.fromMap(Map<String, dynamic>.from(res));
-                                            if (isLarge) {
-                                              setState(() => _selectedChat = c);
-                                            } else {
-                                              navigator.pushNamed('/chat', arguments: c);
-                                            }
+                        child: LayoutBuilder(builder: (itemCtx, itemBc) {
+                          // If the item is very narrow, render avatar-only to avoid horizontal overflow.
+                          if (itemBc.maxWidth <= 140) {
+                            return Center(
+                              child: InkWell(
+                                onTap: () {
+                                  if (isTwoPane) {
+                                    setState(() => _selectedChat = chat);
+                                  } else {
+                                    Navigator.pushNamed(context, '/chat', arguments: chat);
+                                  }
+                                },
+                                child: UserAvatar(
+                                  avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
+                                  initials: (() {
+                                    final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
+                                    final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                    if (parts.isEmpty) return '?';
+                                    final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                    final res = (a + b).toUpperCase();
+                                    return res.isNotEmpty ? res : '?';
+                                  })(),
+                                  fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
+                                  radius: 26,
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Normal layout when there's enough width.
+                          return Row(
+                            children: [
+                              InkWell(
+                                borderRadius: BorderRadius.circular(UITokens.corner),
+                                onTap: () async {
+                                  final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                  if (uid != null && uid.isNotEmpty) {
+                                    final navigator = Navigator.of(context);
+                                    final isLarge = MediaQuery.of(context).size.width >= 900;
+                                    final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                    if (res != null) {
+                                      try {
+                                        if (!mounted) return;
+                                        if (res is Chat) {
+                                          if (isLarge) {
+                                            setState(() => _selectedChat = res);
+                                          } else {
+                                            navigator.pushNamed('/chat', arguments: res);
                                           }
-                                        } catch (_) {}
+                                        } else if (res is Map) {
+                                          final c = Chat.fromMap(Map<String, dynamic>.from(res));
+                                          if (isLarge) {
+                                            setState(() => _selectedChat = c);
+                                          } else {
+                                            navigator.pushNamed('/chat', arguments: c);
+                                          }
+                                        }
+                                      } catch (_) {}
+                                    }
+                                  }
+                                },
+                                child: UserAvatar(
+                                  avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
+                                  initials: (() {
+                                    final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
+                                    final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                    if (parts.isEmpty) return '?';
+                                    final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                    final res = (a + b).toUpperCase();
+                                    return res.isNotEmpty ? res : '?';
+                                  })(),
+                                  fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
+                                  radius: 26,
+                                ),
+                              ),
+                              const SizedBox(width: UITokens.space),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    InkWell(
+                                      onTap: () async {
+                                        final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                        if (uid != null && uid.isNotEmpty) {
+                                          final navigator = Navigator.of(context);
+                                          final isLarge = MediaQuery.of(context).size.width >= 900;
+                                          final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                          if (res != null) {
+                                            try {
+                                              if (!mounted) return;
+                                              if (res is Chat) {
+                                                if (isLarge) {
+                                                  setState(() => _selectedChat = res);
+                                                } else {
+                                                  navigator.pushNamed('/chat', arguments: res);
+                                                }
+                                              } else if (res is Map) {
+                                                final c = Chat.fromMap(Map<String, dynamic>.from(res));
+                                                if (isLarge) {
+                                                  setState(() => _selectedChat = c);
+                                                } else {
+                                                  navigator.pushNamed('/chat', arguments: c);
+                                                }
+                                              }
+                                            } catch (_) {}
+                                          }
+                                        }
+                                      },
+                                      child: Text(chat.name, style: UITokens.emphasized(context)),
+                                    ),
+                                    const SizedBox(height: UITokens.spaceXS),
+                                    Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+                                  ],
+                                ),
+                              ),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: 0, maxWidth: 48),
+                                child: PopupMenuButton<int>(
+                                  padding: EdgeInsets.zero,
+                                  onSelected: (v) {
+                                    if (v == 1) {
+                                      final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                      if (uid != null && uid.isNotEmpty) {
+                                        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
                                       }
                                     }
                                   },
-                                  child: UserAvatar(
-                                    avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
-                                    initials: (() {
-                                      final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
-                                      final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
-                                      if (parts.isEmpty) return '?';
-                                      final a = parts[0].isNotEmpty ? parts[0][0] : '';
-                                      final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-                                      final res = (a + b).toUpperCase();
-                                      return res.isNotEmpty ? res : '?';
-                                    })(),
-                                    fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
-                                    radius: 26,
-                                  ),
+                                  itemBuilder: (_) => [
+                                    const PopupMenuItem(value: 1, child: Text('Профиль')),
+                                  ],
                                 ),
-                            const SizedBox(width: UITokens.space),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          InkWell(
-                                            onTap: () async {
-                                              final uid = _peerInfo[chat.id]?['userId'] as String?;
-                                              if (uid != null && uid.isNotEmpty) {
-                                                final navigator = Navigator.of(context);
-                                                final isLarge = MediaQuery.of(context).size.width >= 900;
-                                                final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
-                                                if (res != null) {
-                                                  try {
-                                                    if (!mounted) return;
-                                                    if (res is Chat) {
-                                                      if (isLarge) {
-                                                        setState(() => _selectedChat = res);
-                                                      } else {
-                                                        navigator.pushNamed('/chat', arguments: res);
-                                                      }
-                                                    } else if (res is Map) {
-                                                      final c = Chat.fromMap(Map<String, dynamic>.from(res));
-                                                      if (isLarge) {
-                                                        setState(() => _selectedChat = c);
-                                                      } else {
-                                                        navigator.pushNamed('/chat', arguments: c);
-                                                      }
-                                                    }
-                                                  } catch (_) {}
-                                                }
-                                              }
-                                            },
-                                            child: Text(chat.name, style: UITokens.emphasized(context)),
-                                          ),
-                                          const SizedBox(height: UITokens.spaceXS),
-                                          Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
-                                        ],
-                                      ),
-                                    ),
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(minWidth: 0),
-                                      child: PopupMenuButton<int>(
-                                        padding: EdgeInsets.zero,
-                                        onSelected: (v) {
-                                          if (v == 1) {
-                                            final uid = _peerInfo[chat.id]?['userId'] as String?;
-                                            if (uid != null && uid.isNotEmpty) {
-                                              Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
-                                            }
-                                          }
-                                        },
-                                        itemBuilder: (_) => [
-                                          const PopupMenuItem(value: 1, child: Text('Профиль')),
-                                        ],
-                                      ),
-                                    ),
-                            const SizedBox(width: UITokens.space),
-                            Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
-                          ],
-                        ),
+                              ),
+                              const SizedBox(width: UITokens.space),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(minWidth: 0, maxWidth: 40),
+                                child: Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis),
+                              ),
+                            ],
+                          );
+                        }),
                       ),
                     ),
                   );
@@ -520,70 +554,104 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: UITokens.space, vertical: UITokens.spaceSm),
-                      child: Row(
-                        children: [
-                          InkWell(
-                            borderRadius: BorderRadius.circular(UITokens.corner),
-                            onTap: () {
-                              final uid = _peerInfo[chat.id]?['userId'] as String?;
-                              if (uid != null && uid.isNotEmpty) {
-                                Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
-                              }
-                            },
-                            child: UserAvatar(
-                              avatarUrl: chat.avatarUrl,
-                              initials: (() {
-                                final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
-                                if (parts.isEmpty) return '?';
-                                final a = parts[0].isNotEmpty ? parts[0][0] : '';
-                                final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-                                final res = (a + b).toUpperCase();
-                                return res.isNotEmpty ? res : '?';
-                              })(),
-                              fullName: chat.name,
-                              radius: 26,
+                      child: LayoutBuilder(builder: (itemCtx, itemBc) {
+                        if (itemBc.maxWidth <= 140) {
+                          // Avatar-only compact tile
+                          return Center(
+                            child: InkWell(
+                              onTap: () {
+                                if (isTwoPane) {
+                                  setState(() => _selectedChat = chat);
+                                } else {
+                                  Navigator.pushNamed(context, '/chat', arguments: chat);
+                                }
+                              },
+                              child: UserAvatar(
+                                avatarUrl: chat.avatarUrl,
+                                initials: (() {
+                                  final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                  if (parts.isEmpty) return '?';
+                                  final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                  final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                  final res = (a + b).toUpperCase();
+                                  return res.isNotEmpty ? res : '?';
+                                })(),
+                                fullName: chat.name,
+                                radius: 26,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: UITokens.space),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                InkWell(
-                                  onTap: () {
+                          );
+                        }
+
+                        // Normal layout
+                        return Row(
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(UITokens.corner),
+                              onTap: () {
+                                final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                if (uid != null && uid.isNotEmpty) {
+                                  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                }
+                              },
+                              child: UserAvatar(
+                                avatarUrl: chat.avatarUrl,
+                                initials: (() {
+                                  final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                  if (parts.isEmpty) return '?';
+                                  final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                  final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                  final res = (a + b).toUpperCase();
+                                  return res.isNotEmpty ? res : '?';
+                                })(),
+                                fullName: chat.name,
+                                radius: 26,
+                              ),
+                            ),
+                            const SizedBox(width: UITokens.space),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      final uid = _peerInfo[chat.id]?['userId'] as String?;
+                                      if (uid != null && uid.isNotEmpty) {
+                                        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
+                                      }
+                                    },
+                                    child: Text(_peerInfo[chat.id]?['displayName'] ?? chat.name, style: UITokens.emphasized(context)),
+                                  ),
+                                  const SizedBox(height: UITokens.spaceXS),
+                                  Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+                                ],
+                              ),
+                            ),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 0, maxWidth: 48),
+                              child: PopupMenuButton<int>(
+                                padding: EdgeInsets.zero,
+                                onSelected: (v) {
+                                  if (v == 1) {
                                     final uid = _peerInfo[chat.id]?['userId'] as String?;
                                     if (uid != null && uid.isNotEmpty) {
                                       Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
                                     }
-                                  },
-                                  child: Text(_peerInfo[chat.id]?['displayName'] ?? chat.name, style: UITokens.emphasized(context)),
-                                ),
-                                const SizedBox(height: UITokens.spaceXS),
-                                Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
-                              ],
-                            ),
-                          ),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(minWidth: 0),
-                            child: PopupMenuButton<int>(
-                              padding: EdgeInsets.zero,
-                              onSelected: (v) {
-                                if (v == 1) {
-                                  final uid = _peerInfo[chat.id]?['userId'] as String?;
-                                  if (uid != null && uid.isNotEmpty) {
-                                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerInfo[chat.id]?['displayName'] as String?, initialAvatar: _peerInfo[chat.id]?['avatarUrl'] as String?)));
                                   }
-                                }
-                              },
-                              itemBuilder: (_) => [
-                                const PopupMenuItem(value: 1, child: Text('Профиль')),
-                              ],
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(value: 1, child: Text('Профиль')),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: UITokens.space),
-                          Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
+                            const SizedBox(width: UITokens.space),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 0, maxWidth: 40),
+                              child: Text(_formatTime(chat.lastMessageTime), style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        );
+                      }),
                     ),
                   ),
                 );
