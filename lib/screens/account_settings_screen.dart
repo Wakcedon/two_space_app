@@ -440,6 +440,20 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     }
   }
 
+  Widget _nicknameStatusWidget() {
+    if (_nickStatus == null) return const SizedBox(width: 24, height: 24);
+    if (_nickStatus == 'ok') {
+      return Tooltip(message: 'Ник свободен', child: Icon(Icons.check_circle, color: Colors.green, size: 24));
+    }
+    if (_nickStatus == 'taken') {
+      return Tooltip(message: 'Никнейм занят', child: Icon(Icons.cancel, color: Theme.of(context).colorScheme.error, size: 24));
+    }
+    if (_nickStatus == 'error') {
+      return Tooltip(message: 'Ошибка проверки', child: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.onSurface, size: 24));
+    }
+    return const SizedBox(width: 24, height: 24);
+  }
+
   Future<void> _checkForUpdates() async {
     if (mounted) setState(() => _loading = true);
     try {
@@ -567,23 +581,88 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                     padding: const EdgeInsets.all(UITokens.space),
                                     child: Column(
                                       children: [
-                                        UserAvatar(avatarUrl: _avatarUrl, avatarFileId: _avatarFileId, initials: null, fullName: '${_firstNameController.text} ${_lastNameController.text}'.trim(), radius: 56),
-                                        const SizedBox(height: 8),
+                                        // Avatar with edit overlay
+                                        Stack(
+                                          alignment: Alignment.bottomRight,
+                                          children: [
+                                            UserAvatar(avatarUrl: _avatarUrl, avatarFileId: _avatarFileId, initials: null, fullName: '${_firstNameController.text} ${_lastNameController.text}'.trim(), radius: 56),
+                                            Positioned(
+                                              right: 0,
+                                              bottom: 0,
+                                              child: Container(
+                                                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,2))]),
+                                                child: IconButton(
+                                                  icon: Icon(Icons.edit, size: 18, color: Colors.white),
+                                                  onPressed: _loading ? null : _pickAndUploadAvatar,
+                                                  tooltip: 'Изменить аватар',
+                                                ),
+                                              ),
+                                            ),
+                                            if ((_avatarUrl != null && _avatarUrl!.isNotEmpty) || (_avatarBytes != null && _avatarBytes!.isNotEmpty))
+                                              Positioned(
+                                                left: 0,
+                                                bottom: 0,
+                                                child: Container(
+                                                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
+                                                  child: IconButton(
+                                                    icon: Icon(Icons.delete_forever, size: 18, color: Theme.of(context).colorScheme.error),
+                                                    onPressed: _loading
+                                                        ? null
+                                                        : () async {
+                                                            final confirm = await showDialog<bool>(context: context, builder: (c) {
+                                                              return AlertDialog(
+                                                                title: const Text('Удалить аватар'),
+                                                                content: const Text('Вы уверены, что хотите удалить текущую аватарку? Это действие удалит файл из хранилища и очистит настройки профиля.'),
+                                                                actions: [
+                                                                  TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Отмена')),
+                                                                  TextButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Удалить', style: TextStyle(color: Colors.red))),
+                                                                ],
+                                                              );
+                                                            });
+                                                            if (confirm != true) return;
+                                                            setState(() => _loading = true);
+                                                            try {
+                                                              // Call AppwriteService helper to delete avatar file and clear prefs
+                                                              await AppwriteService.deleteAvatarForCurrentUser();
+                                                              await _loadAccount();
+                                                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Аватар удалён')));
+                                                            } catch (e) {
+                                                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: ${AppwriteService.readableError(e)}')));
+                                                            } finally {
+                                                              if (mounted) setState(() => _loading = false);
+                                                            }
+                                                          },
+                                                    tooltip: 'Удалить аватар',
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
                                         TextField(controller: _firstNameController, decoration: const InputDecoration(labelText: 'Имя')),
                                         const SizedBox(height: 8),
                                         TextField(controller: _lastNameController, decoration: const InputDecoration(labelText: 'Фамилия')),
                                         const SizedBox(height: 12),
-                                        TextField(controller: _nicknameController, decoration: const InputDecoration(labelText: 'Никнейм (без @)')),
+                                        // Nickname with live availability status
+                                        Row(
+                                          children: [
+                                            Expanded(child: TextField(controller: _nicknameController, decoration: const InputDecoration(labelText: 'Никнейм (без @)'), onChanged: _onNicknameChanged)),
+                                            const SizedBox(width: 8),
+                                            _nickChecking
+                                                ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                                                : _nicknameStatusWidget(),
+                                          ],
+                                        ),
                                         const SizedBox(height: 12),
                                         TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Описание'), maxLines: 4),
                                         const SizedBox(height: 16),
                                         SizedBox(
                                           width: double.infinity,
                                           child: ElevatedButton.icon(
-                                            onPressed: _saveProfile,
+                                            onPressed: (_loading || _nickChecking) ? null : _saveProfile,
                                             icon: const Icon(Icons.save_rounded),
-                                            label: const Padding(
-                                              padding: EdgeInsets.symmetric(vertical: 12.0),
+                                            label: Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 12.0),
                                               child: Text('Сохранить', style: TextStyle(fontSize: 16)),
                                             ),
                                           ),
@@ -660,7 +739,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Center(child: TextButton.icon(onPressed: _checkForUpdates, icon: const Icon(Icons.system_update, color: Colors.white), label: Text('Проверить обновления', style: Theme.of(context).textTheme.titleMedium), style: TextButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surface, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)))),
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: _checkForUpdates,
+                        icon: Icon(Icons.system_update, color: Theme.of(context).colorScheme.primary),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                          child: Text('Проверить обновления', style: Theme.of(context).textTheme.titleMedium),
+                        ),
+                        style: OutlinedButton.styleFrom(side: BorderSide(color: Theme.of(context).dividerColor)),
+                      ),
+                    ),
                     const SizedBox(height: 18),
                     Center(child: Column(children: [Text('TwoSpace — лёгкий мессенджер для приватного общения нового уровня', style: Theme.of(context).textTheme.bodyMedium), const SizedBox(height: 6), Row(children: [Text('Версия: $_appVersion', style: Theme.of(context).textTheme.bodySmall), const SizedBox(width: 10), if (_deviceAbi.isNotEmpty) Text('Архитектура: $_deviceAbi', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round()))),]), const SizedBox(height: 4), Text('Для вопросов и багов: vaksedon@gmail.com', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha((0.8 * 255).round()))),])),
                   ],

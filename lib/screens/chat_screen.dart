@@ -186,6 +186,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 setState(() {
                   if (!_messages.any((x) => x.id == mm.id)) _messages.insert(0, mm);
                 });
+                  // If the incoming message is from the other user, mark it as read
+                  if (mm.senderId != _meId) {
+                    unawaited(_markAllMessagesRead());
+                  }
               }
             }
           } catch (_) {}
@@ -234,11 +238,48 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages = merged;
         _loading = false;
       });
+      // Mark messages as read on successful sync
+      unawaited(_markAllMessagesRead());
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     } finally {
       _syncing = false;
     }
+  }
+
+  /// Mark all messages in the current chat as read for the current user.
+  /// Updates server and local store for an immediate UI reflection.
+  Future<void> _markAllMessagesRead() async {
+    try {
+      if (_chatId == null || _meId == null) return;
+      for (final m in List<Message>.from(_messages)) {
+        try {
+          if (m.senderId == _meId) continue; // don't mark own messages
+          if (m.readBy.contains(_meId)) continue;
+          // Mark on server
+          try {
+            await AppwriteService.markMessageRead(m.id, _meId!);
+          } catch (_) {
+            // ignore server errors, we'll still update local cache
+          }
+          // Update local store to include our read flag
+          final updated = <String, dynamic>{
+            '\$id': m.id,
+            'senderId': m.senderId,
+            'content': m.content,
+            'time': m.time.toIso8601String(),
+            'type': m.type,
+            'readBy': List<String>.from(m.readBy)..add(_meId!),
+            'deliveredTo': m.deliveredTo,
+            if (m.mediaId != null) 'mediaFileId': m.mediaId,
+          };
+          await _localStore.upsertMessage(_chatId!, updated);
+        } catch (_) {}
+      }
+      // Refresh UI from local store
+      final merged = await _localStore.getMessages(_chatId!);
+      if (mounted) setState(() => _messages = merged);
+    } catch (_) {}
   }
 
   @override
@@ -1170,7 +1211,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                   ),
-                  IconButton(onPressed: (_chatId == null || _loading) ? null : () => _sendMessage(), icon: Icon(Icons.send, color: primary)),
+                  IconButton(onPressed: (_chatId == null || _loading || _uploading) ? null : () => _sendMessage(), icon: Icon(Icons.send, color: primary)),
                 ],
               ),
             ),

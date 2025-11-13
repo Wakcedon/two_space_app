@@ -155,7 +155,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final textColor = primaryLuma > 0.6 ? Colors.black : Colors.white;
   final hintColor = Theme.of(context).colorScheme.onSurface.withAlpha((0.65 * 255).round());
 
-    return Scaffold(
+  final canSubmit = !_loading && !_loginLocked && _validateEmailOrPhone(emailController.text) == null && _validatePassword(passwordController.text) == null;
+
+  return Scaffold(
       backgroundColor: const Color(0xFF0B0C10),
       body: SafeArea(
         child: Center(
@@ -238,14 +240,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg)),
                         ),
-                        onPressed: (_loading || _loginLocked) ? null : _login,
+                        onPressed: canSubmit ? _login : null,
                         child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Войти', style: TextStyle(color: textColor)),
                       ),
                     ),
                     const SizedBox(height: UITokens.space),
-                    TextButton(
-                      onPressed: () => Navigator.pushNamed(context, '/register'),
-                      child: Text('Создать аккаунт', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pushNamed(context, '/register'),
+                          child: Text('Создать аккаунт', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            // Simple forgot password guidance dialog
+                            await showDialog<void>(context: context, builder: (c) => AlertDialog(
+                              title: const Text('Сброс пароля'),
+                              content: const Text('Если вы забыли пароль, обратитесь в поддержку: vaksedon@gmail.com или используйте восстановление на сервере (если доступно).'),
+                              actions: [TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('ОК'))],
+                            ));
+                          },
+                          child: Text('Забыли пароль?', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
+                        ),
+                      ],
                     ),
                   ],
                 ),

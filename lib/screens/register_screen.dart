@@ -110,6 +110,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     const themeFill = Color(0xFF111217);
     final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
+    final canRegister = !_loading && _validateName(nameController.text) == null && _validateEmailOrPhone(emailController.text) == null && _hasLength && (_hasUpper || _hasNumber || _hasSpecial);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0C10),
@@ -226,7 +227,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             padding: EdgeInsets.symmetric(vertical: 14 * Responsive.scaleHeight(context)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context))),
                           ),
-                          onPressed: _loading ? null : _register,
+                          onPressed: canRegister ? _register : null,
                           child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text('Зарегистрироваться', style: TextStyle(color: Theme.of(context).primaryColor.computeLuminance() > 0.6 ? Colors.black : Colors.white)),
                         ),
                       ),
