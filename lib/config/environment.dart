@@ -140,4 +140,26 @@ class Environment {
       return false;
     }
   }
+
+  // Matrix-related configuration
+  // Enable Matrix integration (true/false). If true, the app will try to use
+  // Matrix endpoints configured below for chat functionality.
+  static bool get useMatrix {
+    try {
+      return (_get('MATRIX_ENABLE').toLowerCase() == 'true');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Base URL of the homeserver, e.g. https://matrix.example.org
+  static String get matrixHomeserverUrl => _get('MATRIX_HOMESERVER_URL');
+
+  // Matrix server name (required for some admin operations), e.g. example.org
+  static String get matrixServerName => _get('MATRIX_SERVER_NAME');
+
+  // A long-lived access token for a service/admin account used by the app to
+  // perform server-side operations (for PoC). In production you will want per-user
+  // access tokens obtained via login instead of a single global token.
+  static String get matrixAccessToken => _get('MATRIX_ACCESS_TOKEN');
 }
