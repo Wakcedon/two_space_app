@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
-import 'package:two_space_app/services/auth_service.dart';
-import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
+import 'package:two_space_app/services/chat_service.dart';
+import 'package:two_space_app/services/auth_service.dart';
 import 'package:flutter/foundation.dart';
 
 /// Minimal Matrix-backed Chat service.
@@ -26,19 +26,19 @@ class ChatMatrixService implements ChatBackend {
     }
   }
 
+  /// Lightweight auth header builder: prefer per-user token via AuthService,
+  /// otherwise fall back to globally configured MATRIX_ACCESS_TOKEN.
   Future<Map<String, String>> _authHeaders() async {
-    // Prefer per-user stored token (AuthService). Fallback to configured
-    // environment token for PoC/testing.
     String? token = accessToken;
     if (token == null) {
       try {
         token = await AuthService().getMatrixTokenForUser();
       } catch (_) {}
     }
-  String tokenString = '';
-  if (token != null && token.isNotEmpty) tokenString = token;
-  else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
-  final auth = tokenString.isNotEmpty ? {'Authorization': 'Bearer $tokenString'} : <String, String>{};
+    String tokenString = '';
+    if (token != null && token.isNotEmpty) tokenString = token;
+    else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
+    final auth = tokenString.isNotEmpty ? {'Authorization': 'Bearer $tokenString'} : <String, String>{};
     return {
       ...auth,
       'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ class ChatMatrixService implements ChatBackend {
       throw Exception('Matrix /sync failed ${res.statusCode}: ${res.body}');
     }
     final json = jsonDecode(res.body) as Map<String, dynamic>;
-  final rooms = <Chat>[];
+    final rooms = <Chat>[];
     final join = (json['rooms'] as Map?)?['join'] as Map?;
     if (join != null) {
       join.forEach((roomId, roomObj) {
@@ -101,7 +101,7 @@ class ChatMatrixService implements ChatBackend {
     if (res.statusCode != 200) throw Exception('Matrix messages failed ${res.statusCode}: ${res.body}');
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     final chunk = json['chunk'] as List? ?? [];
-  final out = <Message>[];
+    final out = <Message>[];
     for (final ev in chunk) {
       try {
         if (ev['type'] == 'm.room.message') {
@@ -119,6 +119,8 @@ class ChatMatrixService implements ChatBackend {
             replyTo: ev['unsigned']?['m.relations']?['m.in_reply_to']?['event_id']?.toString(),
           );
           out.add(msg);
+          // cache mapping
+          if (msg.id.isNotEmpty) _messageIdToRoom[msg.id] = roomId;
         }
       } catch (_) {}
     }

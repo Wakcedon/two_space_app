@@ -464,6 +464,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.20.2"
+  jitsi_meet:
+    dependency: "direct main"
+    description:
+      name: jitsi_meet
+      sha256: bd5f68181ba27543b30a1056ec798c8e949ba0e18f2c0a6aa87e83c72c4b59bf
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.0"
+  jitsi_meet_platform_interface:
+    dependency: transitive
+    description:
+      name: jitsi_meet_platform_interface
+      sha256: "161bdedd62a2756e5e2ce868c1e8f82d040f1ad24cc46c3c028ac04e339d9492"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
+  jitsi_meet_web_plugin:
+    dependency: transitive
+    description:
+      name: jitsi_meet_web_plugin
+      sha256: "68bb307bcb09790b25c841bdd84f0894c97cf09d2b8c641872f5e53021caba67"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   js:
     dependency: transitive
     description:

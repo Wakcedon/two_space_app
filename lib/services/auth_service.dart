@@ -86,13 +86,46 @@ class AuthService {
   // Backwards compatible wrappers used by existing screens
   Future<void> loginUser(String identifier, String password) async {
     // identifier may be pseudo-email created from phone; call signInWithEmail
-    return signInWithEmail(identifier, password);
+    final res = await signInWithEmail(identifier, password);
+    // If Matrix integration enabled, attempt to sign in the same user on Matrix
+    try {
+      if (Environment.useMatrix) {
+        // Try matrix login using identifier as username (app can adjust mapping)
+        await signInMatrix(identifier, password);
+      }
+    } catch (_) {
+      // Non-fatal: keep app login even if Matrix login fails
+    }
+    return res;
   }
 
   Future<dynamic> registerUser(String name, String email, String password) async {
     // If SDK client available, use it; otherwise use REST fallback
     // Use REST createAccount helper which works in both SDK and REST environments
-    return await AppwriteService.createAccount(email, password, name: name);
+    final res = await AppwriteService.createAccount(email, password, name: name);
+    // Try to provision Matrix account (best-effort). Server may disable registration.
+    try {
+      if (Environment.useMatrix) {
+        await _matrixRegister(email, password);
+      }
+    } catch (_) {}
+    return res;
+  }
+
+  Future<void> _matrixRegister(String username, String password) async {
+    final homeserver = Environment.matrixHomeserverUrl;
+    if (homeserver.isEmpty) return;
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/register');
+    final body = jsonEncode({
+      'username': username,
+      'password': password,
+      'auth': {'type': 'm.login.dummy'}
+    });
+    try {
+      final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: body);
+      if (res.statusCode >= 200 && res.statusCode < 300) return;
+      // If registration is disabled or fails, it's non-fatal here.
+    } catch (_) {}
   }
 
   /// Sign in to a Matrix homeserver using password login and store the

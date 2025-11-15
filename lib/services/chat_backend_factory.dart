@@ -1,4 +1,5 @@
-import 'package:appwrite/appwrite.dart';
+// Appwrite Client type may be passed through factory for legacy backend.
+import 'package:appwrite/appwrite.dart' show Client;
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';

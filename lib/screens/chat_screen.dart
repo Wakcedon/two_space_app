@@ -158,10 +158,47 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
 
-    // Setup realtime if available
+    // Setup realtime if available. For Matrix-enabled mode use Matrix /sync
+    // subscription to room events; otherwise fall back to Appwrite realtime.
     try {
       final client = AppwriteService.client;
-      if (client != null) {
+      if (Environment.useMatrix) {
+        _realtime = RealtimeService(null);
+        if (_chatId != null && _chatId!.isNotEmpty) {
+          _realtimeSub = _realtime!.subscribeRoomMessages(_chatId!);
+          _messageStreamSub = _realtime!.onMessageCreated.listen((doc) async {
+            try {
+              final m = Map<String, dynamic>.from(doc.data);
+              m['\$id'] = doc.$id;
+              // Only process messages that belong to this chat
+              if (m['chatId'] == _chatId) {
+                final mm = Message.fromMap(m);
+                // Persist to local store and update UI
+                await _localStore.upsertMessage(_chatId!, {
+                  '\$id': mm.id,
+                  'senderId': mm.senderId,
+                  'content': mm.content,
+                  'time': mm.time.toIso8601String(),
+                  'type': mm.type,
+                  if (mm.mediaId != null) 'mediaFileId': mm.mediaId,
+                  'deliveredTo': mm.deliveredTo,
+                  'readBy': mm.readBy,
+                  'replyTo': mm.replyTo,
+                  'status': 'sent',
+                });
+                if (mounted) {
+                  setState(() {
+                    if (!_messages.any((x) => x.id == mm.id)) _messages.insert(0, mm);
+                  });
+                  if (mm.senderId != _meId) {
+                    unawaited(_markAllMessagesRead());
+                  }
+                }
+              }
+            } catch (_) {}
+          });
+        }
+      } else if (client != null) {
         _realtime = RealtimeService(client);
         _realtimeSub = _realtime!.subscribeMessages(Environment.appwriteMessagesCollectionId);
         _messageStreamSub = _realtime!.onMessageCreated.listen((doc) async {
