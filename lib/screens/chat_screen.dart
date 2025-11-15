@@ -15,6 +15,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:appwrite/models.dart' as models;
 
 import 'package:two_space_app/services/chat_service.dart';
+import 'package:two_space_app/services/chat_backend.dart';
+import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/services/realtime_service.dart';
 import 'package:two_space_app/services/local_message_store.dart';
@@ -43,7 +45,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  late final ChatService _chatService;
+  late final ChatBackend _chatService;
   RealtimeService? _realtime;
   dynamic _realtimeSub;
 
@@ -93,9 +95,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
     // Ensure chat exists (per-user deterministic chat)
     try {
-      // init ChatService with existing Appwrite client when available to avoid
-      // creating a client with an invalid endpoint during tests.
-      _chatService = ChatService(client: AppwriteService.client);
+  // init ChatBackend (Appwrite or Matrix) with existing Appwrite client
+  // when available so Appwrite-backed implementation can reuse the SDK.
+  _chatService = createChatBackend(client: AppwriteService.client);
       // Determine peerId: widget.peerId (preferred) or derive from provided chat
       String peerId = widget.peerId ?? '';
       if ((peerId.isEmpty) && widget.chat != null && _meId != null) {

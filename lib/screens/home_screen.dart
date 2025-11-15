@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
 import 'package:two_space_app/services/chat_service.dart';
+import 'package:two_space_app/services/chat_backend.dart';
+import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
@@ -85,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  late ChatService chatService;
+  late ChatBackend chatService;
   List<Chat> chats = [];
   List<Chat> filteredChats = [];
   Chat? favoritesChat;
@@ -103,8 +105,8 @@ class _HomeScreenState extends State<HomeScreen> {
       // Prefer the centralized Appwrite client so JWT/session is reused.
       // Avoid creating ad-hoc Client() instances which lack authentication and
       // caused `user_jwt_invalid` errors in the past.
-      final sdkClient = AppwriteService.client;
-      chatService = (sdkClient != null) ? ChatService(client: sdkClient) : ChatService();
+  final sdkClient = AppwriteService.client;
+  chatService = (sdkClient != null) ? createChatBackend(client: sdkClient) : createChatBackend();
       // Load chats only after ensuring authentication
       withAuth(() => _loadChats());
       // Setup realtime to listen for chat updates
@@ -130,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // use the centralized AppwriteService.database when available. This
       // avoids constructing ad-hoc SDK clients without authentication which
       // previously caused "not authorized" errors.
-      chatService = ChatService();
+  chatService = createChatBackend();
       isLoading = false;
     }
   }

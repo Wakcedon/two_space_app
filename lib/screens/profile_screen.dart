@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/services/chat_service.dart';
+import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/settings_service.dart';
 import 'package:two_space_app/services/navigation_service.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
@@ -100,10 +101,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     ElevatedButton.icon(
-                      onPressed: _actionLoading ? null : () async {
+                          onPressed: _actionLoading ? null : () async {
                         setState(() => _actionLoading = true);
                         try {
-                          final cs = ChatService();
+                          final cs = createChatBackend();
                           final m = await cs.getOrCreateDirectChat(widget.userId);
                           final chat = Chat.fromMap(m);
                           if (!mounted) return;

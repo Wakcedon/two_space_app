@@ -2,9 +2,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/services/appwrite_service.dart';
 import 'package:two_space_app/config/environment.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// Keys used in secure storage for Matrix tokens per-user
+const _kMatrixTokenKeyPrefix = 'matrix_token_';
 
 class AuthService {
   final /*Appwrite Account client if present*/ dynamic accountClient;
+
+  final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
   AuthService({this.accountClient});
 
@@ -87,6 +93,59 @@ class AuthService {
     // If SDK client available, use it; otherwise use REST fallback
     // Use REST createAccount helper which works in both SDK and REST environments
     return await AppwriteService.createAccount(email, password, name: name);
+  }
+
+  /// Sign in to a Matrix homeserver using password login and store the
+  /// returned access token securely for the current Appwrite user id.
+  ///
+  /// Note: this assumes Matrix accounts already exist for the user (same
+  /// localpart or separate accounts). If not, account provisioning should be
+  /// performed on the server (out of scope for this patch).
+  Future<void> signInMatrix(String username, String password) async {
+    final homeserver = Environment.matrixHomeserverUrl;
+    if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/login');
+    final body = jsonEncode({
+      'type': 'm.login.password',
+      'identifier': {'type': 'm.id.user', 'user': username},
+      'password': password,
+    });
+    final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: body);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('Matrix login failed ${res.statusCode}: ${res.body}');
+    }
+    final js = jsonDecode(res.body) as Map<String, dynamic>;
+    final token = js['access_token'] as String?;
+    final userId = js['user_id'] as String?;
+    if (token == null || userId == null) throw Exception('Matrix login response missing token/user_id');
+    // Save token keyed by current app user id if available, otherwise by matrix user id
+    String keyId = userId;
+    try {
+      final me = await AppwriteService.getCurrentUserId();
+      if (me != null && me.isNotEmpty) keyId = me;
+    } catch (_) {}
+    await _secure.write(key: '$_kMatrixTokenKeyPrefix$keyId', value: token);
+  }
+
+  /// Retrieve stored Matrix access token for given app user id (or current user if null)
+  Future<String?> getMatrixTokenForUser({String? appUserId}) async {
+    String keyId = appUserId ?? '';
+    if (keyId.isEmpty) {
+      try {
+        final me = await AppwriteService.getCurrentUserId();
+        if (me != null) keyId = me;
+      } catch (_) {}
+    }
+    if (keyId.isEmpty) return null;
+    return await _secure.read(key: '$_kMatrixTokenKeyPrefix$keyId');
+  }
+
+  /// Clear stored Matrix token for current app user (sign out)
+  Future<void> clearMatrixTokenForCurrentUser() async {
+    try {
+      final me = await AppwriteService.getCurrentUserId();
+      if (me != null) await _secure.delete(key: '$_kMatrixTokenKeyPrefix$me');
+    } catch (_) {}
   }
 
   Future<dynamic> sendPhoneToken(String phone) async {

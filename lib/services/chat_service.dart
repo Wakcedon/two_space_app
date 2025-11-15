@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/utils/encrypted_content_helper.dart';
 
 class Chat {
@@ -167,7 +168,7 @@ class Message {
   }
 }
 
-class ChatService {
+class ChatService implements ChatBackend {
   final dynamic databases;
 
   /// ChatService prefers to reuse the centralized Appwrite SDK client from
