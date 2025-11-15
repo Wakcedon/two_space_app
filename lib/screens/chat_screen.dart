@@ -18,6 +18,7 @@ import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/realtime_service.dart';
 import 'package:two_space_app/services/local_message_store.dart';
 import 'package:two_space_app/services/settings_service.dart';
@@ -91,7 +92,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _init() async {
     try {
-      _meId = await AppwriteService.getCurrentUserId();
+      _meId = await AuthService().getCurrentUserId();
     } catch (_) {}
     // Ensure chat exists (per-user deterministic chat)
     try {
@@ -297,7 +298,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (m.readBy.contains(_meId)) continue;
           // Mark on server
           try {
-            await AppwriteService.markMessageRead(m.id, _meId!);
+            await _chatService.markRead(m.id, _meId!);
           } catch (_) {
             // ignore server errors, we'll still update local cache
           }
@@ -341,35 +342,40 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadPeerInfo(String peerId) async {
     try {
-      final u = await AppwriteService.getUserById(peerId);
+      Map<String, dynamic> u = {};
+      if (Environment.useMatrix) {
+        try {
+          u = await _chatService.getUserInfo(peerId);
+        } catch (_) {
+          u = {};
+        }
+      } else {
+        try {
+          u = await AppwriteService.getUserById(peerId);
+        } catch (_) {
+          u = {};
+        }
+      }
       if (u.isNotEmpty) {
         final prefs = (u['prefs'] is Map) ? Map<String, dynamic>.from(u['prefs']) : <String, dynamic>{};
         // Derive display name from several possible fields for robustness
         String displayName = '';
-          try {
-            final nameValue = u['name'] as String?;
-            if (nameValue?.trim().isNotEmpty == true) displayName = nameValue!.trim();
-          } catch (_) {
-            // ignore
-          }
-          try {
-            final displayNameValue = u['displayName'] as String?;
-            if (displayName.isEmpty && displayNameValue?.trim().isNotEmpty == true) displayName = displayNameValue!.trim();
-          } catch (_) {
-            // ignore
-          }
-          try {
-            final nick = prefs['nickname'] as String?;
-            if (displayName.isEmpty && nick?.trim().isNotEmpty == true) displayName = nick!.trim();
-          } catch (_) {
-            // ignore
-          }
-          try {
-            final email = u['email'] as String?;
-            if (displayName.isEmpty && email?.isNotEmpty == true) displayName = email!.split('@').first;
-          } catch (_) {
-            // ignore
-          }
+        try {
+          final nameValue = u['name'] as String?;
+          if (nameValue?.trim().isNotEmpty == true) displayName = nameValue!.trim();
+        } catch (_) {}
+        try {
+          final displayNameValue = u['displayName'] as String?;
+          if (displayName.isEmpty && displayNameValue?.trim().isNotEmpty == true) displayName = displayNameValue!.trim();
+        } catch (_) {}
+        try {
+          final nick = prefs['nickname'] as String?;
+          if (displayName.isEmpty && nick?.trim().isNotEmpty == true) displayName = nick!.trim();
+        } catch (_) {}
+        try {
+          final email = u['email'] as String?;
+          if (displayName.isEmpty && email?.isNotEmpty == true) displayName = email!.split('@').first;
+        } catch (_) {}
         if (displayName.isEmpty) displayName = peerId;
 
         // Derive avatar URL from prefs or common fields
@@ -378,7 +384,7 @@ class _ChatScreenState extends State<ChatScreen> {
           avatar = (prefs['avatarUrl'] as String?) ?? (prefs['avatar'] as String?);
         } catch (_) {}
         try {
-          avatar ??= (u['avatar'] as String?) ?? (u['photo'] as String?) ?? (u['picture'] as String?);
+          avatar ??= (u['avatar'] as String?) ?? (u['photo'] as String?) ?? (u['picture'] as String?) ?? (u['avatarUrl'] as String?);
         } catch (_) {}
 
         if (mounted) setState(() {

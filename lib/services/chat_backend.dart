@@ -13,4 +13,6 @@ abstract class ChatBackend {
   Future<Map<String, dynamic>> sendMessage(String chatId, String senderId, String content, {String type = 'text', String? mediaFileId});
   Future<void> markDelivered(String messageId, String userId);
   Future<void> markRead(String messageId, String userId);
+  /// Retrieve basic user information (display name, avatar, prefs) for given user id.
+  Future<Map<String, dynamic>> getUserInfo(String userId);
 }

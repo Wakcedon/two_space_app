@@ -230,4 +230,21 @@ class ChatMatrixService implements ChatBackend {
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     return json['content_uri'] as String;
   }
+
+  /// Retrieve user profile information from the homeserver
+  Future<Map<String, dynamic>> getUserInfo(String userId) async {
+    if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
+    final uri = _csPath('/_matrix/client/v3/profile/${Uri.encodeComponent(userId)}');
+    final headers = await _authHeaders();
+    if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode != 200) throw Exception('Matrix profile failed ${res.statusCode}: ${res.body}');
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    // json may contain displayname and avatar_url
+    return {
+      'displayName': json['displayname'] as String? ?? userId,
+      'avatarUrl': json['avatar_url'] as String? ?? '',
+      'prefs': <String, dynamic>{},
+    };
+  }
 }

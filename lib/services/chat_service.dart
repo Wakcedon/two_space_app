@@ -606,4 +606,20 @@ class ChatService implements ChatBackend {
       if (kDebugMode) debugPrint('ChatService.markRead error: $e');
     }
   }
+
+  /// Retrieve basic user info via Appwrite (compat shim while migrating).
+  Future<Map<String, dynamic>> getUserInfo(String userId) async {
+    try {
+      final u = await AppwriteService.getUserById(userId);
+      if (u == null || u.isEmpty) return <String, dynamic>{};
+      final prefs = (u['prefs'] is Map) ? Map<String, dynamic>.from(u['prefs']) : <String, dynamic>{};
+      return {
+        'displayName': (u['name'] as String?) ?? (u['displayName'] as String?) ?? userId,
+        'avatarUrl': (u['avatar'] as String?) ?? (u['photo'] as String?) ?? (u['picture'] as String?) ?? '',
+        'prefs': prefs,
+      };
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
 }

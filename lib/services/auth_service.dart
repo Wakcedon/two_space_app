@@ -173,6 +173,16 @@ class AuthService {
     return await _secure.read(key: '$_kMatrixTokenKeyPrefix$keyId');
   }
 
+  /// Return current application user id. This method centralizes access to
+  /// the notion of current user and allows migrating away from Appwrite later.
+  Future<String?> getCurrentUserId() async {
+    try {
+      return await AppwriteService.getCurrentUserId();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Clear stored Matrix token for current app user (sign out)
   Future<void> clearMatrixTokenForCurrentUser() async {
     try {
