@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:appwrite/appwrite.dart' show Client, Realtime;
 import 'package:appwrite/models.dart' as models;
@@ -20,7 +21,6 @@ class RealtimeService {
   bool _matrixMode = false;
   String? _syncToken;
   final Set<String> _subscribedRooms = <String>{};
-  Timer? _matrixSyncTimer;
   bool _matrixSyncRunning = false;
 
   RealtimeService([Client? client]) : _realtime = (client != null && !Environment.useMatrix) ? Realtime(client) : null {
@@ -102,16 +102,34 @@ class RealtimeService {
   void _ensureMatrixSyncRunning() {
     if (_matrixSyncRunning) return;
     _matrixSyncRunning = true;
-    _matrixSyncTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      await _matrixSyncOnce();
-    });
+    // Start a single background long-poll loop. It will call _matrixSyncOnce
+    // repeatedly and apply exponential backoff on transient failures.
+    unawaited(_matrixSyncLoop());
   }
 
   void _stopMatrixSync() {
     _matrixSyncRunning = false;
-    _matrixSyncTimer?.cancel();
-    _matrixSyncTimer = null;
     _syncToken = null;
+  }
+
+  Future<void> _matrixSyncLoop() async {
+    // Exponential backoff parameters
+    int backoffMs = 500; // start 0.5s
+    const int maxBackoffMs = 30000; // 30s
+    while (_matrixSyncRunning) {
+      try {
+        await _matrixSyncOnce();
+        // success -> reset backoff and immediately continue to next sync
+        backoffMs = 500;
+        // small yield to avoid hot loop if server returns quickly
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      } catch (_) {
+        // On error, sleep with backoff (but respect running flag)
+        if (!_matrixSyncRunning) break;
+        await Future<void>.delayed(Duration(milliseconds: backoffMs));
+        backoffMs = min(backoffMs * 2, maxBackoffMs);
+      }
+    }
   }
 
   Future<void> _matrixSyncOnce() async {
@@ -175,7 +193,9 @@ class RealtimeService {
   void dispose() {
     _messageController.close();
     _chatController.close();
-    _matrixSyncTimer?.cancel();
+    // Stop matrix sync loop if running
+    _matrixSyncRunning = false;
+    _syncToken = null;
   }
 }
 
