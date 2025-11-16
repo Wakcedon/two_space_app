@@ -382,7 +382,7 @@ class AppwriteService {
     return false;
   }
 
-  static String v1Endpoint() => Environment.appwritePublicEndpoint ?? '';
+  static String v1Endpoint() => Environment.appwritePublicEndpoint;
 
   static Future<DateTime?> getRateLimitRetryAt() async {
     try {

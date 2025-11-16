@@ -10,10 +10,10 @@ import 'package:shimmer/shimmer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:two_space_app/utils/responsive.dart';
 import 'package:file_picker/file_picker.dart';
-// share_plus removed in favor of platform channel wrapper (AppwriteService.shareFile)
+// share_plus removed in favor of platform channel wrapper (MatrixService.shareFile)
 // gallery_saver removed due to Android build namespace issues; using platform channel save instead
 import 'package:permission_handler/permission_handler.dart';
-// Appwrite models import removed; realtime events are treated as dynamic maps.
+// Models import removed; realtime events are treated as dynamic maps.
 
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
@@ -67,7 +67,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Информация о файлах для каждого сообщения
   final Map<String, Map<String, dynamic>> _mediaInfo = {};
-  
+
 
 
   final TextEditingController _controller = TextEditingController();
@@ -98,9 +98,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
     // Ensure chat exists (per-user deterministic chat)
     try {
-  // init ChatBackend (Appwrite or Matrix) with existing Appwrite client
-  // when available so Appwrite-backed implementation can reuse the SDK.
-  _chatService = createChatBackend(client: AppwriteService.client);
+  // init ChatBackend (Matrix) with existing Matrix client
+  // when available so implementations can reuse the client.
+  _chatService = createChatBackend(client: MatrixService.client);
       // Determine peerId: widget.peerId (preferred) or derive from provided chat
       String peerId = widget.peerId ?? '';
       if ((peerId.isEmpty) && widget.chat != null && _meId != null) {
@@ -162,9 +162,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     // Setup realtime if available. For Matrix-enabled mode use Matrix /sync
-    // subscription to room events; otherwise fall back to Appwrite realtime.
+    // subscription to room events; otherwise fall back to legacy realtime.
     try {
-      final client = AppwriteService.client;
+      final client = MatrixService.client;
       if (Environment.useMatrix) {
         _realtime = RealtimeService(null);
         if (_chatId != null && _chatId!.isNotEmpty) {
@@ -360,7 +360,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       } else {
         try {
-          u = await AppwriteService.getUserById(peerId);
+          u = await MatrixService.getUserById(peerId);
         } catch (_) {
           u = {};
         }
@@ -508,7 +508,7 @@ class _ChatScreenState extends State<ChatScreen> {
           final map = Map<String, dynamic>.from(it as Map);
           final chatId = map['chatId']?.toString();
           if (chatId == null || chatId.isEmpty) continue;
-          await AppwriteService.sendMessage(chatId, map['payload'] as Map<String, dynamic>);
+          await MatrixService.sendMessage(chatId, map['payload'] as Map<String, dynamic>);
         } catch (e) {
           // keep for later
           remaining.add(it);
@@ -533,7 +533,7 @@ class _ChatScreenState extends State<ChatScreen> {
             };
             if (p['mediaFileId'] != null) payload['mediaFileId'] = p['mediaFileId'];
             if (p['replyTo'] != null) payload['replyTo'] = p['replyTo'];
-            final sent = await AppwriteService.sendMessage(_chatId!, payload);
+            final sent = await MatrixService.sendMessage(_chatId!, payload);
             final sentMap = Map<String, dynamic>.from(sent as Map<String, dynamic>);
             final serverId = (sentMap['\$id'] ?? sentMap['id'])?.toString();
             await _localStore.markMessageSent(_chatId!, localId, serverId: serverId, serverPayload: sentMap);
@@ -569,7 +569,7 @@ class _ChatScreenState extends State<ChatScreen> {
             _uploading = true;
             _uploadProgress = 0.0;
           });
-          final upload = await AppwriteService.uploadFileToStorageWithProgress(
+          final upload = await MatrixService.uploadFileToStorageWithProgress(
             _pendingImage!.path,
             filename: _pendingImage!.name,
             onProgress: (sent, total) {
@@ -621,7 +621,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (mediaFileId != null) 'mediaFileId': mediaFileId,
           if (_replyToMessageId != null) 'replyTo': _replyToMessageId,
         };
-        final sent = await AppwriteService.sendMessage(_chatId!, payload);
+        final sent = await MatrixService.sendMessage(_chatId!, payload);
         final sentMap = Map<String, dynamic>.from(sent as Map<String, dynamic>);
         final serverId = (sentMap['\$id'] ?? sentMap['id'])?.toString();
         await _localStore.markMessageSent(_chatId!, localId, serverId: serverId, serverPayload: sentMap);
@@ -634,7 +634,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сообщение поставлено в очередь — отправим при подключении')));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${MatrixService.readableError(e)}')));
     }
   }
 
@@ -651,7 +651,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (q.trim().isEmpty) return;
             setLocal(() => loading = true);
             try {
-              final users = await AppwriteService.searchUsers(q, limit: 30);
+              final users = await MatrixService.searchUsers(q, limit: 30);
               setLocal(() => results = users);
             } catch (_) {
               setLocal(() => results = []);
@@ -689,7 +689,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final targetId = (targetChat['\$id'] ?? targetChat['id'] ?? '').toString();
       final payload = {'content': m.content, 'type': m.type, if (m.mediaId != null) 'mediaFileId': m.mediaId, 'forwardedFrom': _meId};
       try {
-  await AppwriteService.sendMessage(targetId, payload);
+  await MatrixService.sendMessage(targetId, payload);
   if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Переслано')));
       } catch (e) {
         // enqueue
@@ -697,7 +697,7 @@ class _ChatScreenState extends State<ChatScreen> {
   if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Переслано в очередь')));
       }
     } catch (e) {
-  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка пересылки: ${AppwriteService.readableError(e)}')));
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка пересылки: ${MatrixService.readableError(e)}')));
     }
   }
 
@@ -760,10 +760,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     Navigator.pop(c);
                     final messenger = ScaffoldMessenger.of(context);
                     try {
-                      final path = await AppwriteService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
+                      final path = await MatrixService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
                       messenger.showSnackBar(SnackBar(content: Text('Файл сохранён: $path')));
                     } catch (e) {
-                      messenger.showSnackBar(SnackBar(content: Text('Ошибка скачивания: ${AppwriteService.readableError(e)}')));
+                      messenger.showSnackBar(SnackBar(content: Text('Ошибка скачивания: ${MatrixService.readableError(e)}')));
                     }
                   },
                 ),
@@ -800,17 +800,17 @@ class _ChatScreenState extends State<ChatScreen> {
                         messenger.showSnackBar(const SnackBar(content: Text('Требуются права для сохранения в галерею')));
                         return;
                       }
-                      final path = await AppwriteService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
+                      final path = await MatrixService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
                       final lower = path.toLowerCase();
                       bool ok = false;
                       if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm')) {
-                        ok = await AppwriteService.saveFileToGallery(path);
+                        ok = await MatrixService.saveFileToGallery(path);
                       } else {
-                        ok = await AppwriteService.saveFileToGallery(path);
+                        ok = await MatrixService.saveFileToGallery(path);
                       }
                       messenger.showSnackBar(SnackBar(content: Text(ok ? 'Сохранено в галерею' : 'Не удалось сохранить')));
                     } catch (e) {
-                      messenger.showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')));
+                      messenger.showSnackBar(SnackBar(content: Text('Ошибка: ${MatrixService.readableError(e)}')));
                     }
                   },
                 ),
@@ -821,10 +821,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     Navigator.pop(c);
                     final messenger = ScaffoldMessenger.of(context);
                     try {
-                      final path = await AppwriteService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
-                      await AppwriteService.shareFile(path, text: m.content.isNotEmpty ? m.content : null);
+                      final path = await MatrixService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
+                      await MatrixService.shareFile(path, text: m.content.isNotEmpty ? m.content : null);
                     } catch (e) {
-                      messenger.showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')));
+                      messenger.showSnackBar(SnackBar(content: Text('Ошибка: ${MatrixService.readableError(e)}')));
                     }
                   },
                 ),
@@ -850,10 +850,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     onPressed: () async {
                       Navigator.pop(c);
                       try {
-                        await AppwriteService.reactMessage(_chatId!, m.id, e);
+                        await MatrixService.reactMessage(_chatId!, m.id, e);
                         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Реакция отправлена')));
                       } catch (err) {
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(err)}')));
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${MatrixService.readableError(err)}')));
                       }
                     },
                     icon: Text(e, style: const TextStyle(fontSize: 24)),
@@ -876,7 +876,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Получаем информацию о файле, если еще не получали
       if (!_mediaInfo.containsKey(m.mediaId)) {
-        final info = await AppwriteService.getFileInfo(m.mediaId!);
+        final info = await MatrixService.getFileInfo(m.mediaId!);
         _mediaInfo[m.mediaId!] = info;
       }
 
@@ -884,7 +884,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final mimeType = info['mimeType'] as String;
       final originalName = info['name'] as String;
 
-      final local = await AppwriteService.downloadFileToTemp(
+      final local = await MatrixService.downloadFileToTemp(
         m.mediaId!,
         filename: originalName,
       );
@@ -903,7 +903,7 @@ class _ChatScreenState extends State<ChatScreen> {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => MediaPlayer(
             localPath: local,
-            networkUrl: AppwriteService.getFileViewUrl(m.mediaId!).toString(),
+            networkUrl: MatrixService.getFileViewUrl(m.mediaId!).toString(),
           ),
         ));
       } else {
@@ -915,7 +915,7 @@ class _ChatScreenState extends State<ChatScreen> {
       try { Navigator.of(context).pop(); } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')),
+          SnackBar(content: Text('Ошибка: ${MatrixService.readableError(e)}')),
         );
       }
     }
@@ -929,7 +929,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Загружаем информацию о файле, если еще не загружена
     if (m.mediaId != null && !_mediaInfo.containsKey(m.mediaId)) {
-      AppwriteService.getFileInfo(m.mediaId!).then((info) {
+      MatrixService.getFileInfo(m.mediaId!).then((info) {
         if (mounted) setState(() => _mediaInfo[m.mediaId!] = info);
       }).catchError((_) {});
     }
@@ -1025,13 +1025,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                     final navigator = Navigator.of(context);
                                     try {
                                       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                                      final local = await AppwriteService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
+                                      final local = await MatrixService.downloadFileToTemp(m.mediaId!, filename: '${m.mediaId}');
                                       navigator.pop();
                                       if (!mounted) return;
                                       navigator.push(MaterialPageRoute(builder: (_) => MediaViewer(localPath: local, title: m.content.isNotEmpty ? m.content : null)));
                                     } catch (e) {
                                       try { navigator.pop(); } catch (_) {}
-                                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось открыть медиа: ${AppwriteService.readableError(e)}')));
+                                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось открыть медиа: ${MatrixService.readableError(e)}')));
                                     }
                                   },
                                   child: Container(
@@ -1040,7 +1040,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                     child: FadeInImage.assetNetwork(
                                       placeholder: 'assets/icon/app_icon.png',
-                                      image: AppwriteService.getFileViewUrl(m.mediaId!).toString(),
+                                      image: MatrixService.getFileViewUrl(m.mediaId!).toString(),
                                       width: 220 * Responsive.scaleWidth(context),
                                       height: 220 * Responsive.scaleWidth(context),
                                       fit: BoxFit.cover,
@@ -1194,13 +1194,13 @@ class _ChatScreenState extends State<ChatScreen> {
                             final scaffold = ScaffoldMessenger.of(context);
                             final navigator = Navigator.of(context);
                             try {
-                              await AppwriteService.deleteChat(_chatId!, false);
+                              await MatrixService.deleteChat(_chatId!, false);
                               if (mounted) {
                                 scaffold.showSnackBar(const SnackBar(content: Text('Чат скрыт')));
                                 navigator.pop();
                               }
                             } catch (e) {
-                              if (mounted) scaffold.showSnackBar(SnackBar(content: Text('Не удалось удалить чат: ${AppwriteService.readableError(e)}')));
+                              if (mounted) scaffold.showSnackBar(SnackBar(content: Text('Не удалось удалить чат: ${MatrixService.readableError(e)}')));
                             }
                           }
                         }

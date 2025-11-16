@@ -92,13 +92,13 @@ class _MediaPreviewState extends State<MediaPreview> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл загружен: $tmp')));
       } else {
-        final path = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
+        final path = await MatrixService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл загружен: $path')));
       }
     } catch (e) {
       setState(() {
-        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : AppwriteService.readableError(e);
+        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : MatrixService.readableError(e);
       });
     } finally {
       if (mounted) {
@@ -123,14 +123,14 @@ class _MediaPreviewState extends State<MediaPreview> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл сохранён временно: $tmp')));
       } else {
-        final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
-        final ok = await AppwriteService.saveFileToGallery(temp);
+        final temp = await MatrixService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
+        final ok = await MatrixService.saveFileToGallery(temp);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Сохранено в галерею' : 'Не удалось сохранить')));
       }
     } catch (e) {
       setState(() {
-        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : AppwriteService.readableError(e);
+        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : MatrixService.readableError(e);
       });
     } finally {
       if (mounted) {
@@ -151,13 +151,13 @@ class _MediaPreviewState extends State<MediaPreview> {
         if (_bytes == null) await _fetchMatrixMedia();
         if (_bytes == null) throw Exception('No data');
         final tmp = await _writeBytesToTemp(_bytes!, widget.filename);
-        // Sharing implementation for Matrix media: reuse AppwriteService.shareFile if available for file path
-        final ok = await AppwriteService.shareFile(tmp, text: widget.filename);
+        // Sharing implementation for Matrix media: reuse MatrixService.shareFile if available for file path
+        final ok = await MatrixService.shareFile(tmp, text: widget.filename);
         if (!mounted) return;
         if (!ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
       } else {
-        final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
-        final ok = await AppwriteService.shareFile(temp, text: widget.filename);
+        final temp = await MatrixService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
+        final ok = await MatrixService.shareFile(temp, text: widget.filename);
         if (!mounted) return;
         if (!ok) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
@@ -165,7 +165,7 @@ class _MediaPreviewState extends State<MediaPreview> {
       }
     } catch (e) {
       setState(() {
-        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : AppwriteService.readableError(e);
+        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : MatrixService.readableError(e);
       });
     } finally {
       if (mounted) {
@@ -186,7 +186,7 @@ class _MediaPreviewState extends State<MediaPreview> {
 
   @override
   Widget build(BuildContext context) {
-    final viewUrl = AppwriteService.getFileViewUrl(widget.mediaId).toString();
+    final viewUrl = MatrixService.getFileViewUrl(widget.mediaId).toString();
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

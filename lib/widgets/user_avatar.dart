@@ -87,7 +87,7 @@ class _UserAvatarState extends State<UserAvatar> {
       return;
     }
     try {
-      final b = await AppwriteService.getFileBytes(fid);
+      final b = await MatrixService.getFileBytes(fid);
       if (b.isNotEmpty) {
         final u = Uint8List.fromList(b);
         _cache[fid] = u;
@@ -106,19 +106,7 @@ class _UserAvatarState extends State<UserAvatar> {
       return CircleAvatar(radius: r, backgroundImage: NetworkImage(widget.avatarUrl!), backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: widget.initials == null ? null : Text(widget.initials ?? ''));
     }
 
-    // If no avatar available, but we have fullName and Appwrite configured, use Appwrite's avatars initials endpoint
-    if ((widget.fullName != null && widget.fullName!.isNotEmpty) && Environment.appwritePublicEndpoint.isNotEmpty && Environment.appwriteProjectId.isNotEmpty) {
-      try {
-  var ep = Environment.appwritePublicEndpoint.trim();
-  // Trim trailing slashes safely
-  ep = ep.replaceAll(RegExp(r'/+$'), '');
-  if (!ep.endsWith('/v1')) ep = '$ep/v1';
-        final url = Uri.parse('$ep/avatars/initials?name=${Uri.encodeComponent(widget.fullName!)}');
-        return CircleAvatar(radius: r, backgroundImage: NetworkImage(url.toString()), backgroundColor: Theme.of(context).colorScheme.primaryContainer);
-      } catch (_) {}
-    }
-
-    // Fallback: display local initials text
+    // Fallback: display local initials text (no Appwrite dependency)
     return CircleAvatar(radius: r, backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: Text(widget.initials ?? '?'));
   }
 }

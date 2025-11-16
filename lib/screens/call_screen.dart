@@ -24,6 +24,8 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   bool _audioMuted = false;
   bool _videoMuted = false;
+  // Used by Jitsi event handlers; analyzer may report false positive unused warning.
+  // ignore: unused_field
   bool _inMeeting = false;
   ChatBackend? _chatBackend;
 
