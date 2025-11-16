@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:appwrite/appwrite.dart' show Client, Realtime;
-import 'package:appwrite/models.dart' as models;
+// Appwrite SDK is optional; use AppwriteService wrapper or Matrix sync when available.
+import 'package:appwrite/models.dart' as models; // keep models typing for compatibility
 import '../config/environment.dart';
 import 'auth_service.dart';
 
@@ -21,7 +21,7 @@ class _MatrixAuthException implements Exception {
 
 class RealtimeService {
   // Appwrite realtime client (optional)
-  final Realtime? _realtime;
+  final dynamic _realtime;
 
   // Channels exposed to callers
   final StreamController<models.Document> _messageController = StreamController.broadcast();
@@ -35,7 +35,7 @@ class RealtimeService {
   // internal metrics
   int _consecutiveFailures = 0;
 
-  RealtimeService([Client? client]) : _realtime = (client != null && !Environment.useMatrix) ? Realtime(client) : null {
+  RealtimeService([dynamic client]) : _realtime = (client != null && !Environment.useMatrix) ? (client is Map ? null : client) : null {
     _matrixMode = Environment.useMatrix;
     if (_matrixMode) {
       // nothing to init until someone subscribes

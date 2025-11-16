@@ -1,4 +1,4 @@
-import 'package:appwrite/appwrite.dart';
+// Appwrite SDK removed from this file; use AppwriteService compatibility layer.
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -175,9 +175,7 @@ class ChatService implements ChatBackend {
   /// `AppwriteService.database` to ensure the same authentication (JWT/API key)
   /// and endpoint configuration are used across the app. A caller may still
   /// pass an explicit `client` for testing or advanced use-cases.
-  ChatService({Client? client}) : databases = (client != null)
-    ? Databases(client)
-    : (AppwriteService.database ?? Databases(Client()..setEndpoint(AppwriteService.v1Endpoint())..setProject(Environment.appwriteProjectId)));
+  ChatService({dynamic client}) : databases = AppwriteService.database;
 
   /// Find or create a direct chat between current user and [peerId].
   /// This lists chats in the collection and looks for one with both members.
@@ -281,14 +279,11 @@ class ChatService implements ChatBackend {
           'peerId': peerId,
           'type': 'direct',
           'title': '',
-          'avatarUrl': '',
-          'lastMessagePreview': '',
-          'lastMessageTime': now.toIso8601String(),
           'unreadCount': 0,
           'metadata': '',
           'createdAt': now.toIso8601String(),
         };
-        final doc = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: ID.custom(docId), data: data);
+  final doc = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: docId, data: data);
   final m = Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
   if (!m.containsKey('\$id') && (doc as dynamic).$id != null) { m['\$id'] = (doc as dynamic).$id; }
   // Normalize members
@@ -361,7 +356,7 @@ class ChatService implements ChatBackend {
               'metadata': '',
               'createdAt': now.toIso8601String(),
             };
-            final docAlt = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: ID.custom(docId), data: alt);
+            final docAlt = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: docId, data: alt);
             final mAlt = Map<String, dynamic>.from((docAlt as dynamic).data as Map<String, dynamic>);
             if (!mAlt.containsKey('\$id') && (docAlt as dynamic).$id != null) mAlt['\$id'] = (docAlt as dynamic).$id;
             return mAlt;
@@ -382,7 +377,7 @@ class ChatService implements ChatBackend {
                 'metadata': '',
                 'createdAt': now.toIso8601String(),
               };
-              final docAlt2 = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: ID.custom(docId), data: alt2);
+              final docAlt2 = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: docId, data: alt2);
               final mAlt2 = Map<String, dynamic>.from((docAlt2 as dynamic).data as Map<String, dynamic>);
               if (!mAlt2.containsKey('\$id') && (docAlt2 as dynamic).$id != null) mAlt2['\$id'] = (docAlt2 as dynamic).$id;
               return mAlt2;
@@ -498,7 +493,7 @@ class ChatService implements ChatBackend {
         'lastMessageTime': now.toIso8601String(),
         'createdAt': now.toIso8601String(),
       };
-  final res = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: ID.unique(), data: data);
+  final res = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: null, data: data);
       final m = Map<String, dynamic>.from(res.data);
       try {
         m['\$id'] = (res as dynamic).$id;
@@ -555,7 +550,7 @@ class ChatService implements ChatBackend {
         'readBy': <String>[],
         'time': now.toIso8601String(),
       };
-      final res = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteMessagesCollectionId, documentId: ID.unique(), data: data);
+  final res = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteMessagesCollectionId, documentId: null, data: data);
       // update chat last message preview (store plain preview unencrypted)
       try {
         final preview = (content.length > 256) ? content.substring(0, 256) : content;
