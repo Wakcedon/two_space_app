@@ -4,7 +4,8 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 // Appwrite SDK is optional; use AppwriteService wrapper or Matrix sync when available.
-import 'package:appwrite/models.dart' as models; // keep models typing for compatibility
+// Emit plain Map<String,dynamic> events instead of Appwrite models to avoid
+// keeping a hard dependency on the Appwrite types in most of the app.
 import '../config/environment.dart';
 import 'auth_service.dart';
 
@@ -24,8 +25,8 @@ class RealtimeService {
   final dynamic _realtime;
 
   // Channels exposed to callers
-  final StreamController<models.Document> _messageController = StreamController.broadcast();
-  final StreamController<models.Document> _chatController = StreamController.broadcast();
+  final StreamController<Map<String, dynamic>> _messageController = StreamController.broadcast();
+  final StreamController<Map<String, dynamic>> _chatController = StreamController.broadcast();
 
   // Matrix-specific fields
   bool _matrixMode = false;
@@ -42,8 +43,8 @@ class RealtimeService {
     }
   }
 
-  Stream<models.Document> get onMessageCreated => _messageController.stream;
-  Stream<models.Document> get onChatUpdated => _chatController.stream;
+  Stream<Map<String, dynamic>> get onMessageCreated => _messageController.stream;
+  Stream<Map<String, dynamic>> get onChatUpdated => _chatController.stream;
 
   /// Subscribe to Appwrite messages collection (legacy).
   /// In Matrix mode prefer using [subscribeRoomMessages].
@@ -62,8 +63,8 @@ class RealtimeService {
               if (e != null && e['type'] != null && e['type'].toString().contains('create')) {
                 final docs = payload['documents'] as List?;
                 if (docs != null && docs.isNotEmpty) {
-                  final doc = docs[0];
-                  _messageController.add(models.Document.fromMap(Map<String, dynamic>.from(doc)));
+                  final doc = Map<String, dynamic>.from(docs[0]);
+                  _messageController.add(doc);
                 }
               }
             } catch (_) {}
@@ -87,8 +88,8 @@ class RealtimeService {
               if (e != null && e['type'] != null && e['type'].toString().contains('update')) {
                 final docs = payload['documents'] as List?;
                 if (docs != null && docs.isNotEmpty) {
-                  final doc = docs[0];
-                  _chatController.add(models.Document.fromMap(Map<String, dynamic>.from(doc)));
+                  final doc = Map<String, dynamic>.from(docs[0]);
+                  _chatController.add(doc);
                 }
               }
             } catch (_) {}
@@ -182,7 +183,7 @@ class RealtimeService {
             'message': 'Matrix authentication failed',
             'ts': DateTime.now().toIso8601String(),
           };
-          _chatController.add(models.Document.fromMap(Map<String, dynamic>.from(docMap)));
+          _chatController.add(Map<String, dynamic>.from(docMap));
         } catch (_) {}
 
         if (kDebugMode) debugPrint('Matrix sync: refresh unavailable, stopping loop');
@@ -263,7 +264,7 @@ class RealtimeService {
                     'createdAt': time.toIso8601String(),
                   };
                   try {
-                    _messageController.add(models.Document.fromMap(Map<String, dynamic>.from(docMap)));
+                    _messageController.add(Map<String, dynamic>.from(docMap));
                     processed++;
                   } catch (_) {}
                 }

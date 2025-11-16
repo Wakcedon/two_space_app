@@ -73,7 +73,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final realtime = RealtimeService(AppwriteService.client!);
         realtime.onChatUpdated.listen((doc) {
             try {
-            final map = doc.data;
+            final map = Map<String, dynamic>.from(doc);
+            if (!map.containsKey('\$id')) {
+              if (map.containsKey('id')) map['\$id'] = map['id'];
+              else if (map.containsKey('_id')) map['\$id'] = map['_id'];
+            }
             // Replace or insert chat in list
             final updated = Chat.fromMap(map);
             final idx = chats.indexWhere((c) => c.id == updated.id);

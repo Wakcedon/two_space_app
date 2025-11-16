@@ -12,7 +12,7 @@ import 'package:file_picker/file_picker.dart';
 // share_plus removed in favor of platform channel wrapper (AppwriteService.shareFile)
 // gallery_saver removed due to Android build namespace issues; using platform channel save instead
 import 'package:permission_handler/permission_handler.dart';
-import 'package:appwrite/models.dart' as models;
+// Appwrite models import removed; realtime events are treated as dynamic maps.
 
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
@@ -75,7 +75,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final ScrollController _scrollController = ScrollController();
 
-  StreamSubscription<models.Document>? _messageStreamSub;
+  StreamSubscription<dynamic>? _messageStreamSub;
 
   Timer? _retryTimer;
   static const _pendingKey = 'pending_messages_v1';
@@ -169,8 +169,12 @@ class _ChatScreenState extends State<ChatScreen> {
           _realtimeSub = _realtime!.subscribeRoomMessages(_chatId!);
           _messageStreamSub = _realtime!.onMessageCreated.listen((doc) async {
             try {
-              final m = Map<String, dynamic>.from(doc.data);
-              m['\$id'] = doc.$id;
+              final m = Map<String, dynamic>.from(doc);
+              // Normalize id field to '$id' if needed
+              if (!m.containsKey('\$id')) {
+                if (m.containsKey('id')) m['\$id'] = m['id'];
+                else if (m.containsKey('_id')) m['\$id'] = m['_id'];
+              }
               // Only process messages that belong to this chat
               if (m['chatId'] == _chatId) {
                 final mm = Message.fromMap(m);
@@ -204,8 +208,11 @@ class _ChatScreenState extends State<ChatScreen> {
         _realtimeSub = _realtime!.subscribeMessages(Environment.appwriteMessagesCollectionId);
         _messageStreamSub = _realtime!.onMessageCreated.listen((doc) async {
           try {
-            final m = Map<String, dynamic>.from(doc.data);
-            m['\$id'] = doc.$id;
+            final m = Map<String, dynamic>.from(doc);
+            if (!m.containsKey('\$id')) {
+              if (m.containsKey('id')) m['\$id'] = m['id'];
+              else if (m.containsKey('_id')) m['\$id'] = m['_id'];
+            }
             // Only process messages that belong to this chat
             if (m['chatId'] == _chatId) {
               final mm = Message.fromMap(m);
@@ -226,10 +233,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 setState(() {
                   if (!_messages.any((x) => x.id == mm.id)) _messages.insert(0, mm);
                 });
-                  // If the incoming message is from the other user, mark it as read
-                  if (mm.senderId != _meId) {
-                    unawaited(_markAllMessagesRead());
-                  }
+                // If the incoming message is from the other user, mark it as read
+                if (mm.senderId != _meId) {
+                  unawaited(_markAllMessagesRead());
+                }
               }
             }
           } catch (_) {}

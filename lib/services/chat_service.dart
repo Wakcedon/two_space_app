@@ -430,8 +430,15 @@ class ChatService implements ChatBackend {
       }
       final out = <Chat>[];
       for (final doc in result.documents) {
-        final m = Map<String, dynamic>.from(doc.data);
-        m['\$id'] = doc.$id;
+    final m = (doc is Map)
+      ? Map<String, dynamic>.from(doc)
+      : Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
+        try {
+          if (!m.containsKey('\$id')) {
+            final idVal = (doc as dynamic).$id;
+            if (idVal != null) m['\$id'] = idVal;
+          }
+        } catch (_) {}
         final members = (m['members'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
         // only include chats where current user is a member
         if (currentUser != null && members.contains(currentUser)) {
@@ -455,7 +462,9 @@ class ChatService implements ChatBackend {
       );
       final list = <Message>[];
       for (final doc in result.documents) {
-        final m = Map<String, dynamic>.from(doc.data);
+    final m = (doc is Map)
+      ? Map<String, dynamic>.from(doc)
+      : Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
         // Unpack encrypted content if stored as padded JSON
         try {
           if (m.containsKey('content') && m['content'] is String) {
@@ -470,7 +479,12 @@ class ChatService implements ChatBackend {
             }
           }
         } catch (_) {}
-        m['\$id'] = doc.$id;
+        try {
+          if (!m.containsKey('\$id')) {
+            final idVal = (doc as dynamic).$id;
+            if (idVal != null) m['\$id'] = idVal;
+          }
+        } catch (_) {}
         list.add(Message.fromMap(m));
       }
       // Sort by time descending (newest first)
@@ -494,7 +508,9 @@ class ChatService implements ChatBackend {
         'createdAt': now.toIso8601String(),
       };
   final res = await databases.createDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteChatsCollectionId, documentId: null, data: data);
-      final m = Map<String, dynamic>.from(res.data);
+  final m = (res is Map)
+    ? Map<String, dynamic>.from(res)
+    : Map<String, dynamic>.from((res as dynamic).data as Map<String, dynamic>);
       try {
         m['\$id'] = (res as dynamic).$id;
       } catch (_) {}
@@ -572,7 +588,9 @@ class ChatService implements ChatBackend {
   Future<void> markDelivered(String messageId, String userId) async {
     try {
   final doc = await databases.getDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteMessagesCollectionId, documentId: messageId);
-      final data = Map<String, dynamic>.from(doc.data);
+  final data = (doc is Map)
+    ? Map<String, dynamic>.from(doc)
+    : Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
       final List delivered = (data['deliveredTo'] as List?) ?? <dynamic>[];
       if (!delivered.contains(userId)) {
         delivered.add(userId);
@@ -589,7 +607,9 @@ class ChatService implements ChatBackend {
   Future<void> markRead(String messageId, String userId) async {
     try {
   final doc = await databases.getDocument(databaseId: Environment.appwriteDatabaseId, collectionId: Environment.appwriteMessagesCollectionId, documentId: messageId);
-      final data = Map<String, dynamic>.from(doc.data);
+  final data = (doc is Map)
+    ? Map<String, dynamic>.from(doc)
+    : Map<String, dynamic>.from((doc as dynamic).data as Map<String, dynamic>);
       final List readBy = (data['readBy'] as List?) ?? <dynamic>[];
       if (!readBy.contains(userId)) {
         readBy.add(userId);
@@ -605,8 +625,8 @@ class ChatService implements ChatBackend {
   /// Retrieve basic user info via Appwrite (compat shim while migrating).
   Future<Map<String, dynamic>> getUserInfo(String userId) async {
     try {
-      final u = await AppwriteService.getUserById(userId);
-      if (u == null || u.isEmpty) return <String, dynamic>{};
+  final u = await AppwriteService.getUserById(userId);
+  if (u.isEmpty) return <String, dynamic>{};
       final prefs = (u['prefs'] is Map) ? Map<String, dynamic>.from(u['prefs']) : <String, dynamic>{};
       return {
         'displayName': (u['name'] as String?) ?? (u['displayName'] as String?) ?? userId,
