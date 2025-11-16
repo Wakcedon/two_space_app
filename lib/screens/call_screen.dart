@@ -1,6 +1,8 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:jitsi_meet/jitsi_meet.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/chat_backend.dart';
@@ -72,6 +74,12 @@ class _CallScreenState extends State<CallScreen> {
         ;
 
       if (token.isNotEmpty) options.token = token;
+
+      // Prefer embedded JAAS WebView on desktop platforms (richer device control).
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        if (mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => _JaaSEmbedPage(room: widget.room, jwt: token, server: options.serverURL ?? '')));
+        return;
+      }
 
       await JitsiMeet.joinMeeting(options);
     } catch (e) {
@@ -179,5 +187,90 @@ class _CallScreenState extends State<CallScreen> {
       const SizedBox(height: 8),
       Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12))
     ]);
+  }
+}
+
+class _JaaSEmbedPage extends StatefulWidget {
+  final String room;
+  final String jwt;
+  final String server;
+  const _JaaSEmbedPage({required this.room, required this.jwt, required this.server});
+
+  @override
+  State<_JaaSEmbedPage> createState() => _JaaSEmbedPageState();
+}
+
+class _JaaSEmbedPageState extends State<_JaaSEmbedPage> {
+  late final WebViewController _controller;
+
+  String _buildHtml(String server, String room, String jwt) {
+    final base = server.isNotEmpty ? server.replaceAll(RegExp(r'/$'), '') : 'https://8x8.vc';
+    final scriptUrl = '$base/vpaas-magic-cookie-14196d2622f147788888c34f8a21a882/external_api.js';
+    final sanitizedRoom = room.replaceAll('"', '');
+    final sanitizedJwt = jwt.replaceAll('"', '');
+    return '''
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="$scriptUrl"></script>
+    <style>html,body,#jaas-container{height:100%;margin:0;padding:0}#controls{position:fixed;left:8px;top:8px;z-index:1000;background:rgba(0,0,0,0.6);color:#fff;padding:8px;border-radius:8px}</style>
+    <script>
+      let api = null;
+      async function startCall(){
+        const roomName = "$sanitizedRoom";
+        const parent = document.querySelector('#jaas-container');
+        const options = {roomName: roomName, parentNode: parent, configOverwrite: {startWithVideoMuted: false, startWithAudioMuted:false}};
+        if ("$sanitizedJwt".length>0) options.jwt = "$sanitizedJwt";
+        api = new JitsiMeetExternalAPI("8x8.vc", options);
+        api.addEventListener('videoConferenceJoined', () => {console.log('joined')});
+      }
+      function enumerate(){
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        navigator.mediaDevices.enumerateDevices().then(devs=>{
+          const selAudio = document.getElementById('audio');
+          const selVideo = document.getElementById('video');
+          selAudio.innerHTML=''; selVideo.innerHTML='';
+          devs.forEach(d=>{
+            const opt = document.createElement('option'); opt.value=d.deviceId; opt.text=d.kind+': '+(d.label||d.deviceId);
+            if (d.kind==='audioinput') selAudio.appendChild(opt);
+            if (d.kind==='videoinput') selVideo.appendChild(opt);
+          });
+        }).catch(e=>console.warn('enum',e));
+      }
+      window.addEventListener('load', ()=>{enumerate();});
+    </script>
+  </head>
+  <body>
+    <div id="controls">
+      <div>Device selection (используйте для Desktop):</div>
+      <div>
+        <label>Микрофон: <select id="audio"></select></label>
+      </div>
+      <div>
+        <label>Камера: <select id="video"></select></label>
+      </div>
+      <div style="margin-top:6px"><button onclick="startCall()">Start call</button></div>
+    </div>
+    <div id="jaas-container"></div>
+  </body>
+</html>
+''';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()..setJavaScriptMode(JavaScriptMode.unrestricted);
+    final html = _buildHtml(widget.server, widget.room, widget.jwt);
+    _controller.loadHtmlString(html);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Встроенный звонок')),
+      body: WebViewWidget(controller: _controller),
+    );
   }
 }
