@@ -1,5 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/config/environment.dart';
+import 'package:two_space_app/services/auth_service.dart';
+import 'package:two_space_app/services/chat_matrix_service.dart';
 
 /// Simple media preview widget used in chat messages and galleries.
 class MediaPreview extends StatefulWidget {
@@ -18,6 +25,7 @@ class MediaPreview extends StatefulWidget {
 class _MediaPreviewState extends State<MediaPreview> {
   bool _loading = false;
   String? _error;
+  Uint8List? _bytes;
 
   @override
   void initState() {
@@ -30,6 +38,44 @@ class _MediaPreviewState extends State<MediaPreview> {
         }
       });
     }
+    // If this is Matrix media (mxc://) and Matrix is enabled, prefetch bytes
+    if (Environment.useMatrix && widget.mediaId.startsWith('mxc://')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _fetchMatrixMedia();
+      });
+    }
+  }
+
+  Future<void> _fetchMatrixMedia() async {
+    try {
+      setState(() => _loading = true);
+      final parts = widget.mediaId.substring('mxc://'.length).split('/');
+      if (parts.length < 2) return;
+      final server = parts[0];
+      final mediaId = parts.sublist(1).join('/');
+      final homeserver = ChatMatrixService().homeserver;
+      final uri = Uri.parse(homeserver + '/_matrix/media/v3/download/$server/$mediaId');
+      String? token;
+      try {
+        token = await AuthService().getMatrixTokenForUser();
+      } catch (_) {
+        token = null;
+      }
+      String tokenString = '';
+      if (token != null && token.isNotEmpty) tokenString = token;
+      else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
+      final headers = tokenString.isNotEmpty ? {'Authorization': 'Bearer $tokenString'} : <String, String>{};
+      final res = await http.get(uri, headers: headers);
+      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+        if (mounted) setState(() => _bytes = Uint8List.fromList(res.bodyBytes));
+      } else {
+        if (mounted) setState(() => _error = 'Matrix media fetch failed: ${res.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _download() async {
@@ -38,12 +84,21 @@ class _MediaPreviewState extends State<MediaPreview> {
       _error = null;
     });
     try {
-      final path = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл загружен: $path')));
+      if (Environment.useMatrix && widget.mediaId.startsWith('mxc://')) {
+        // Matrix media: fetch bytes and write to temp
+        if (_bytes == null) await _fetchMatrixMedia();
+        if (_bytes == null) throw Exception('No data');
+        final tmp = await _writeBytesToTemp(_bytes!, widget.filename);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл загружен: $tmp')));
+      } else {
+        final path = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл загружен: $path')));
+      }
     } catch (e) {
       setState(() {
-        _error = AppwriteService.readableError(e);
+        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : AppwriteService.readableError(e);
       });
     } finally {
       if (mounted) {
@@ -60,13 +115,22 @@ class _MediaPreviewState extends State<MediaPreview> {
       _error = null;
     });
     try {
-      final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
-      final ok = await AppwriteService.saveFileToGallery(temp);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Сохранено в галерею' : 'Не удалось сохранить')));
+      if (Environment.useMatrix && widget.mediaId.startsWith('mxc://')) {
+        if (_bytes == null) await _fetchMatrixMedia();
+        if (_bytes == null) throw Exception('No data');
+        final tmp = await _writeBytesToTemp(_bytes!, widget.filename);
+        // Saving to gallery isn't implemented for generic matrix media here.
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Файл сохранён временно: $tmp')));
+      } else {
+        final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
+        final ok = await AppwriteService.saveFileToGallery(temp);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Сохранено в галерею' : 'Не удалось сохранить')));
+      }
     } catch (e) {
       setState(() {
-        _error = AppwriteService.readableError(e);
+        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : AppwriteService.readableError(e);
       });
     } finally {
       if (mounted) {
@@ -83,15 +147,25 @@ class _MediaPreviewState extends State<MediaPreview> {
       _error = null;
     });
     try {
-      final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
-      final ok = await AppwriteService.shareFile(temp, text: widget.filename);
-      if (!mounted) return;
-      if (!ok) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
+      if (Environment.useMatrix && widget.mediaId.startsWith('mxc://')) {
+        if (_bytes == null) await _fetchMatrixMedia();
+        if (_bytes == null) throw Exception('No data');
+        final tmp = await _writeBytesToTemp(_bytes!, widget.filename);
+        // Sharing implementation for Matrix media: reuse AppwriteService.shareFile if available for file path
+        final ok = await AppwriteService.shareFile(tmp, text: widget.filename);
+        if (!mounted) return;
+        if (!ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
+      } else {
+        final temp = await AppwriteService.downloadFileToTemp(widget.mediaId, filename: widget.filename);
+        final ok = await AppwriteService.shareFile(temp, text: widget.filename);
+        if (!mounted) return;
+        if (!ok) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть лист обмена')));
+        }
       }
     } catch (e) {
       setState(() {
-        _error = AppwriteService.readableError(e);
+        _error = Environment.useMatrix && widget.mediaId.startsWith('mxc://') ? e.toString() : AppwriteService.readableError(e);
       });
     } finally {
       if (mounted) {
@@ -102,6 +176,14 @@ class _MediaPreviewState extends State<MediaPreview> {
     }
   }
 
+  Future<String> _writeBytesToTemp(Uint8List bytes, String? filename) async {
+    final dir = await getTemporaryDirectory();
+    final name = filename != null && filename.isNotEmpty ? filename : 'matrix_media_${DateTime.now().millisecondsSinceEpoch}';
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(bytes);
+    return file.path;
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewUrl = AppwriteService.getFileViewUrl(widget.mediaId).toString();
@@ -110,7 +192,14 @@ class _MediaPreviewState extends State<MediaPreview> {
       children: [
         AspectRatio(
           aspectRatio: 1,
-          child: Image.network(viewUrl, fit: BoxFit.cover, errorBuilder: (c, e, st) => const Center(child: Icon(Icons.broken_image))),
+          child: Builder(builder: (c) {
+            if (Environment.useMatrix && widget.mediaId.startsWith('mxc://')) {
+              if (_bytes != null) return Image.memory(_bytes!, fit: BoxFit.cover);
+              if (_error != null) return Center(child: Text('Ошибка: $_error'));
+              return const Center(child: CircularProgressIndicator());
+            }
+            return Image.network(viewUrl, fit: BoxFit.cover, errorBuilder: (c, e, st) => const Center(child: Icon(Icons.broken_image)));
+          }),
         ),
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Ошибка: $_error', style: const TextStyle(color: Colors.red))),
         Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [

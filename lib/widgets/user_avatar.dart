@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
+import 'package:two_space_app/services/auth_service.dart';
+import 'package:two_space_app/services/chat_matrix_service.dart';
+import 'package:two_space_app/services/appwrite_service.dart';
 
 /// Reusable user avatar widget.
 /// Prefer avatarFileId (fetch bytes via AppwriteService.getFileBytes).
@@ -46,7 +49,39 @@ class _UserAvatarState extends State<UserAvatar> {
         } catch (_) {}
       }
     }
-    if (fid == null || fid.isEmpty) return;
+    if (fid == null || fid.isEmpty) {
+      // If using Matrix and avatarUrl is an mxc:// URL, try to fetch it from
+      // the homeserver content repo using the authenticated download endpoint.
+      if (Environment.useMatrix && widget.avatarUrl != null && widget.avatarUrl!.startsWith('mxc://')) {
+        try {
+          final parts = widget.avatarUrl!.substring('mxc://'.length).split('/');
+          if (parts.length >= 2) {
+            final server = parts[0];
+            final mediaId = parts.sublist(1).join('/');
+            final homeserver = ChatMatrixService().homeserver;
+            final uri = Uri.parse(homeserver + '/_matrix/media/v3/download/$server/$mediaId');
+            // Get auth header (per-user or global)
+            String? token;
+            try {
+              token = await AuthService().getMatrixTokenForUser();
+            } catch (_) {
+              token = null;
+            }
+            String tokenString = '';
+            if (token != null && token.isNotEmpty) tokenString = token;
+            else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
+            final headers = tokenString.isNotEmpty ? {'Authorization': 'Bearer $tokenString'} : <String, String>{};
+            final res = await http.get(uri, headers: headers);
+            if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+              final u = Uint8List.fromList(res.bodyBytes);
+              if (mounted) setState(() => _bytes = u);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+      return;
+    }
     if (_cache.containsKey(fid)) {
       setState(() => _bytes = _cache[fid]);
       return;

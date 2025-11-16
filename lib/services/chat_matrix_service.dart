@@ -16,24 +16,21 @@ import 'package:flutter/foundation.dart';
 /// Matrix/Synapse on your VPS.
 class ChatMatrixService implements ChatBackend {
   final String homeserver;
-  final String? accessToken;
 
-  ChatMatrixService({String? homeserverUrl, String? token})
-      : homeserver = homeserverUrl ?? Environment.matrixHomeserverUrl,
-        accessToken = token ?? (Environment.matrixAccessToken.isNotEmpty ? Environment.matrixAccessToken : null) {
-    if (homeserver.isEmpty || (accessToken == null || accessToken!.isEmpty)) {
-      if (kDebugMode) debugPrint('ChatMatrixService created without HOMESERVER or ACCESS_TOKEN');
+  ChatMatrixService({String? homeserverUrl}) : homeserver = homeserverUrl ?? Environment.matrixHomeserverUrl {
+    if (homeserver.isEmpty) {
+      if (kDebugMode) debugPrint('ChatMatrixService created without HOMESERVER');
     }
   }
 
   /// Lightweight auth header builder: prefer per-user token via AuthService,
   /// otherwise fall back to globally configured MATRIX_ACCESS_TOKEN.
   Future<Map<String, String>> _authHeaders() async {
-    String? token = accessToken;
-    if (token == null) {
-      try {
-        token = await AuthService().getMatrixTokenForUser();
-      } catch (_) {}
+    String? token;
+    try {
+      token = await AuthService().getMatrixTokenForUser();
+    } catch (_) {
+      token = null;
     }
     String tokenString = '';
     if (token != null && token.isNotEmpty) tokenString = token;
@@ -224,7 +221,9 @@ class ChatMatrixService implements ChatBackend {
   /// Upload media to the content repository and return mxc:// URL
   Future<String> uploadMedia(List<int> bytes, {required String contentType, String? fileName}) async {
     final uri = _csPath('/_matrix/media/v3/upload');
-    final headers = {'Authorization': 'Bearer $accessToken', 'Content-Type': contentType};
+    final headers = await _authHeaders();
+    // Override content-type for binary upload
+    headers['Content-Type'] = contentType;
     final res = await http.post(uri, headers: headers, body: bytes);
     if (res.statusCode < 200 || res.statusCode >= 300) throw Exception('Matrix media upload failed ${res.statusCode}: ${res.body}');
     final json = jsonDecode(res.body) as Map<String, dynamic>;

@@ -10,7 +10,7 @@ import 'package:two_space_app/services/chat_service.dart';
 /// otherwise the existing Appwrite-backed ChatService is used.
 ChatBackend createChatBackend({Client? client}) {
   if (Environment.useMatrix) {
-    return ChatMatrixService(homeserverUrl: Environment.matrixHomeserverUrl, token: Environment.matrixAccessToken);
+    return ChatMatrixService(homeserverUrl: Environment.matrixHomeserverUrl);
   }
   return ChatService(client: client);
 }
