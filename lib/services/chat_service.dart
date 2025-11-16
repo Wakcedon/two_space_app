@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:two_space_app/config/environment.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/utils/encrypted_content_helper.dart';
 

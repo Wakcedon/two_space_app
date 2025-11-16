@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'dart:async';
 
 import 'package:two_space_app/services/settings_service.dart';

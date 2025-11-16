@@ -18,7 +18,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/realtime_service.dart';
 import 'package:two_space_app/services/local_message_store.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/navigation_service.dart';
 // ui_tokens not needed here
 

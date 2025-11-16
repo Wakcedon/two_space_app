@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/screens/change_email_screen.dart';
 import 'package:two_space_app/screens/change_phone_screen.dart';
 import 'package:two_space_app/services/settings_service.dart';

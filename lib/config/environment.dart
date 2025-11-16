@@ -163,6 +163,13 @@ class Environment {
   // access tokens obtained via login instead of a single global token.
   static String get matrixAccessToken => _get('MATRIX_ACCESS_TOKEN');
 
+  // Optional storage bucket identifiers when using Matrix-hosted media or a
+  // compatible storage solution. These mirror the previous Appwrite bucket
+  // names but are prefixed for Matrix usage. Provide MATRIX_STORAGE_MEDIA_BUCKET_ID
+  // and MATRIX_STORAGE_APK_BUCKET_ID in your .env if needed.
+  static String get matrixStorageMediaBucketId => _get('MATRIX_STORAGE_MEDIA_BUCKET_ID');
+  static String get matrixStorageApkBucketId => _get('MATRIX_STORAGE_APK_BUCKET_ID');
+
   // Optional: JAAS / Jitsi server override and token for JaaS integration
   // MATRIX_JAAS_SERVER - override URL for JaaS (for example https://8x8.vc or your JaaS tenant)
   // MATRIX_JAAS_TOKEN - optional JWT/token provided by JaaS for authenticated joins

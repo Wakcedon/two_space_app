@@ -9,7 +9,7 @@ import 'package:two_space_app/screens/home_screen.dart';
 import 'package:two_space_app/screens/customization_screen.dart';
 import 'package:two_space_app/screens/privacy_screen.dart';
 // Chat screen import removed from dev menu (not used currently)
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/navigation_service.dart';
 
 class DevMenuScreen extends StatefulWidget {

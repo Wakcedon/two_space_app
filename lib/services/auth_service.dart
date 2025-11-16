@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -25,12 +25,12 @@ class AuthService {
       // jwtResp may be Map or Response-like
       final jwt = jwtResp is Map && jwtResp.containsKey('jwt') ? jwtResp['jwt'] as String : null;
       if (jwt == null) throw Exception('Failed to obtain JWT after login');
-      await AppwriteService.saveJwt(jwt);
+      await MatrixService.saveJwt(jwt);
       return;
     }
 
     // REST fallback (create email session)
-  final base = AppwriteService.v1Endpoint();
+  final base = MatrixService.v1Endpoint();
   final uri = Uri.parse('$base/account/sessions/email');
   final resp = await http.post(uri,
   headers: {'X-Appwrite-Project': Environment.appwriteProjectId, 'Content-Type': 'application/json'},
@@ -52,20 +52,20 @@ class AuthService {
     final jwt = jwtJson['jwt'] as String?;
     if (jwt == null) throw Exception('JWT missing in response');
   // Persist session cookie so we can refresh JWT later if needed
-  if (receivedCookie != null && receivedCookie.isNotEmpty) await AppwriteService.saveSessionCookie(receivedCookie);
-    await AppwriteService.saveJwt(jwt);
+  if (receivedCookie != null && receivedCookie.isNotEmpty) await MatrixService.saveSessionCookie(receivedCookie);
+    await MatrixService.saveJwt(jwt);
   }
 
   /// Return currently cached JWT, or null if none.
   Future<String?> getJwt() async {
-    return await AppwriteService.getJwt();
+    return await MatrixService.getJwt();
   }
 
   /// Ensure JWT is available: attempt to restore saved JWT/session cookie and obtain fresh JWT.
   Future<bool> ensureJwt() async {
     try {
-      await AppwriteService.restoreJwt();
-      final j = await AppwriteService.getJwt();
+      await MatrixService.restoreJwt();
+      final j = await MatrixService.getJwt();
       return j != null && j.isNotEmpty;
     } catch (_) {
       return false;
@@ -75,13 +75,13 @@ class AuthService {
   /// Sign out current user: delete session on server and clear stored JWT/cookie
   Future<void> signOut() async {
     try {
-      await AppwriteService.deleteCurrentSession();
+      await MatrixService.deleteCurrentSession();
     } catch (_) {}
     try {
-      await AppwriteService.saveSessionCookie(null);
+      await MatrixService.saveSessionCookie(null);
     } catch (_) {}
     try {
-      await AppwriteService.clearJwt();
+      await MatrixService.clearJwt();
     } catch (_) {}
   }
 
@@ -104,7 +104,7 @@ class AuthService {
   Future<dynamic> registerUser(String name, String email, String password) async {
     // If SDK client available, use it; otherwise use REST fallback
     // Use REST createAccount helper which works in both SDK and REST environments
-    final res = await AppwriteService.createAccount(email, password, name: name);
+    final res = await MatrixService.createAccount(email, password, name: name);
     // Try to provision Matrix account (best-effort). Server may disable registration.
     try {
       if (Environment.useMatrix) {
@@ -158,7 +158,7 @@ class AuthService {
     // Save token keyed by current app user id if available, otherwise by matrix user id
     String keyId = userId;
     try {
-      final me = await AppwriteService.getCurrentUserId();
+      final me = await MatrixService.getCurrentUserId();
       if (me != null && me.isNotEmpty) keyId = me;
     } catch (_) {}
     await _secure.write(key: '$_kMatrixTokenKeyPrefix$keyId', value: token);
@@ -177,7 +177,7 @@ class AuthService {
     String keyId = appUserId ?? '';
     if (keyId.isEmpty) {
       try {
-        final me = await AppwriteService.getCurrentUserId();
+        final me = await MatrixService.getCurrentUserId();
         if (me != null) keyId = me;
       } catch (_) {}
     }
@@ -216,7 +216,7 @@ class AuthService {
     String keyId = appUserId ?? '';
     if (keyId.isEmpty) {
       try {
-        final me = await AppwriteService.getCurrentUserId();
+        final me = await MatrixService.getCurrentUserId();
         if (me != null) keyId = me;
       } catch (_) {}
     }
@@ -228,7 +228,7 @@ class AuthService {
   /// the notion of current user and allows migrating away from Appwrite later.
   Future<String?> getCurrentUserId() async {
     try {
-      return await AppwriteService.getCurrentUserId();
+      return await MatrixService.getCurrentUserId();
     } catch (_) {
       return null;
     }
@@ -237,13 +237,13 @@ class AuthService {
   /// Clear stored Matrix token for current app user (sign out)
   Future<void> clearMatrixTokenForCurrentUser() async {
     try {
-      final me = await AppwriteService.getCurrentUserId();
+      final me = await MatrixService.getCurrentUserId();
       if (me != null) await _secure.delete(key: '$_kMatrixTokenKeyPrefix$me');
     } catch (_) {}
   }
 
   Future<dynamic> sendPhoneToken(String phone) async {
-    return await AppwriteService.createPhoneToken(phone);
+    return await MatrixService.createPhoneToken(phone);
   }
 
   // For session creation from token (phone flow), ensure JWT saved after session creation
@@ -253,12 +253,12 @@ class AuthService {
       final jwtResp = await accountClient.createJWT();
       final jwt = jwtResp is Map && jwtResp.containsKey('jwt') ? jwtResp['jwt'] as String : null;
       if (jwt == null) throw Exception('Failed to obtain JWT after session creation');
-      await AppwriteService.saveJwt(jwt);
+      await MatrixService.saveJwt(jwt);
       return;
     }
 
     // REST fallback - create session and then jwt
-  final base = AppwriteService.v1Endpoint();
+  final base = MatrixService.v1Endpoint();
   final uri = Uri.parse('$base/account/sessions/token');
     final resp = await http.post(uri,
         headers: {'X-Appwrite-Project': Environment.appwriteProjectId, 'Content-Type': 'application/json'},
@@ -275,7 +275,7 @@ class AuthService {
     final jwtJson = jsonDecode(jwtResp.body) as Map<String, dynamic>;
     final jwt = jwtJson['jwt'] as String?;
     if (jwt == null) throw Exception('JWT missing in response');
-  if (receivedCookie != null && receivedCookie.isNotEmpty) await AppwriteService.saveSessionCookie(receivedCookie);
-    await AppwriteService.saveJwt(jwt);
+  if (receivedCookie != null && receivedCookie.isNotEmpty) await MatrixService.saveSessionCookie(receivedCookie);
+    await MatrixService.saveJwt(jwt);
   }
 }

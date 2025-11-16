@@ -12,7 +12,7 @@ import 'screens/forgot_password_screen.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:two_space_app/widgets/dev_fab.dart';
-import 'services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'services/navigation_service.dart';
 import 'services/settings_service.dart';
 import 'services/update_service.dart';
@@ -60,7 +60,7 @@ Future<void> main() async {
   }
   // Print debug info (only in debug mode)
   Environment.debugPrintEnv();
-  // Try to restore any saved JWT so AppwriteService can use it for auth checks
+  // Try to restore any saved JWT so MatrixService can use it for auth checks
   // Load persisted UI settings first so session timeout preferences are available
   // Use short timeouts and fail fast to avoid blocking the UI on startup.
   try {
@@ -70,12 +70,12 @@ Future<void> main() async {
     // ignore: avoid_print
     print('Warning: SettingsService.load failed or timed out: $e');
   }
-  // Then try to restore any saved JWT so AppwriteService can use it for auth checks
+  // Then try to restore any saved JWT so MatrixService can use it for auth checks
   try {
-    await AppwriteService.restoreJwt().timeout(const Duration(seconds: 3));
+    await MatrixService.restoreJwt().timeout(const Duration(seconds: 3));
   } catch (e) {
     // ignore: avoid_print
-    print('Warning: AppwriteService.restoreJwt failed or timed out: $e');
+    print('Warning: MatrixService.restoreJwt failed or timed out: $e');
   }
 
   // Set a global ErrorWidget to surface any uncaught build errors as visible UI
@@ -230,12 +230,12 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Timer? _presenceTimer;
   Future<bool> _hasSession() async {
     try {
-      if (!AppwriteService.isConfigured) return false;
+      if (!MatrixService.isConfigured) return false;
       // First, perform a fast local check: if we have a saved JWT or session cookie,
       // consider the user logged in immediately (optimistic/offline-friendly).
       try {
-        final jwt = await AppwriteService.getJwt();
-        final cookie = await AppwriteService.getSessionCookie();
+        final jwt = await MatrixService.getJwt();
+        final cookie = await MatrixService.getSessionCookie();
         if ((jwt != null && jwt.isNotEmpty) || (cookie != null && cookie.isNotEmpty)) return true;
       } catch (_) {
         // ignore and fall through to network check
@@ -244,7 +244,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       // No local token found — attempt to validate remotely but with a short timeout
       // to avoid blocking the UI (which caused a black screen for some users).
       try {
-        final account = await AppwriteService.getAccount().timeout(const Duration(seconds: 5));
+        final account = await MatrixService.getAccount().timeout(const Duration(seconds: 5));
         return account != null;
       } catch (_) {
         return false;
@@ -279,11 +279,11 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       // When app resumes from background, mark user online and trigger update check again (mobile only).
-      AppwriteService.setOnlinePresence(true);
+      MatrixService.setOnlinePresence(true);
       // Start periodic heartbeat while app is foregrounded
       _presenceTimer?.cancel();
       _presenceTimer = Timer.periodic(const Duration(seconds: 45), (_) {
-        AppwriteService.setOnlinePresence(true);
+        MatrixService.setOnlinePresence(true);
       });
       if (!mounted) return;
       if (Platform.isAndroid || Platform.isIOS) {
@@ -296,7 +296,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       // Stop heartbeat and mark offline
       _presenceTimer?.cancel();
       _presenceTimer = null;
-      AppwriteService.setOnlinePresence(false);
+      MatrixService.setOnlinePresence(false);
     }
   }
 

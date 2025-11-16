@@ -5,7 +5,7 @@ import 'package:two_space_app/config/ui_tokens.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
-import 'package:two_space_app/services/appwrite_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
 import 'package:two_space_app/services/realtime_service.dart';
