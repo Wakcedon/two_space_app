@@ -83,12 +83,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _avatarFileId = user.prefs['avatarId'];
     } catch (e) {
       if (mounted) {
-        final navCtx = appNavigatorKey.currentContext;
-        if (navCtx != null) {
-          ScaffoldMessenger.of(navCtx).showSnackBar(
-            SnackBar(content: Text('Ошибка загрузки данных: ${AppwriteService.readableError(e)}')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка загрузки данных: ${AppwriteService.readableError(e)}')),
+        );
       }
     }
     // Try to load cached profile first for instant UI responsiveness.
@@ -192,9 +189,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       }
       } catch (e) {
       debugPrint('Load account failed: $e');
-      final navCtx = appNavigatorKey.currentContext;
-      if (navCtx != null) {
-        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось загрузить аккаунт: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось загрузить аккаунт: $e')));
       }
     } finally {
       if (mounted) {
@@ -308,16 +304,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           }
         } catch (_) {}
       }
-  if (!mounted) return;
-  final navCtx = appNavigatorKey.currentContext;
-  if (navCtx != null) {
-    ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Аватарка обновлена')));
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Аватарка обновлена')));
   }
     } catch (e) {
       debugPrint('Avatar upload failed: $e');
-      final navCtx = appNavigatorKey.currentContext;
-      if (navCtx != null) {
-        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка загрузки фото: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки фото: $e')));
       }
     } finally {
       if (mounted) {
@@ -346,9 +339,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (nickVal.isNotEmpty && nickVal != currentNick) {
         // If our live check previously determined nickname is taken, abort and notify.
         if (_nickStatus == 'taken') {
-          final navCtx = appNavigatorKey.currentContext;
-          if (navCtx != null) {
-            ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Никнейм занят. Выберите другой.')));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Никнейм занят. Выберите другой.')));
           }
           return;
         }
@@ -357,9 +349,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           await AppwriteService.reserveNickname(nickVal);
           // reserveNickname updates account prefs on success
         } catch (e) {
-          final navCtx = appNavigatorKey.currentContext;
-          if (navCtx != null) {
-            ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось зарезервировать ник: ${AppwriteService.readableError(e)}')));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось зарезервировать ник: ${AppwriteService.readableError(e)}')));
           }
         }
       }
@@ -373,15 +364,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   await _loadAccount();
   if (!mounted) return;
-  final navCtx = appNavigatorKey.currentContext;
-  if (navCtx != null) {
-    ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Профиль сохранён')));
-  }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Профиль сохранён')));
+      }
     } catch (e) {
       debugPrint('Save profile error: $e');
-      final navCtx = appNavigatorKey.currentContext;
-      if (navCtx != null) {
-        ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка сохранения: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка сохранения: $e')));
       }
     } finally {
       if (mounted) {
@@ -467,16 +456,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     try {
       final info = await UpdateService.checkForUpdate();
       if (!mounted) return;
-      final navCtx = appNavigatorKey.currentContext;
       if (info == null) {
-        if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Обновлений не найдено')));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Обновлений не найдено')));
       } else {
         // Navigate to full-screen update page
         appNavigatorKey.currentState?.push(MaterialPageRoute(builder: (c) => UpdateScreen(info: info)));
       }
     } catch (e) {
-      final navCtx = appNavigatorKey.currentContext;
-      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка проверки обновлений: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка проверки обновлений: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -618,8 +605,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                                     icon: Icon(Icons.delete_forever, size: 18, color: Theme.of(context).colorScheme.error),
                                                     onPressed: _loading
                                                         ? null
-                                                        : () async {
-                                                            final confirm = await showDialog<bool>(context: context, builder: (c) {
+                            : () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final confirm = await showDialog<bool>(context: context, builder: (c) {
                                                               return AlertDialog(
                                                                 title: const Text('Удалить аватар'),
                                                                 content: const Text('Вы уверены, что хотите удалить текущую аватарку? Это действие удалит файл из хранилища и очистит настройки профиля.'),
@@ -636,12 +624,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                                               await AppwriteService.deleteAvatarForCurrentUser();
                                                               await _loadAccount();
                                                               if (!mounted) return;
-                                                              final navCtx = appNavigatorKey.currentContext;
-                                                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Аватар удалён')));
+                                                              messenger.showSnackBar(const SnackBar(content: Text('Аватар удалён')));
                                                             } catch (e) {
                                                               if (!mounted) return;
-                                                              final navCtx = appNavigatorKey.currentContext;
-                                                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: ${AppwriteService.readableError(e)}')));
+                                                              messenger.showSnackBar(SnackBar(content: Text('Не удалось удалить аватар: ${AppwriteService.readableError(e)}')));
                                                             } finally {
                                                               if (mounted) setState(() => _loading = false);
                                                             }

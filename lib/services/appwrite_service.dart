@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 // 'dart:typed_data' not needed; types are provided by flutter services import
 import 'package:dio/dio.dart';
@@ -784,6 +785,44 @@ class AppwriteService {
   /// Update account fields (name and prefs). Uses PATCH /v1/account.
   /// prefs should be a JSON-serializable map (e.g. {"firstName": "...", "lastName": "...", "description": "..."})
   static Future<dynamic> updateAccount({String? name, Map<String, dynamic>? prefs}) async {
+    // If Matrix mode is enabled, map account updates to Matrix profile/account_data
+    if (Environment.useMatrix) {
+      try {
+        final me = await getCurrentUserId();
+        if (me == null || me.isEmpty) throw Exception('Not authenticated (no user id)');
+        final token = await AuthService().getMatrixTokenForUser();
+        final authToken = (token != null && token.isNotEmpty) ? token : Environment.matrixAccessToken;
+        if (authToken.isEmpty) throw Exception('Matrix access token is not configured');
+        final base = Environment.matrixHomeserverUrl;
+        if (base.isEmpty) throw Exception('Matrix homeserver URL not configured');
+        final headers = {'Authorization': 'Bearer $authToken', 'Content-Type': 'application/json'};
+        // Update display name
+        if (name != null) {
+          final uri = Uri.parse('$base/_matrix/client/v3/profile/${Uri.encodeComponent(me)}/displayname');
+          await http.put(uri, headers: headers, body: jsonEncode({'displayname': name}));
+        }
+        // Update prefs as account_data under a namespaced type so it is retrievable by the client
+        if (prefs != null) {
+          final uri = Uri.parse('$base/_matrix/client/v3/user/${Uri.encodeComponent(me)}/account_data/io.twospace.prefs');
+          await http.put(uri, headers: headers, body: jsonEncode(prefs));
+        }
+        // Update avatar_url if prefs contains avatarUrl (keep compatibility with uploadAvatar flow)
+        try {
+          if (prefs != null && prefs.containsKey('avatarUrl')) {
+            final avatar = prefs['avatarUrl']?.toString() ?? '';
+            if (avatar.isNotEmpty) {
+              final uri = Uri.parse('$base/_matrix/client/v3/profile/${Uri.encodeComponent(me)}/avatar_url');
+              await http.put(uri, headers: headers, body: jsonEncode({'avatar_url': avatar}));
+            }
+          }
+        } catch (_) {}
+        // Return a minimal account-like object for compatibility
+        return {'\$id': me, 'id': me, 'name': name ?? me, 'prefs': prefs ?? <String, dynamic>{}};
+      } catch (e) {
+        // fall through to Appwrite fallback if configured
+        if (kDebugMode) debugPrint('Matrix updateAccount failed, falling back to Appwrite: $e');
+      }
+    }
     // Use the specific Appwrite account endpoints per docs:
     // - PATCH /account/name for name updates
     // - PATCH /account/prefs for prefs updates
