@@ -217,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+  return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -733,7 +733,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           );
         }),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: MediaQuery.of(context).size.width >= 900 ? null : FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.primary,
         onPressed: () async {
           final navigator = Navigator.of(context);
@@ -781,7 +781,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: const Icon(Icons.chat, color: Colors.white),
       ),
-    );
+  );
   }
 }
 

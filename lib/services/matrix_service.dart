@@ -296,8 +296,40 @@ class MatrixService {
   }
 
   static Future<List<dynamic>> searchUsers(String query, {int limit = 10}) async {
-    // Simple Matrix-backed search is not available via client; return empty list.
-    // Applications should implement server-side search or an index if needed.
+    // Use Matrix user directory search (if available on the homeserver).
+    final base = Environment.matrixHomeserverUrl;
+    if (base.isEmpty) return <dynamic>[];
+    final uri = Uri.parse(base.replaceAll(RegExp(r'/$'), '') + '/_matrix/client/v3/user_directory/search');
+    String? token;
+    try {
+      token = await AuthService().getMatrixTokenForUser();
+    } catch (_) {
+      token = null;
+    }
+    String tokenString = '';
+    if (token != null && token.isNotEmpty) tokenString = token;
+    else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (tokenString.isNotEmpty) headers['Authorization'] = 'Bearer $tokenString';
+    try {
+      final body = jsonEncode({'search_term': query, 'limit': limit});
+      final res = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 6));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final parsed = jsonDecode(res.body) as Map<String, dynamic>;
+        final results = (parsed['results'] as List? ?? []);
+        final out = <dynamic>[];
+        for (final r in results) {
+          try {
+            final map = r as Map<String, dynamic>;
+            final userId = (map['user_id'] ?? map['id'])?.toString() ?? '';
+            final displayName = (map['display_name'] ?? map['name'])?.toString() ?? userId;
+            final avatar = (map['avatar_url'] ?? '')?.toString() ?? '';
+            out.add({'\u0024id': userId, 'id': userId, 'name': displayName, 'prefs': {'avatarUrl': avatar}});
+          } catch (_) {}
+        }
+        return out;
+      }
+    } catch (_) {}
     return <dynamic>[];
   }
 

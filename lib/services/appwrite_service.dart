@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/utils/secure_store.dart';
 
@@ -292,9 +293,12 @@ class AppwriteService {
   }
 
   static Future<List<dynamic>> searchUsers(String query, {int limit = 10}) async {
-    // Simple Matrix-backed search is not available via client; return empty list.
-    // Applications should implement server-side search or an index if needed.
-    return <dynamic>[];
+    // Delegate to MatrixService where possible
+    try {
+      return await MatrixService.searchUsers(query, limit: limit);
+    } catch (_) {
+      return <dynamic>[];
+    }
   }
 
   static Future<Map<String, dynamic>> createAccount(String email, String password, {String? name}) async {

@@ -4,6 +4,7 @@ import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/auth_service.dart';
+import 'package:two_space_app/services/matrix_service.dart';
 import 'package:flutter/foundation.dart';
 
 /// Minimal Matrix-backed Chat service.
@@ -69,15 +70,74 @@ class ChatMatrixService implements ChatBackend {
         try {
           final room = roomObj as Map<String, dynamic>;
           final summary = room['summary'] as Map<String, dynamic>?;
-          final name = (summary != null && summary['m.heroes'] != null) ? (summary['m.heroes'] as List).join(', ') : (room['state'] != null ? (room['state']['events'] as List).map((e) => (e['content']?['name'] ?? '')).where((s) => (s as String).isNotEmpty).join(', ') : roomId);
+          String name = roomId;
+          String avatar = '';
+          final members = <String>[];
+
+          // Prefer explicit name in room state (m.room.name)
+          final stateEvents = (room['state'] != null && room['state']['events'] is List) ? List.from(room['state']['events']) : <dynamic>[];
+          // Map of member id -> displayname (from m.room.member state events)
+          final Map<String, String> memberDisplay = {};
+          String canonicalAlias = '';
+          for (final e in stateEvents) {
+            try {
+              final et = e['type']?.toString() ?? '';
+              if (et == 'm.room.name' && e['content'] != null && (e['content']['name'] as String?)?.isNotEmpty == true) {
+                name = e['content']['name'];
+              }
+              if (et == 'm.room.canonical_alias' && e['content'] != null && (e['content']['alias'] as String?)?.isNotEmpty == true) {
+                canonicalAlias = e['content']['alias'];
+              }
+              if (et == 'm.room.avatar' && e['content'] != null && (e['content']['url'] as String?)?.isNotEmpty == true) {
+                avatar = e['content']['url'];
+              }
+              if (et == 'm.room.member' && e['state_key'] != null) {
+                final sk = e['state_key'].toString();
+                final membership = e['content']?['membership']?.toString() ?? '';
+                if (membership == 'join' || membership == 'invite') {
+                  members.add(sk);
+                  // collect displayname if available for heroes construction
+                  final dn = (e['content']?['displayname'] as String?) ?? '';
+                  if (dn.isNotEmpty) memberDisplay[sk] = dn;
+                }
+              }
+            } catch (_) {}
+          }
+
+          // fallback to canonical alias or summary.heroes or timeline authors
+          if ((name.isEmpty || name == roomId) && canonicalAlias.isNotEmpty) {
+            name = canonicalAlias;
+          }
+          if ((name.isEmpty || name == roomId) && summary != null && summary['m.heroes'] is List && (summary['m.heroes'] as List).isNotEmpty) {
+            final heroes = (summary['m.heroes'] as List).cast<String>();
+            // Resolve displaynames from memberDisplay when available, otherwise use id localpart
+            final resolved = <String>[];
+            for (final h in heroes) {
+              final dn = memberDisplay[h];
+              if (dn != null && dn.isNotEmpty) resolved.add(dn);
+              else resolved.add(h);
+              if (resolved.length >= 5) break;
+            }
+            name = resolved.join(', ');
+          }
+
+          // determine last message from timeline
           final lastEvent = (room['timeline'] != null && room['timeline']['events'] is List && (room['timeline']['events'] as List).isNotEmpty) ? (room['timeline']['events'] as List).last : null;
-          final lastMessage = lastEvent != null && lastEvent['content'] != null ? (lastEvent['content']['body'] ?? '') : '';
-          final lastTs = lastEvent != null && lastEvent['origin_server_ts'] != null ? DateTime.fromMillisecondsSinceEpoch((lastEvent['origin_server_ts'] as int)) : DateTime.now();
+          final lastMessage = (lastEvent != null && lastEvent['type'] == 'm.room.message' && lastEvent['content'] != null) ? (lastEvent['content']['body'] ?? '') : '';
+          final lastTs = (lastEvent != null && lastEvent['origin_server_ts'] != null) ? DateTime.fromMillisecondsSinceEpoch((lastEvent['origin_server_ts'] as int)) : DateTime.now();
+
+          // Normalize avatar: if mxc:// convert to homeserver download URL via MatrixService
+          if (avatar.startsWith('mxc://')) {
+            try {
+              avatar = MatrixService.getFileViewUrl(avatar).toString();
+            } catch (_) {}
+          }
+
           rooms.add(Chat(
             id: roomId,
-            name: name ?? roomId,
-            members: <String>[],
-            avatarUrl: '',
+            name: name.isNotEmpty ? name : roomId,
+            members: members,
+            avatarUrl: avatar,
             lastMessage: lastMessage ?? '',
             lastMessageTime: lastTs,
           ));
@@ -129,7 +189,10 @@ class ChatMatrixService implements ChatBackend {
   /// Send a message to a room using txn id for idempotency.
   Future<Map<String, dynamic>> sendMessage(String roomId, String senderId, String content, {String type = 'text', String? mediaFileId}) async {
     if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
-    final txn = DateTime.now().millisecondsSinceEpoch.toString();
+    // Create a transaction id (txnId) for local-echo and idempotency
+    final txn = 'm${DateTime.now().millisecondsSinceEpoch}-${_randomSuffix()}';
+    // Map txn -> room so UI can create a local pending message with id=txn
+    _messageIdToRoom[txn] = roomId;
     final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/m.room.message/$txn');
     final msgtype = (type == 'text' || type == 'm.text') ? 'm.text' : (type == 'image' ? 'm.image' : 'm.file');
     final payload = <String, dynamic>{'msgtype': msgtype, 'body': content};
@@ -146,15 +209,24 @@ class ChatMatrixService implements ChatBackend {
     final eventId = json['event_id'] as String? ?? txn;
     // Record mapping so markDelivered/markRead can resolve room
     _messageIdToRoom[eventId] = roomId;
+    // Also map txn -> event id for convenience if needed
+    _messageIdToRoom[txn] = roomId;
     return {
       '\u0024id': eventId,
       'chatId': roomId,
       'eventId': eventId,
+      'txnId': txn,
       'time': DateTime.now().toIso8601String(),
       'senderId': senderId,
       'content': content,
       'type': type,
     };
+  }
+
+  String _randomSuffix() {
+    // Simple random suffix to avoid pure timestamp collisions
+    final now = DateTime.now().microsecondsSinceEpoch;
+    return now.toRadixString(36).substring(0, 6);
   }
 
   /// Create (or join) a room. For direct chats we'll mark 'is_direct' in account_data

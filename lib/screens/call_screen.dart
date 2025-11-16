@@ -7,6 +7,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/chat_backend.dart';
+import 'package:two_space_app/widgets/network_quality.dart';
 
 class CallScreen extends StatefulWidget {
   final String room;
@@ -85,9 +86,17 @@ class _CallScreenState extends State<CallScreen> {
 
       if (token.isNotEmpty) options.token = token;
 
-      // Prefer embedded JAAS WebView on desktop platforms (richer device control).
+      // For desktop platforms avoid using the embedded WebView (some builds
+      // may not provide a WebViewPlatform implementation). Instead open the
+      // meeting URL in the user's default browser and show the in-app call UI.
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        if (mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => _JaaSEmbedPage(room: widget.room, jwt: token, server: options.serverURL ?? '')));
+        final meetingUrl = (options.serverURL ?? 'https://8x8.vc').replaceAll(RegExp(r'/$'), '') + '/' + widget.room;
+        try {
+          await _openUrlInBrowser(meetingUrl);
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Открыло звонок в браузере')));
+        } catch (e) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось открыть браузер: $e')));
+        }
         return;
       }
 
@@ -142,6 +151,24 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
+  Future<void> _openUrlInBrowser(String url) async {
+    try {
+      if (Platform.isWindows) {
+        await Process.start('cmd', ['/c', 'start', '""', url]);
+      } else if (Platform.isMacOS) {
+        await Process.start('open', [url]);
+      } else if (Platform.isLinux) {
+        await Process.start('xdg-open', [url]);
+      } else {
+        throw Exception('Unsupported platform for opening browser');
+      }
+    } catch (e) {
+      // As a final fallback try to print the URL so user can copy it
+      debugPrint('openUrlInBrowser failed: $e — $url');
+      rethrow;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,31 +210,44 @@ class _CallScreenState extends State<CallScreen> {
                       }),
                     ]),
                     const SizedBox(height: 18),
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      ElevatedButton.icon(
-                        onPressed: _inviteUser,
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Пригласить'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: () async {
-                          await _joinMeeting();
-                        },
-                        style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
-                        child: const Icon(Icons.phone, color: Colors.white, size: 36),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: () {
-                          JitsiMeet.closeMeeting();
-                          Navigator.of(context).pop();
-                        },
-                        style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
-                        child: const Icon(Icons.call_end, color: Colors.white),
-                      ),
-                    ]),
+                    // Network quality indicator and controls. Use Wrap to avoid
+                    // RenderFlex overflow on narrow windows.
+                    Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6.0),
+                          child: NetworkQualityIndicator(),
+                        ),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _inviteUser,
+                              icon: const Icon(Icons.person_add),
+                              label: const Text('Пригласить'),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                            ),
+                            ElevatedButton(
+                              onPressed: () async {
+                                await _joinMeeting();
+                              },
+                              style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
+                              child: const Icon(Icons.phone, color: Colors.white, size: 36),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                try { JitsiMeet.closeMeeting(); } catch (_) {}
+                                Navigator.of(context).pop();
+                              },
+                              style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
+                              child: const Icon(Icons.call_end, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
