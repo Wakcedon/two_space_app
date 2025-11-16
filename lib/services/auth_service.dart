@@ -6,6 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Keys used in secure storage for Matrix tokens per-user
 const _kMatrixTokenKeyPrefix = 'matrix_token_';
+const _kMatrixRefreshKeyPrefix = 'matrix_refresh_';
+const _kMatrixDeviceIdPrefix = 'matrix_device_';
 
 class AuthService {
   final /*Appwrite Account client if present*/ dynamic accountClient;
@@ -147,10 +149,12 @@ class AuthService {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Matrix login failed ${res.statusCode}: ${res.body}');
     }
-    final js = jsonDecode(res.body) as Map<String, dynamic>;
-    final token = js['access_token'] as String?;
-    final userId = js['user_id'] as String?;
-    if (token == null || userId == null) throw Exception('Matrix login response missing token/user_id');
+  final js = jsonDecode(res.body) as Map<String, dynamic>;
+  final token = js['access_token'] as String?;
+  final refresh = js['refresh_token'] as String?;
+  final deviceId = js['device_id'] as String?;
+  final userId = js['user_id'] as String?;
+  if (token == null || userId == null) throw Exception('Matrix login response missing token/user_id');
     // Save token keyed by current app user id if available, otherwise by matrix user id
     String keyId = userId;
     try {
@@ -158,6 +162,53 @@ class AuthService {
       if (me != null && me.isNotEmpty) keyId = me;
     } catch (_) {}
     await _secure.write(key: '$_kMatrixTokenKeyPrefix$keyId', value: token);
+    // Save optional refresh token and device id if present
+    if (refresh != null && refresh.isNotEmpty) {
+      await _secure.write(key: '$_kMatrixRefreshKeyPrefix$keyId', value: refresh);
+    }
+    if (deviceId != null && deviceId.isNotEmpty) {
+      await _secure.write(key: '$_kMatrixDeviceIdPrefix$keyId', value: deviceId);
+    }
+  }
+
+  /// Attempt to refresh Matrix access token using stored refresh token for user.
+  /// Returns new access token on success, or null on failure.
+  Future<String?> refreshMatrixTokenForUser({String? appUserId}) async {
+    String keyId = appUserId ?? '';
+    if (keyId.isEmpty) {
+      try {
+        final me = await AppwriteService.getCurrentUserId();
+        if (me != null) keyId = me;
+      } catch (_) {}
+    }
+    if (keyId.isEmpty) return null;
+    final refresh = await _secure.read(key: '$_kMatrixRefreshKeyPrefix$keyId');
+    if (refresh == null || refresh.isEmpty) return null;
+    final homeserver = Environment.matrixHomeserverUrl;
+    if (homeserver.isEmpty) return null;
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/refresh');
+    try {
+      final body = jsonEncode({'refresh_token': refresh});
+      final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: body).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final js = jsonDecode(res.body) as Map<String, dynamic>;
+        final newAccess = js['access_token'] as String?;
+        final newRefresh = js['refresh_token'] as String?;
+        if (newAccess != null && newAccess.isNotEmpty) {
+          await _secure.write(key: '$_kMatrixTokenKeyPrefix$keyId', value: newAccess);
+          if (newRefresh != null && newRefresh.isNotEmpty) {
+            await _secure.write(key: '$_kMatrixRefreshKeyPrefix$keyId', value: newRefresh);
+          }
+          return newAccess;
+        }
+      }
+      // On 401 or other client errors, clear refresh to force re-login
+      if (res.statusCode >= 400 && res.statusCode < 500) {
+        await _secure.delete(key: '$_kMatrixRefreshKeyPrefix$keyId');
+        await _secure.delete(key: '$_kMatrixTokenKeyPrefix$keyId');
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Retrieve stored Matrix access token for given app user id (or current user if null)
