@@ -51,14 +51,16 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
     final pwd = _pwdCtrl.text.trim();
     if (phone.isEmpty) return;
     setState(() => _loading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navState = Navigator.of(context);
     try {
       await AppwriteService.updatePhone(phone: phone, password: pwd.isEmpty ? null : pwd);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Номер телефона изменён')));
-      Navigator.of(context).pop(true);
+      messenger.showSnackBar(const SnackBar(content: Text('Номер телефона изменён')));
+      navState.pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось изменить номер: ${AppwriteService.readableError(e)}')));
+      messenger.showSnackBar(SnackBar(content: Text('Не удалось изменить номер: ${AppwriteService.readableError(e)}')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

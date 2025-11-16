@@ -103,17 +103,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ElevatedButton.icon(
                           onPressed: _actionLoading ? null : () async {
                         setState(() => _actionLoading = true);
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navState = appNavigatorKey.currentState;
                         try {
                           final cs = createChatBackend();
                           final m = await cs.getOrCreateDirectChat(widget.userId);
                           final chat = Chat.fromMap(m);
                           if (!mounted) return;
                           // Return created/selected chat to caller so HomeScreen can react (select on two-pane)
-                          appNavigatorKey.currentState?.pop(chat);
+                          navState?.pop(chat);
                         } catch (e) {
-                          if (!mounted) return;
-                          final navCtx = appNavigatorKey.currentContext;
-                          if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
+                          messenger.showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
                         } finally {
                           if (mounted) setState(() => _actionLoading = false);
                         }

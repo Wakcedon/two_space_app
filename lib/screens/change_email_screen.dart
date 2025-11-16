@@ -42,14 +42,16 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     final pwd = _pwdCtrl.text.trim();
     if (email.isEmpty) return;
     setState(() => _loading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navState = Navigator.of(context);
     try {
       await AppwriteService.updateEmail(email: email, password: pwd.isEmpty ? null : pwd);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email изменён. Проверьте почту для подтверждения, если требуется.')));
-      Navigator.of(context).pop(true);
+      messenger.showSnackBar(const SnackBar(content: Text('Email изменён. Проверьте почту для подтверждения, если требуется.')));
+      navState.pop(true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось изменить email: ${AppwriteService.readableError(e)}')));
+      messenger.showSnackBar(SnackBar(content: Text('Не удалось изменить email: ${AppwriteService.readableError(e)}')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
