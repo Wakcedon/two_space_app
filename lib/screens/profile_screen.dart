@@ -6,6 +6,7 @@ import 'package:two_space_app/services/settings_service.dart';
 import 'package:two_space_app/services/navigation_service.dart';
 import 'package:two_space_app/config/ui_tokens.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
+import 'package:two_space_app/screens/call_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -123,7 +124,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
-                      onPressed: () {},
+                      onPressed: () async {
+                        // start call: derive a room name and open CallScreen
+                        final roomName = 'call_${widget.userId.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: true, displayName: _displayName(), avatarUrl: _avatarUrl())));
+                      },
                       icon: const Icon(Icons.call_outlined),
                       label: const Text('Позвонить'),
                     ),

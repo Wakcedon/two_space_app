@@ -29,6 +29,7 @@ import 'package:two_space_app/widgets/media_viewer.dart';
 import 'package:two_space_app/widgets/media_player.dart';
 import '../utils/secure_store.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
+import 'package:two_space_app/screens/call_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   /// peerId — id пользователя, с которым создаётся/открывается чат
@@ -1152,6 +1153,24 @@ class _ChatScreenState extends State<ChatScreen> {
                   },
                   icon: const Icon(Icons.refresh),
                 ),
+          IconButton(
+            onPressed: () {
+              // start a video call tied to this chat
+              final base = (_chatId != null && _chatId!.isNotEmpty) ? _chatId! : (widget.peerId ?? 'chat');
+              final roomName = 'call_${base.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: true, displayName: _peerDisplayName ?? widget.title, avatarUrl: _peerAvatarUrl ?? widget.avatarUrl)));
+            },
+            icon: const Icon(Icons.videocam_outlined),
+          ),
+          IconButton(
+            onPressed: () {
+              // start an audio-only call
+              final base = (_chatId != null && _chatId!.isNotEmpty) ? _chatId! : (widget.peerId ?? 'chat');
+              final roomName = 'call_${base.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: false, displayName: _peerDisplayName ?? widget.title, avatarUrl: _peerAvatarUrl ?? widget.avatarUrl)));
+            },
+            icon: const Icon(Icons.call_outlined),
+          ),
           PopupMenuButton<String>(
             onSelected: (v) async {
               if (v == 'profile') {

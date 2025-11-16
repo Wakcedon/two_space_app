@@ -162,4 +162,10 @@ class Environment {
   // perform server-side operations (for PoC). In production you will want per-user
   // access tokens obtained via login instead of a single global token.
   static String get matrixAccessToken => _get('MATRIX_ACCESS_TOKEN');
+
+  // Optional: JAAS / Jitsi server override and token for JaaS integration
+  // MATRIX_JAAS_SERVER - override URL for JaaS (for example https://8x8.vc or your JaaS tenant)
+  // MATRIX_JAAS_TOKEN - optional JWT/token provided by JaaS for authenticated joins
+  static String get jaasServer => _get('MATRIX_JAAS_SERVER');
+  static String get jaasToken => _get('MATRIX_JAAS_TOKEN');
 }
