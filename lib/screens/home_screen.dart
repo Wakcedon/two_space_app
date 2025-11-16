@@ -14,7 +14,7 @@ import 'package:two_space_app/screens/search_contacts_screen.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:appwrite/appwrite.dart';
+// Appwrite SDK usage replaced by AppwriteService wrapper where possible.
 // removed unused responsive import
 
 class HomeScreen extends StatefulWidget {
@@ -29,54 +29,13 @@ class _HomeScreenState extends State<HomeScreen> {
   // Ensure authenticated before executing sensitive actions
   Future<bool> withAuth(Future<void> Function() action) async {
     try {
-      final client = AppwriteService.client;
-      if (client == null) {
+      final acct = await AppwriteService.getAccount();
+      if (acct == null) {
         if (mounted) Navigator.of(context).pushReplacementNamed('/login');
         return false;
       }
-      final account = Account(client);
       try {
-        await account.get();
-      } catch (e) {
-        // SDK account.get failed — try a REST fallback and refresh JWT
-        try {
-          final acct = await AppwriteService.getAccount();
-          if (acct != null) {
-            // Try to refresh JWT into SDK and retry once
-            try {
-              await AppwriteService.refreshJwt();
-              await account.get();
-            } catch (_) {
-              if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-              return false;
-            }
-          } else {
-            if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-            return false;
-          }
-        } catch (_) {
-          if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-          return false;
-        }
-      }
-      try {
-        final resp = await account.createJWT();
-        String? jwt;
-        final dynamic r = resp;
-        if (r is Map) {
-          jwt = (r['jwt'] ?? r['token'] ?? (r['data'] is Map ? r['data']['jwt'] : null))?.toString();
-        } else {
-          try {
-            jwt = (r.jwt as String?);
-          } catch (_) {
-            jwt = null;
-          }
-        }
-        if (jwt != null && jwt.isNotEmpty) {
-          try {
-            client.setJWT(jwt);
-          } catch (_) {}
-        }
+        await AppwriteService.refreshJwt();
       } catch (_) {}
       await action();
       return true;

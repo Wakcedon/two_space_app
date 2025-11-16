@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/appwrite_service.dart';
-import 'package:appwrite/appwrite.dart';
 import 'dart:async';
 
 import 'package:two_space_app/services/settings_service.dart';
@@ -22,44 +21,16 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
   // Helper: ensure authenticated before performing sensitive actions
   Future<bool> withAuth(Future<void> Function() action) async {
     try {
-      final client = AppwriteService.client;
-      if (client == null) {
-        // No client configured, redirect to login
+      // Use AppwriteService wrapper which handles both Appwrite and Matrix modes.
+      final acct = await AppwriteService.getAccount();
+      if (acct == null) {
         appNavigatorKey.currentState?.pushReplacementNamed('/login');
         return false;
       }
-      final account = Account(client);
-      // Check if current session is valid
+      // Attempt to ensure a JWT is available for any server-side operations.
       try {
-        await account.get();
-        } catch (e) {
-        // Not authenticated
-        appNavigatorKey.currentState?.pushReplacementNamed('/login');
-                  return false;
-      }
-      // Ensure we have a JWT set on the client for server-side calls
-      try {
-        final resp = await account.createJWT();
-        // resp might be Map-like or a model with .jwt
-        String? jwt;
-        final dynamic r = resp;
-        if (r is Map) {
-          jwt = (r['jwt'] ?? r['token'] ?? (r['data'] is Map ? r['data']['jwt'] : null))?.toString();
-        } else {
-          try {
-            jwt = (r.jwt as String?);
-          } catch (_) {
-            jwt = null;
-          }
-        }
-        if (jwt != null && jwt.isNotEmpty) {
-          try {
-            client.setJWT(jwt);
-          } catch (_) {}
-        }
-      } catch (_) {
-        // ignore JWT creation errors - not fatal for client operations
-      }
+        await AppwriteService.refreshJwt();
+      } catch (_) {}
       await action();
       return true;
     } catch (e) {

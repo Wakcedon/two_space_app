@@ -7,6 +7,8 @@ import 'package:appwrite/appwrite.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../config/environment.dart';
+import 'auth_service.dart';
+import 'chat_matrix_service.dart';
 import 'settings_service.dart';
 import '../utils/secure_store.dart';
 import '../utils/encrypted_content_helper.dart';
@@ -736,13 +738,34 @@ class AppwriteService {
 
   /// Get current account using saved JWT (if any). Returns parsed JSON on success.
   static Future<dynamic> getAccount() async {
+    // If Matrix mode is enabled, attempt to provide a minimal account object
+    // mapped from Matrix profile information.
+    try {
+      if (Environment.useMatrix) {
+        try {
+          final me = await getCurrentUserId();
+          if (me != null && me.isNotEmpty) {
+            final info = await ChatMatrixService().getUserInfo(me);
+            return {
+              '\$id': me,
+              'id': me,
+              'name': info['displayName'] ?? me,
+              'prefs': {'avatarUrl': info['avatarUrl'] ?? ''},
+            };
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
     return await _retryOnAuth(() async {
       final base = _v1Endpoint();
       final uri = Uri.parse('$base/account');
       final headers = await _authHeaders();
       final res = await http.get(uri, headers: headers);
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        try { await SecureStore.write('appwrite_jwt_saved_at', DateTime.now().toIso8601String()); } catch (_) {}
+        try {
+          await SecureStore.write('appwrite_jwt_saved_at', DateTime.now().toIso8601String());
+        } catch (_) {}
         return jsonDecode(res.body);
       }
       final contentType = res.headers['content-type'] ?? '';
@@ -952,6 +975,17 @@ class AppwriteService {
 
   /// Upload a file to Appwrite Storage bucket. Returns JSON response with file id and $id
   static Future<Map<String, dynamic>> uploadFileToStorage(String filePath, {String? filename}) async {
+    // If Matrix mode is enabled, upload file bytes to Matrix content repo and return compatible map
+    if (Environment.useMatrix) {
+      try {
+        final bytes = await File(filePath).readAsBytes();
+        final mxc = await ChatMatrixService().uploadMedia(bytes, contentType: 'application/octet-stream', fileName: filename);
+        return {'\$id': mxc, 'id': mxc, 'viewUrl': getFileViewUrl(mxc).toString()};
+      } catch (_) {
+        // on error, fall back to Appwrite implementation
+      }
+    }
+
     return await _retryOnAuth(() async {
       // Prefer SDK Storage.createFile when possible; it uses the initialized
       // Appwrite client (and its session) which avoids manual header handling.
@@ -1147,6 +1181,23 @@ class AppwriteService {
     void Function(int, int)? onProgress,
   }) async {
     try {
+      // If Matrix mode is enabled, stream a simple upload and report progress
+      if (Environment.useMatrix) {
+        try {
+          final bytes = await File(filePath).readAsBytes();
+          // There's no streaming upload to Matrix here; call uploadMedia and report bytes as completed
+          final mxc = await ChatMatrixService().uploadMedia(bytes, contentType: 'application/octet-stream', fileName: filename);
+          if (onProgress != null) {
+            try {
+              onProgress(bytes.length, bytes.length);
+            } catch (_) {}
+          }
+          return {'\$id': mxc, 'id': mxc, 'viewUrl': getFileViewUrl(mxc).toString()};
+        } catch (_) {
+          // fall through to Appwrite implementation
+        }
+      }
+
       return await _retryOnAuth(() async {
         final base = _v1Endpoint();
         final bucket = Environment.appwriteStorageMediaBucketId.isNotEmpty
@@ -1187,6 +1238,17 @@ class AppwriteService {
 
     /// Upload raw bytes to storage bucket (multipart). Returns parsed JSON map.
     static Future<Map<String, dynamic>> uploadBytesToStorage(List<int> bytes, {String? filename}) async {
+      // If Matrix mode is enabled, upload to Matrix media repo and return an object compatible with callers
+      if (Environment.useMatrix) {
+        try {
+          final mxc = await ChatMatrixService().uploadMedia(bytes, contentType: 'application/octet-stream', fileName: filename);
+          // Return a minimal map with id and view URL to be compatible with existing callers
+          return {'\$id': mxc, 'id': mxc, 'viewUrl': getFileViewUrl(mxc).toString()};
+        } catch (e) {
+          // fall back to Appwrite upload below on error
+        }
+      }
+
       return await _retryOnAuth(() async {
         final base = _v1Endpoint();
         final bucket = Environment.appwriteStorageMediaBucketId.isNotEmpty ? Environment.appwriteStorageMediaBucketId : Environment.appwriteStorageBucketId;
@@ -1246,9 +1308,31 @@ class AppwriteService {
 
   /// Fetch raw bytes for a file stored in storage bucket using the view endpoint.
   static Future<List<int>> getFileBytes(String fileId) async {
+    // If this is Matrix media (mxc://) and Matrix mode enabled, use Matrix media download endpoint
+    try {
+      if (Environment.useMatrix && fileId.startsWith('mxc://')) {
+        final parts = fileId.substring('mxc://'.length).split('/');
+        if (parts.length >= 2) {
+          final server = parts[0];
+          final mediaId = parts.sublist(1).join('/');
+          final uri = Uri.parse(ChatMatrixService().homeserver + '/_matrix/media/v3/download/$server/$mediaId');
+          String? token;
+          try {
+            token = await AuthService().getMatrixTokenForUser();
+          } catch (_) {
+            token = null;
+          }
+          final headers = token != null && token.isNotEmpty ? {'Authorization': 'Bearer $token'} : <String, String>{};
+          final res = await http.get(uri, headers: headers);
+          if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+          throw Exception('Matrix media download failed: ${res.statusCode} ${res.body}');
+        }
+      }
+    } catch (_) {}
+
     return await _retryOnAuth(() async {
-    // Default view uses media bucket unless caller provided explicit bucketId via getFileViewUrl
-    final uri = getFileViewUrl(fileId);
+      // Default view uses media bucket unless caller provided explicit bucketId via getFileViewUrl
+      final uri = getFileViewUrl(fileId);
       final headers = await _authHeaders();
       final res = await http.get(uri, headers: headers);
       if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
@@ -1432,6 +1516,23 @@ class AppwriteService {
   /// Get a single user by id using the Appwrite Users endpoint.
   /// Returns a Map with public fields (id, name, prefs, nickname, email) when available.
   static Future<Map<String, dynamic>> getUserById(String userId) async {
+    // Matrix backend: map to profile endpoint
+    try {
+      if (Environment.useMatrix) {
+        try {
+          final info = await ChatMatrixService().getUserInfo(userId);
+          if (info.isNotEmpty) {
+            return {
+              '\$id': userId,
+              'id': userId,
+              'name': info['displayName'] ?? userId,
+              'prefs': {'avatarUrl': info['avatarUrl'] ?? ''},
+            };
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
     final base = _v1Endpoint();
     if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
     final uri = Uri.parse('$base/users/${Uri.encodeComponent(userId)}');
@@ -1503,7 +1604,7 @@ class AppwriteService {
         }
       } catch (_) {}
 
-      final nowIso = DateTime.now().toIso8601String();
+  final nowIso = DateTime.now().toIso8601String();
       // Ensure encrypted content meets minimum length; store packed encrypted
       // content in 'content' field and keep a plain 'text' preview for lists.
       String raw = (payload['text'] ?? payload['content'] ?? '') as String;
@@ -1532,6 +1633,17 @@ class AppwriteService {
         'deliveredTo': <String>[],
         'readBy': <String>[],
       };
+
+      // If Matrix is enabled, send via Matrix backend instead of Appwrite.
+      try {
+        if (Environment.useMatrix) {
+          final msgType = (payload['type'] ?? 'text') as String;
+          final mediaId = payload['mediaFileId'] as String? ?? payload['mediaId'] as String?;
+          final type = (msgType == 'image' || msgType == 'm.image') ? 'image' : 'text';
+          final res = await ChatMatrixService().sendMessage(chatId, me ?? '', raw, type: type, mediaFileId: mediaId);
+          return res;
+        }
+      } catch (_) {}
 
       // If a server-side mirror function is configured, prefer calling it so
       // the server can create per-user message copies (useful when chats
@@ -2085,12 +2197,25 @@ class AppwriteService {
 
   /// Return a view URL for a file stored in storage bucket.
   static Uri getFileViewUrl(String fileId, {String? bucketId}) {
+    // If this is a Matrix mxc:// URI, convert to homeserver media download URL.
+    try {
+      if (Environment.useMatrix && fileId.startsWith('mxc://')) {
+        final parts = fileId.substring('mxc://'.length).split('/');
+        if (parts.length >= 2) {
+          final server = parts[0];
+          final mediaId = parts.sublist(1).join('/');
+          final homeserver = ChatMatrixService().homeserver;
+          return Uri.parse(homeserver + '/_matrix/media/v3/download/$server/$mediaId');
+        }
+      }
+    } catch (_) {}
+
     final base = _v1Endpoint();
-  // If bucketId passed explicitly, use it. Otherwise prefer apk bucket for APK views? The caller may pass apk bucket.
-  final resolvedBucket = (bucketId != null && bucketId.isNotEmpty)
-    ? bucketId
-    : (Environment.appwriteStorageMediaBucketId.isNotEmpty ? Environment.appwriteStorageMediaBucketId : Environment.appwriteStorageBucketId);
-  return Uri.parse('$base/storage/buckets/$resolvedBucket/files/$fileId/view');
+    // If bucketId passed explicitly, use it. Otherwise prefer apk bucket for APK views? The caller may pass apk bucket.
+    final resolvedBucket = (bucketId != null && bucketId.isNotEmpty)
+      ? bucketId
+      : (Environment.appwriteStorageMediaBucketId.isNotEmpty ? Environment.appwriteStorageMediaBucketId : Environment.appwriteStorageBucketId);
+    return Uri.parse('$base/storage/buckets/$resolvedBucket/files/$fileId/view');
   }
 
   /// Return file metadata from storage (Appwrite) as a Map.
@@ -2143,6 +2268,28 @@ class AppwriteService {
   /// Download raw file bytes from storage (authenticated request) and return bytes.
   /// Caller is responsible for saving to disk if needed.
   static Future<Uint8List> downloadFileBytes(String fileId, {String? bucketId}) async {
+    // Matrix media support
+    try {
+      if (Environment.useMatrix && fileId.startsWith('mxc://')) {
+        final parts = fileId.substring('mxc://'.length).split('/');
+        if (parts.length >= 2) {
+          final server = parts[0];
+          final mediaId = parts.sublist(1).join('/');
+          final uri = Uri.parse(ChatMatrixService().homeserver + '/_matrix/media/v3/download/$server/$mediaId');
+          String? token;
+          try {
+            token = await AuthService().getMatrixTokenForUser();
+          } catch (_) {
+            token = null;
+          }
+          final headers = token != null && token.isNotEmpty ? {'Authorization': 'Bearer $token'} : <String, String>{};
+          final res = await http.get(uri, headers: headers);
+          if (res.statusCode >= 200 && res.statusCode < 300) return res.bodyBytes;
+          throw Exception('Matrix media download failed: ${res.statusCode} ${res.body}');
+        }
+      }
+    } catch (_) {}
+
     final base = _v1Endpoint();
     if (base.isEmpty) throw Exception('Appwrite endpoint not configured');
     final resolvedBucket = (bucketId != null && bucketId.isNotEmpty)
