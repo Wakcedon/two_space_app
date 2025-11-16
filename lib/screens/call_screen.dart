@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:jitsi_meet/jitsi_meet.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:two_space_app/config/environment.dart';
@@ -62,6 +63,13 @@ class _CallScreenState extends State<CallScreen> {
   final server = Environment.jaasServer.isNotEmpty ? Environment.jaasServer : Environment.matrixHomeserverUrl;
   final token = Environment.jaasToken;
 
+      // Ensure necessary permissions on mobile before joining
+      final ok = await _ensurePermissions();
+      if (!ok) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Необходимо разрешение на микрофон и камеру')));
+        return;
+      }
+
       var options = JitsiMeetingOptions(
         room: widget.room,
       )
@@ -85,6 +93,26 @@ class _CallScreenState extends State<CallScreen> {
     } catch (e) {
       debugPrint('Join meeting error: $e');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось подключиться к звонку: $e')));
+    }
+  }
+
+  /// Request microphone and camera permissions where relevant (mobile).
+  Future<bool> _ensurePermissions() async {
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        final mic = await Permission.microphone.status;
+        final cam = await Permission.camera.status;
+        if (mic.isGranted && (widget.isVideo == false || cam.isGranted)) return true;
+
+        final results = await [Permission.microphone, Permission.camera].request();
+        final micOk = results[Permission.microphone]?.isGranted == true;
+        final camOk = widget.isVideo ? (results[Permission.camera]?.isGranted == true) : true;
+        return micOk && camOk;
+      }
+      // On other platforms assume permissions are available (desktop handled via browser/webview)
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -125,55 +153,62 @@ class _CallScreenState extends State<CallScreen> {
             child: Container(color: Colors.black.withOpacity(0.35)),
           ),
           SafeArea(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 24),
-                CircleAvatar(radius: 56, backgroundImage: widget.avatarUrl != null ? NetworkImage(widget.avatarUrl!) : null, child: widget.avatarUrl == null ? Text((widget.displayName ?? '').isNotEmpty ? (widget.displayName![0]) : '?') : null),
-                const SizedBox(height: 12),
-                Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                Text(widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок', style: const TextStyle(color: Colors.white70)),
-                const SizedBox(height: 28),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  _buildControl(Icons.mic, _audioMuted ? 'Выключено' : 'Микрофон', _audioMuted, () async {
-                    setState(() => _audioMuted = !_audioMuted);
-                    // If already in meeting we cannot toggle programmatically here reliably; recommend using Jitsi UI.
-                  }),
-                  const SizedBox(width: 18),
-                  _buildControl(Icons.videocam, _videoMuted ? 'Камера выкл' : 'Камера', _videoMuted, () async {
-                    setState(() => _videoMuted = !_videoMuted);
-                  }),
-                ]),
-                const SizedBox(height: 28),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  ElevatedButton.icon(
-                    onPressed: _inviteUser,
-                    icon: const Icon(Icons.person_add),
-                    label: const Text('Пригласить'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () async {
-                      // join meeting
-                      await _joinMeeting();
-                    },
-                    style: ElevatedButton.styleFrom(shape: const CircleBorder(), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
-                    child: const Icon(Icons.phone, color: Colors.white, size: 36),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      // hangup/close
-                      JitsiMeet.closeMeeting();
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(shape: const CircleBorder(), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
-                    child: const Icon(Icons.call_end, color: Colors.white),
-                  ),
-                ]),
-              ],
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.06)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(radius: 56, backgroundImage: widget.avatarUrl != null ? NetworkImage(widget.avatarUrl!) : null, child: widget.avatarUrl == null ? Text((widget.displayName ?? '').isNotEmpty ? (widget.displayName![0]) : '?') : null),
+                    const SizedBox(height: 12),
+                    Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    Text(widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок', style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 18),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      _buildControl(Icons.mic, _audioMuted ? 'Выключено' : 'Микрофон', _audioMuted, () async {
+                        setState(() => _audioMuted = !_audioMuted);
+                      }),
+                      const SizedBox(width: 18),
+                      _buildControl(Icons.videocam, _videoMuted ? 'Камера выкл' : 'Камера', _videoMuted, () async {
+                        setState(() => _videoMuted = !_videoMuted);
+                      }),
+                    ]),
+                    const SizedBox(height: 18),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      ElevatedButton.icon(
+                        onPressed: _inviteUser,
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Пригласить'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await _joinMeeting();
+                        },
+                        style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
+                        child: const Icon(Icons.phone, color: Colors.white, size: 36),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          JitsiMeet.closeMeeting();
+                          Navigator.of(context).pop();
+                        },
+                        style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
+                        child: const Icon(Icons.call_end, color: Colors.white),
+                      ),
+                    ]),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

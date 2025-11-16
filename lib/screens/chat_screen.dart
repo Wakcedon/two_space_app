@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../widgets/media_preview.dart';
 import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
@@ -1117,95 +1118,105 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final primary = Color(SettingsService.themeNotifier.value.primaryColorValue);
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0.5,
-        title: Row(
-          children: [
-            UserAvatar(avatarUrl: _peerAvatarUrl ?? widget.avatarUrl, radius: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_peerDisplayName ?? widget.title ?? 'Чат', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(_formatUserStatusFromPrefs(_peerPrefs).isEmpty ? '' : _formatUserStatusFromPrefs(_peerPrefs), style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color)),
-                ],
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.6),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  children: [
+                    UserAvatar(avatarUrl: _peerAvatarUrl ?? widget.avatarUrl, radius: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(_peerDisplayName ?? widget.title ?? 'Чат', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(_formatUserStatusFromPrefs(_peerPrefs).isEmpty ? '' : _formatUserStatusFromPrefs(_peerPrefs), style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color)),
+                        ],
+                      ),
+                    ),
+                    // actions
+                    _syncing
+                        ? Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                        : IconButton(
+                            onPressed: () async {
+                              final scaffold = ScaffoldMessenger.of(context);
+                              setState(() => _syncing = true);
+                              try {
+                                await _syncFromServer();
+                                if (mounted) scaffold.showSnackBar(const SnackBar(content: Text('Чат обновлён')));
+                              } catch (_) {}
+                              if (mounted) setState(() => _syncing = false);
+                            },
+                            icon: const Icon(Icons.refresh),
+                          ),
+                    IconButton(
+                      onPressed: () {
+                        // start a video call tied to this chat
+                        final base = (_chatId != null && _chatId!.isNotEmpty) ? _chatId! : (widget.peerId ?? 'chat');
+                        final roomName = 'call_${base.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: true, displayName: _peerDisplayName ?? widget.title, avatarUrl: _peerAvatarUrl ?? widget.avatarUrl)));
+                      },
+                      icon: const Icon(Icons.videocam_outlined),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        // start an audio-only call
+                        final base = (_chatId != null && _chatId!.isNotEmpty) ? _chatId! : (widget.peerId ?? 'chat');
+                        final roomName = 'call_${base.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: false, displayName: _peerDisplayName ?? widget.title, avatarUrl: _peerAvatarUrl ?? widget.avatarUrl)));
+                      },
+                      icon: const Icon(Icons.call_outlined),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (v) async {
+                        if (v == 'profile') {
+                          if (_peerPrefs != null || widget.peerId != null) {
+                            final uid = widget.peerId ?? _peerPrefs?['userId']?.toString();
+                            if (uid != null && uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerDisplayName, initialAvatar: _peerAvatarUrl)));
+                          }
+                        } else if (v == 'clear') {
+                          if (_chatId != null) {
+                            await _localStore.clearChat(_chatId!);
+                            if (mounted) setState(() => _messages = []);
+                          }
+                        } else if (v == 'delete') {
+                          if (_chatId != null) {
+                            final scaffold = ScaffoldMessenger.of(context);
+                            final navigator = Navigator.of(context);
+                            try {
+                              await AppwriteService.deleteChat(_chatId!, false);
+                              if (mounted) {
+                                scaffold.showSnackBar(const SnackBar(content: Text('Чат скрыт')));
+                                navigator.pop();
+                              }
+                            } catch (e) {
+                              if (mounted) scaffold.showSnackBar(SnackBar(content: Text('Не удалось удалить чат: ${AppwriteService.readableError(e)}')));
+                            }
+                          }
+                        }
+                      },
+                      itemBuilder: (c) => [
+                        const PopupMenuItem(value: 'profile', child: Text('Просмотр профиля')),
+                        const PopupMenuItem(value: 'clear', child: Text('Очистить переписку')),
+                        const PopupMenuItem(value: 'delete', child: Text('Удалить чат')),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
         ),
-        iconTheme: IconThemeData(color: primary),
-        actions: [
-          // manual sync button
-          _syncing
-              ? Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
-              : IconButton(
-                  onPressed: () async {
-                    final scaffold = ScaffoldMessenger.of(context);
-                    setState(() => _syncing = true);
-                    try {
-                      await _syncFromServer();
-                      if (mounted) scaffold.showSnackBar(const SnackBar(content: Text('Чат обновлён')));
-                    } catch (_) {}
-                    if (mounted) setState(() => _syncing = false);
-                  },
-                  icon: const Icon(Icons.refresh),
-                ),
-          IconButton(
-            onPressed: () {
-              // start a video call tied to this chat
-              final base = (_chatId != null && _chatId!.isNotEmpty) ? _chatId! : (widget.peerId ?? 'chat');
-              final roomName = 'call_${base.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: true, displayName: _peerDisplayName ?? widget.title, avatarUrl: _peerAvatarUrl ?? widget.avatarUrl)));
-            },
-            icon: const Icon(Icons.videocam_outlined),
-          ),
-          IconButton(
-            onPressed: () {
-              // start an audio-only call
-              final base = (_chatId != null && _chatId!.isNotEmpty) ? _chatId! : (widget.peerId ?? 'chat');
-              final roomName = 'call_${base.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallScreen(room: roomName, isVideo: false, displayName: _peerDisplayName ?? widget.title, avatarUrl: _peerAvatarUrl ?? widget.avatarUrl)));
-            },
-            icon: const Icon(Icons.call_outlined),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'profile') {
-                if (_peerPrefs != null || widget.peerId != null) {
-                  final uid = widget.peerId ?? _peerPrefs?['userId']?.toString();
-                  if (uid != null && uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: uid, initialName: _peerDisplayName, initialAvatar: _peerAvatarUrl)));
-                }
-              } else if (v == 'clear') {
-                if (_chatId != null) {
-                  await _localStore.clearChat(_chatId!);
-                  if (mounted) setState(() => _messages = []);
-                }
-              } else if (v == 'delete') {
-                if (_chatId != null) {
-                  final scaffold = ScaffoldMessenger.of(context);
-                  final navigator = Navigator.of(context);
-                  try {
-                    await AppwriteService.deleteChat(_chatId!, false);
-                    if (mounted) {
-                      scaffold.showSnackBar(const SnackBar(content: Text('Чат скрыт')));
-                      navigator.pop();
-                    }
-                  } catch (e) {
-                    if (mounted) scaffold.showSnackBar(SnackBar(content: Text('Не удалось удалить чат: ${AppwriteService.readableError(e)}')));
-                  }
-                }
-              }
-            },
-            itemBuilder: (c) => [
-              const PopupMenuItem(value: 'profile', child: Text('Просмотр профиля')),
-              const PopupMenuItem(value: 'clear', child: Text('Очистить переписку')),
-              const PopupMenuItem(value: 'delete', child: Text('Удалить чат')),
-            ],
-          ),
-        ],
       ),
       body: Column(
         children: [
