@@ -10,6 +10,7 @@ import 'package:two_space_app/utils/encrypted_content_helper.dart';
 class Chat {
   final String id;
   final String name;
+  final String roomType;
   final List<String> members;
   final String avatarUrl;
   final String lastMessage;
@@ -18,6 +19,7 @@ class Chat {
   Chat({
     required this.id,
     required this.name,
+    this.roomType = '',
     required this.members,
     required this.avatarUrl,
     required this.lastMessage,
@@ -75,6 +77,7 @@ class Chat {
     return Chat(
       id: id,
       name: name,
+      roomType: (map['roomType'] as String?) ?? '',
       members: members,
       avatarUrl: avatarUrl,
       lastMessage: lastMessage,

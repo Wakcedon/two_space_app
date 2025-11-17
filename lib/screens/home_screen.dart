@@ -185,6 +185,20 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  IconData _iconForRoomType(String? type) {
+    switch ((type ?? '').toLowerCase()) {
+      case 'direct':
+        return Icons.person;
+      case 'public':
+        return Icons.public;
+      case 'call':
+        return Icons.call;
+      case 'group':
+      default:
+        return Icons.group;
+    }
+  }
+
   // Search removed from main screen - logo used instead
 
   String _formatTime(DateTime time) {
@@ -366,20 +380,31 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Navigator.pushNamed(context, '/chat', arguments: chat);
                                   }
                                 },
-                                child: UserAvatar(
-                                  avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
-                                  initials: (() {
-                                    final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
-                                    final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
-                                    if (parts.isEmpty) return '?';
-                                    final a = parts[0].isNotEmpty ? parts[0][0] : '';
-                                    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-                                    final res = (a + b).toUpperCase();
-                                    return res.isNotEmpty ? res : '?';
-                                  })(),
-                                  fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
-                                  radius: 26,
-                                ),
+                                child: Stack(children: [
+                                    UserAvatar(
+                                      avatarUrl: _peerInfo[chat.id]?['avatarUrl'] ?? chat.avatarUrl,
+                                      initials: (() {
+                                        final nameForInitials = (_peerInfo[chat.id]?['displayName'] as String?) ?? chat.name;
+                                        final parts = nameForInitials.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                        if (parts.isEmpty) return '?';
+                                        final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                        final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                        final res = (a + b).toUpperCase();
+                                        return res.isNotEmpty ? res : '?';
+                                      })(),
+                                      fullName: _peerInfo[chat.id]?['displayName'] ?? chat.name,
+                                      radius: 26,
+                                    ),
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)),
+                                        child: Icon(_iconForRoomType(_peerInfo[chat.id]?['roomType'] as String? ?? chat.roomType), size: 12, color: Colors.white),
+                                      ),
+                                    )
+                                  ]),
                               ),
                             );
                           }
@@ -531,19 +556,30 @@ class _HomeScreenState extends State<HomeScreen> {
                                   Navigator.pushNamed(context, '/chat', arguments: chat);
                                 }
                               },
-                              child: UserAvatar(
-                                avatarUrl: chat.avatarUrl,
-                                initials: (() {
-                                  final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
-                                  if (parts.isEmpty) return '?';
-                                  final a = parts[0].isNotEmpty ? parts[0][0] : '';
-                                  final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
-                                  final res = (a + b).toUpperCase();
-                                  return res.isNotEmpty ? res : '?';
-                                })(),
-                                fullName: chat.name,
-                                radius: 26,
-                              ),
+                              child: Stack(children: [
+                                  UserAvatar(
+                                    avatarUrl: chat.avatarUrl,
+                                    initials: (() {
+                                      final parts = chat.name.trim().split(RegExp(r'\s+'))..removeWhere((s) => s.isNotEmpty);
+                                      if (parts.isEmpty) return '?';
+                                      final a = parts[0].isNotEmpty ? parts[0][0] : '';
+                                      final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+                                      final res = (a + b).toUpperCase();
+                                      return res.isNotEmpty ? res : '?';
+                                    })(),
+                                    fullName: chat.name,
+                                    radius: 26,
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)),
+                                      child: Icon(_iconForRoomType(chat.roomType), size: 12, color: Colors.white),
+                                    ),
+                                  )
+                                ]),
                             ),
                           );
                         }

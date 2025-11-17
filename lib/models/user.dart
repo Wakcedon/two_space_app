@@ -21,10 +21,13 @@ class User {
 
   factory User.fromMap(Map<String, dynamic> map) {
     final prefs = (map['prefs'] is Map) ? Map<String, dynamic>.from(map['prefs']) : <String, dynamic>{};
+    final id = (map['\$id'] ?? map['id'])?.toString() ?? '';
+    final name = (map['name'] as String?) ?? (prefs['displayName'] as String?) ?? id;
+    final email = (map['email'] as String?) ?? '';
     return User(
-      id: map['\$id'] as String? ?? map['id'] as String,
-      name: map['name'] as String,
-      email: map['email'] as String,
+      id: id,
+      name: name,
+      email: email,
       prefs: prefs,
       avatarUrl: prefs['avatarUrl'] as String?,
       avatarFileId: prefs['avatarFileId']?.toString(),

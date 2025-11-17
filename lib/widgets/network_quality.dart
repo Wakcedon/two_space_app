@@ -17,6 +17,7 @@ class NetworkQualityIndicator extends StatefulWidget {
 class _NetworkQualityIndicatorState extends State<NetworkQualityIndicator> {
   Timer? _timer;
   int _bars = 0; // 0..3
+  int? _rttMs;
 
   @override
   void initState() {
@@ -52,7 +53,10 @@ class _NetworkQualityIndicatorState extends State<NetworkQualityIndicator> {
       } else {
         bars = 0;
       }
-      if (mounted) setState(() => _bars = bars);
+      if (mounted) setState(() {
+        _bars = bars;
+        _rttMs = rtt;
+      });
     } catch (_) {
       if (mounted) setState(() => _bars = 0);
     }
@@ -63,20 +67,26 @@ class _NetworkQualityIndicatorState extends State<NetworkQualityIndicator> {
     final color = _bars >= 2 ? Colors.greenAccent : (_bars == 1 ? Colors.orangeAccent : Colors.redAccent);
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        final active = i < _bars;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Container(
-            width: 8,
-            height: 8 + i * 6,
-            decoration: BoxDecoration(
-              color: active ? color : Theme.of(context).disabledColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(2),
+      children: [
+        ...List.generate(3, (i) {
+          final active = i < _bars;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Container(
+              width: 8,
+              height: 8 + i * 6,
+              decoration: BoxDecoration(
+                color: active ? color : Theme.of(context).disabledColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        );
-      }),
+          );
+        }),
+        if (_rttMs != null) ...[
+          const SizedBox(width: 8),
+          Text('${_rttMs!} ms', style: TextStyle(color: color, fontSize: 12)),
+        ]
+      ],
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -175,4 +177,23 @@ class Environment {
   // MATRIX_JAAS_TOKEN - optional JWT/token provided by JaaS for authenticated joins
   static String get jaasServer => _get('MATRIX_JAAS_SERVER');
   static String get jaasToken => _get('MATRIX_JAAS_TOKEN');
+
+  // TURN servers: provide as JSON array in env var MATRIX_TURN_SERVERS or as comma-separated URLs.
+  // Example JSON: '[{"urls":"turn:turn.example.org:3478","username":"user","credential":"pass"}]'
+  static List<Map<String, dynamic>> get turnServers {
+    final raw = _get('MATRIX_TURN_SERVERS');
+    if (raw.isEmpty) return <Map<String, dynamic>>[];
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is List) {
+        return parsed.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (_) {
+      // Fallback: parse comma-separated simple URIs
+      try {
+        return raw.split(',').map((s) => {'urls': s.trim()}).toList();
+      } catch (_) {}
+    }
+    return <Map<String, dynamic>>[];
+  }
 }

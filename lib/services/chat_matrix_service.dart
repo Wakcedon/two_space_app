@@ -66,7 +66,9 @@ class ChatMatrixService implements ChatBackend {
     final rooms = <Chat>[];
     final join = (json['rooms'] as Map?)?['join'] as Map?;
     if (join != null) {
-      join.forEach((roomId, roomObj) {
+      for (final entry in join.entries) {
+        final roomId = entry.key;
+        final roomObj = entry.value;
         try {
           final room = roomObj as Map<String, dynamic>;
           final summary = room['summary'] as Map<String, dynamic>?;
@@ -121,6 +123,20 @@ class ChatMatrixService implements ChatBackend {
             name = resolved.join(', ');
           }
 
+          // If still no readable name and this is a 1:1 room, try to resolve other
+          // member's display name via profile lookup for a friendlier label.
+          try {
+            if ((name.isEmpty || name == roomId) && members.length == 2) {
+              final me = await MatrixService.getCurrentUserId();
+              final other = members.firstWhere((m) => m != me, orElse: () => members.isNotEmpty ? members.first : roomId);
+              try {
+                final info = await getUserInfo(other);
+                final dn = info['displayName'] as String? ?? other;
+                if (dn.isNotEmpty) name = dn;
+              } catch (_) {}
+            }
+          } catch (_) {}
+
           // determine last message from timeline
           final lastEvent = (room['timeline'] != null && room['timeline']['events'] is List && (room['timeline']['events'] as List).isNotEmpty) ? (room['timeline']['events'] as List).last : null;
           final lastMessage = (lastEvent != null && lastEvent['type'] == 'm.room.message' && lastEvent['content'] != null) ? (lastEvent['content']['body'] ?? '') : '';
@@ -133,16 +149,38 @@ class ChatMatrixService implements ChatBackend {
             } catch (_) {}
           }
 
+          // Determine room type: direct (1:1), public, group, call
+          String roomType = '';
+          try {
+            // inspect join_rules state
+            for (final e in stateEvents) {
+              try {
+                final et = e['type']?.toString() ?? '';
+                if (et == 'm.room.join_rules' && e['content'] != null) {
+                  final jr = (e['content']['join_rule'] ?? e['content']['join_rules'])?.toString() ?? '';
+                  if (jr == 'public') roomType = 'public';
+                }
+              } catch (_) {}
+            }
+          } catch (_) {}
+          if (roomType.isEmpty) {
+            if (members.length == 2) roomType = 'direct';
+            else if (name.toLowerCase().contains('call') || (roomId.toLowerCase().contains('call_'))) roomType = 'call';
+            else if (canonicalAlias.isNotEmpty && canonicalAlias.startsWith('#')) roomType = 'public';
+            else roomType = 'group';
+          }
+
           rooms.add(Chat(
             id: roomId,
             name: name.isNotEmpty ? name : roomId,
+            roomType: roomType,
             members: members,
             avatarUrl: avatar,
             lastMessage: lastMessage ?? '',
             lastMessageTime: lastTs,
           ));
         } catch (_) {}
-      });
+      }
     }
     return rooms;
   }
@@ -234,7 +272,10 @@ class ChatMatrixService implements ChatBackend {
   Future<Map<String, dynamic>> createChat(List<String> members, {String? name, String? avatarUrl}) async {
     if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
     final uri = _csPath('/_matrix/client/v3/createRoom');
-    final payload = <String, dynamic>{'visibility': 'private', 'preset': 'trusted_private', 'invite': members};
+    // Use valid preset 'private_chat' for private rooms. If exactly one member is
+    // invited, mark as direct chat to help clients display correctly.
+    final payload = <String, dynamic>{'visibility': 'private', 'preset': 'private_chat', 'invite': members};
+    if (members.length == 1) payload['is_direct'] = true;
     if (name != null && name.isNotEmpty) payload['name'] = name;
     if (avatarUrl != null && avatarUrl.isNotEmpty) payload['room_alias_name'] = avatarUrl;
     final headers = await _authHeaders();

@@ -2,11 +2,12 @@ import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:jitsi_meet/jitsi_meet.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/chat_backend.dart';
+import 'package:two_space_app/services/call_matrix_service.dart';
 import 'package:two_space_app/widgets/network_quality.dart';
 
 class CallScreen extends StatefulWidget {
@@ -25,85 +26,96 @@ class CallScreen extends StatefulWidget {
 class _CallScreenState extends State<CallScreen> {
   bool _audioMuted = false;
   bool _videoMuted = false;
-  // Used by Jitsi event handlers; analyzer may report false positive unused warning.
-  // ignore: unused_field
-  bool _inMeeting = false;
+  bool _inCall = false;
   ChatBackend? _chatBackend;
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  late final CallMatrixService _callService;
+  String? _currentCallId;
 
   @override
   void initState() {
     super.initState();
     _chatBackend = createChatBackend();
-    JitsiMeet.addListener(JitsiMeetingListener(
-      onConferenceWillJoin: (message) => _onConferenceWillJoin(message),
-      onConferenceJoined: (message) => _onConferenceJoined(message),
-      onConferenceTerminated: (message) => _onConferenceTerminated(message),
-      onError: (error) => _onError(error),
-    ));
+    _initRenderers();
+    _callService = CallMatrixService();
+    _callService.onInvite = _onInviteReceived;
+    _callService.onAnswer = _onAnswerReceived;
+    _callService.onLocalStream = (callId, stream) {
+      if (mounted) _localRenderer.srcObject = stream;
+    };
+    _callService.onCandidate = (callId, ev) async {
+      try {
+        await _callService.handleRemoteCandidate(callId, ev['candidate'] as Map<String, dynamic>);
+      } catch (e) {}
+    };
+    _callService.onHangup = (callId, ev) {
+      if (mounted) {
+        setState(() => _inCall = false);
+      }
+    };
+    _callService.onRemoteStream = (callId, stream) {
+      if (mounted) {
+        _remoteRenderer.srcObject = stream;
+      }
+    };
+    _callService.startSyncLoop();
   }
 
   @override
   void dispose() {
-    JitsiMeet.removeAllListeners();
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
+    _callService.stopSyncLoop();
     super.dispose();
   }
 
-  void _onConferenceWillJoin(dynamic message) => setState(() => _inMeeting = true);
-  void _onConferenceJoined(dynamic message) => setState(() => _inMeeting = true);
-  void _onConferenceTerminated(dynamic message) {
-    setState(() => _inMeeting = false);
-    // Close screen when meeting ends
-    if (mounted) Navigator.of(context).pop();
+  void _onInviteReceived(String callId, Map<String, dynamic> ev) async {
+    // Incoming call — show accept dialog
+    if (!mounted) return;
+    final video = ev['video'] == true;
+    final from = ev['from'] ?? '';
+    final accept = await showDialog<bool>(context: context, builder: (c) {
+      return AlertDialog(
+        title: const Text('Входящий звонок'),
+        content: Text('Входящий ${video ? 'видео' : 'аудио'} звонок от $from'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Отклонить')),
+          TextButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Принять')),
+        ],
+      );
+    });
+    if (accept == true) {
+      setState(() => _inCall = true);
+      _currentCallId = callId;
+      // handleRemoteInvite will create PC, local stream and send answer
+      final roomId = ev['room_id']?.toString() ?? widget.room;
+      await _callService.handleRemoteInvite(roomId, callId, ev['sdp']?.toString() ?? '', ev['type']?.toString() ?? 'offer', video: video);
+    }
   }
 
-  void _onError(dynamic error) {
-    // show error toast
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Call error: $error')));
+  void _onAnswerReceived(String callId, Map<String, dynamic> ev) async {
+    // Remote answered our offer
+    try {
+      await _callService.handleRemoteAnswer(ev['room_id']?.toString() ?? widget.room, callId, ev['sdp']?.toString() ?? '', ev['type']?.toString() ?? 'answer');
+      if (mounted) setState(() => _inCall = true);
+    } catch (e) {}
   }
 
   Future<void> _joinMeeting() async {
+    // Start native WebRTC call via signalling
     try {
-  final server = Environment.jaasServer.isNotEmpty ? Environment.jaasServer : Environment.matrixHomeserverUrl;
-  final token = Environment.jaasToken;
-
-      // Ensure necessary permissions on mobile before joining
       final ok = await _ensurePermissions();
       if (!ok) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Необходимо разрешение на микрофон и камеру')));
         return;
       }
-
-      var options = JitsiMeetingOptions(
-        room: widget.room,
-      )
-        ..serverURL = server.isNotEmpty ? server : 'https://8x8.vc'
-        ..subject = widget.subject ?? widget.room
-        ..userDisplayName = widget.displayName ?? ''
-        ..audioOnly = !widget.isVideo
-        ..audioMuted = _audioMuted
-        ..videoMuted = _videoMuted
-        ;
-
-      if (token.isNotEmpty) options.token = token;
-
-      // For desktop platforms avoid using the embedded WebView (some builds
-      // may not provide a WebViewPlatform implementation). Instead open the
-      // meeting URL in the user's default browser and show the in-app call UI.
-      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        final meetingUrl = (options.serverURL ?? 'https://8x8.vc').replaceAll(RegExp(r'/$'), '') + '/' + widget.room;
-        try {
-          await _openUrlInBrowser(meetingUrl);
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Открыло звонок в браузере')));
-        } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось открыть браузер: $e')));
-        }
-        return;
-      }
-
-      await JitsiMeet.joinMeeting(options);
+      final roomId = widget.room;
+      final callId = await _callService.startOutgoingCall(roomId, video: widget.isVideo);
+      _currentCallId = callId;
+      if (mounted) setState(() => _inCall = true);
     } catch (e) {
-      debugPrint('Join meeting error: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось подключиться к звонку: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось начать звонок: $e')));
     }
   }
 
@@ -142,8 +154,7 @@ class _CallScreenState extends State<CallScreen> {
       final cs = _chatBackend ?? createChatBackend();
       final chatDoc = await cs.getOrCreateDirectChat(picked);
       final chatId = (chatDoc['\$id'] ?? chatDoc['id'] ?? '').toString();
-  final server = Environment.jaasServer.isNotEmpty ? Environment.jaasServer : 'https://8x8.vc';
-  final link = '${server.replaceAll(RegExp(r'/$'), '')}/${widget.room}';
+      final link = '${Environment.matrixHomeserverUrl.replaceAll(RegExp(r'/$'), '')}/${widget.room}';
       await cs.sendMessage(chatId, '', 'Приглашаю на звонок: $link', type: 'call_invite');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Приглашение отправлено')));
     } catch (e) {
@@ -151,22 +162,9 @@ class _CallScreenState extends State<CallScreen> {
     }
   }
 
-  Future<void> _openUrlInBrowser(String url) async {
-    try {
-      if (Platform.isWindows) {
-        await Process.start('cmd', ['/c', 'start', '""', url]);
-      } else if (Platform.isMacOS) {
-        await Process.start('open', [url]);
-      } else if (Platform.isLinux) {
-        await Process.start('xdg-open', [url]);
-      } else {
-        throw Exception('Unsupported platform for opening browser');
-      }
-    } catch (e) {
-      // As a final fallback try to print the URL so user can copy it
-      debugPrint('openUrlInBrowser failed: $e — $url');
-      rethrow;
-    }
+  Future<void> _initRenderers() async {
+    await _localRenderer.initialize();
+    await _remoteRenderer.initialize();
   }
 
   @override
@@ -187,64 +185,79 @@ class _CallScreenState extends State<CallScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 20),
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withOpacity(0.04),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.white.withOpacity(0.06)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(radius: 56, backgroundImage: widget.avatarUrl != null ? NetworkImage(widget.avatarUrl!) : null, child: widget.avatarUrl == null ? Text((widget.displayName ?? '').isNotEmpty ? (widget.displayName![0]) : '?') : null),
+                    SizedBox(
+                      height: 180,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              color: Colors.black,
+                              child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 120,
+                            child: Container(
+                              color: Colors.black54,
+                              child: RTCVideoView(_localRenderer, mirror: true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 12),
-                    Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)),
+                    Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
-                    Text(widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок', style: const TextStyle(color: Colors.white70)),
-                    const SizedBox(height: 18),
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      _buildControl(Icons.mic, _audioMuted ? 'Выключено' : 'Микрофон', _audioMuted, () async {
+                    Text(_inCall ? 'В разговоре' : (widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок'), style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 12),
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      _buildControl(Icons.mic, _audioMuted ? 'Микрофон выкл' : 'Микрофон', _audioMuted, () async {
                         setState(() => _audioMuted = !_audioMuted);
                       }),
                       const SizedBox(width: 18),
                       _buildControl(Icons.videocam, _videoMuted ? 'Камера выкл' : 'Камера', _videoMuted, () async {
                         setState(() => _videoMuted = !_videoMuted);
                       }),
+                      const SizedBox(width: 12),
+                      // Device picker
+                      InkWell(onTap: _showDevicePicker, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white12, shape: BoxShape.circle), child: const Icon(Icons.devices, color: Colors.white, size: 20))),
                     ]),
-                    const SizedBox(height: 18),
-                    // Network quality indicator and controls. Use Wrap to avoid
-                    // RenderFlex overflow on narrow windows.
-                    Column(
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0),
-                          child: NetworkQualityIndicator(),
+                        ElevatedButton.icon(
+                          onPressed: _inviteUser,
+                          icon: const Icon(Icons.person_add),
+                          label: const Text('Пригласить'),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         ),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _inviteUser,
-                              icon: const Icon(Icons.person_add),
-                              label: const Text('Пригласить'),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                await _joinMeeting();
-                              },
-                              style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
-                              child: const Icon(Icons.phone, color: Colors.white, size: 36),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                try { JitsiMeet.closeMeeting(); } catch (_) {}
-                                Navigator.of(context).pop();
-                              },
-                              style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
-                              child: const Icon(Icons.call_end, color: Colors.white),
-                            ),
-                          ],
+                        ElevatedButton(
+                          onPressed: () async {
+                            await _joinMeeting();
+                          },
+                          style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
+                          child: const Icon(Icons.phone, color: Colors.white, size: 36),
+                        ),
+                        ElevatedButton(
+                          onPressed: () async {
+                            try {
+                              if (_currentCallId != null) await _callService.hangup(widget.room, _currentCallId!);
+                            } catch (_) {}
+                            if (mounted) Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
+                          child: const Icon(Icons.call_end, color: Colors.white),
                         ),
                       ],
                     ),
@@ -253,6 +266,8 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
           ),
+          // network quality indicator in the corner
+          Positioned(top: 24, right: 24, child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: const NetworkQualityIndicator())),
         ],
       ),
     );
@@ -264,6 +279,53 @@ class _CallScreenState extends State<CallScreen> {
       const SizedBox(height: 8),
       Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12))
     ]);
+  }
+
+  Future<void> _showDevicePicker() async {
+    try {
+      final devices = await navigator.mediaDevices.enumerateDevices();
+      final audioInputs = devices.where((d) => d.kind == 'audioinput').toList();
+      final videoInputs = devices.where((d) => d.kind == 'videoinput').toList();
+      final picked = await showDialog<Map<String, String?>>(context: context, builder: (c) {
+        String? selAudio;
+        String? selVideo;
+        return AlertDialog(
+          title: const Text('Выбор устройств'),
+          content: StatefulBuilder(builder: (st, setSt) {
+            return Column(mainAxisSize: MainAxisSize.min, children: [
+              if (audioInputs.isNotEmpty) ...[
+                const Text('Микрофон'),
+                DropdownButton<String>(value: selAudio, isExpanded: true, hint: const Text('Выберите микрофон'), items: audioInputs.map((d) => DropdownMenuItem(value: d.deviceId, child: Text(d.label))).toList(), onChanged: (v) => setSt(() => selAudio = v)),
+              ],
+              if (videoInputs.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Камера'),
+                DropdownButton<String>(value: selVideo, isExpanded: true, hint: const Text('Выберите камеру'), items: videoInputs.map((d) => DropdownMenuItem(value: d.deviceId, child: Text(d.label))).toList(), onChanged: (v) => setSt(() => selVideo = v)),
+              ],
+            ]);
+          }),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('Отмена')),
+            TextButton(onPressed: () => Navigator.of(c).pop({'audio': selAudio, 'video': selVideo}), child: const Text('Выбрать')),
+          ],
+        );
+      });
+      if (picked == null) return;
+      // acquire new local stream with selected device ids
+      final constraints = {
+        'audio': picked['audio'] != null ? {'deviceId': {'exact': picked['audio']}} : true,
+        'video': picked['video'] != null ? {'deviceId': {'exact': picked['video']}} : (widget.isVideo ? true : false),
+      };
+      final newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (_currentCallId != null) {
+        await _callService.replaceLocalStream(_currentCallId!, newStream);
+      } else {
+        // just preview
+        _localRenderer.srcObject = newStream;
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось выбрать устройство: $e')));
+    }
   }
 }
 
