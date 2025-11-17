@@ -35,6 +35,8 @@ class _CallScreenState extends State<CallScreen> {
   late final CallMatrixService _callService;
   String? _currentCallId;
   static const _animDur = Duration(milliseconds: 300);
+  // Draggable preview offset (top-left within the video container)
+  Offset? _localPreviewOffset;
 
   @override
   void initState() {
@@ -204,7 +206,6 @@ class _CallScreenState extends State<CallScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(fit: StackFit.expand, children: [
-        // blurred background
         BackdropFilter(filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0), child: Container(color: Colors.black.withOpacity(0.35))),
         SafeArea(
           child: Center(
@@ -220,102 +221,111 @@ class _CallScreenState extends State<CallScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                   decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.06))),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    // Video / avatar area
+                    // video area with draggable local preview
                     SizedBox(
                       height: isWide ? 420 : 260,
-                      child: Stack(children: [
-                        // remote or placeholder
-                        Positioned.fill(
-                          child: AnimatedSwitcher(
-                            duration: _animDur,
-                            child: _remoteVisible && widget.isVideo
-                                ? Container(key: const ValueKey('remote'), color: Colors.black, child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain))
-                                : Container(key: const ValueKey('placeholder'), color: Colors.black87, alignment: Alignment.center, child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.person, size: isWide ? 72 : 48, color: Colors.white24), const SizedBox(height: 8), Text(widget.displayName ?? widget.room, style: TextStyle(color: Colors.white54, fontSize: isWide ? 22 : 16))])),
-                          ),
-                        ),
-
-                        // local preview overlay (small)
-                        Positioned(
-                          right: 14,
-                          top: 14,
-                          child: AnimatedOpacity(
-                            opacity: _localVisible ? 1 : 0,
-                            duration: _animDur,
-                            child: Container(
-                              width: isWide ? 260 : 120,
-                              height: isWide ? 160 : 96,
-                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.black54, boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 8)]),
-                              child: ClipRRect(borderRadius: BorderRadius.circular(12), child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)),
+                      child: LayoutBuilder(builder: (ctx, box) {
+                        _localPreviewOffset ??= Offset(box.maxWidth - (isWide ? 260 : 120) - 14, 14);
+                        final previewW = isWide ? 260.0 : 120.0;
+                        final previewH = isWide ? 160.0 : 96.0;
+                        return Stack(children: [
+                          Positioned.fill(
+                            child: AnimatedSwitcher(
+                              duration: _animDur,
+                              child: _remoteVisible && widget.isVideo
+                                  ? Container(key: const ValueKey('remote'), color: Colors.black, child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain))
+                                  : Container(key: const ValueKey('placeholder'), color: Colors.black87, alignment: Alignment.center, child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.person, size: isWide ? 72 : 48, color: Colors.white24), const SizedBox(height: 8), Text(widget.displayName ?? widget.room, style: TextStyle(color: Colors.white54, fontSize: isWide ? 22 : 16))])),
                             ),
                           ),
-                        ),
-                      ]),
+
+                          Positioned(
+                            left: _localPreviewOffset!.dx,
+                            top: _localPreviewOffset!.dy,
+                            child: AnimatedOpacity(
+                              opacity: _localVisible ? 1 : 0,
+                              duration: _animDur,
+                              child: GestureDetector(
+                                onPanUpdate: (d) {
+                                  setState(() {
+                                    final newX = (_localPreviewOffset!.dx + d.delta.dx).clamp(8.0, box.maxWidth - previewW - 8.0);
+                                    final newY = (_localPreviewOffset!.dy + d.delta.dy).clamp(8.0, box.maxHeight - previewH - 8.0);
+                                    _localPreviewOffset = Offset(newX, newY);
+                                  });
+                                },
+                                child: Container(
+                                  width: previewW,
+                                  height: previewH,
+                                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.black54, boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 8)]),
+                                  child: ClipRRect(borderRadius: BorderRadius.circular(12), child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ]);
+                      }),
                     ),
 
                     const SizedBox(height: 12),
+
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
                         Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 6),
                         Text(_inCall ? 'В разговоре' : (widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок'), style: const TextStyle(color: Colors.white70)),
                       ])),
-                      // small quality indicator
                       Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: const NetworkQualityIndicator())
                     ]),
 
                     const SizedBox(height: 12),
 
-                    // controls row
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      _buildControl(Icons.mic, _audioMuted ? 'Микрофон выкл' : 'Микрофон', _audioMuted, () async {
-                        setState(() => _audioMuted = !_audioMuted);
-                      }),
-                      const SizedBox(width: 18),
-                      _buildControl(Icons.videocam, _videoMuted ? 'Камера выкл' : 'Камера', _videoMuted, () async {
-                        setState(() => _videoMuted = !_videoMuted);
-                      }),
-                      const SizedBox(width: 12),
-                      InkWell(onTap: _showDevicePicker, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white12, shape: BoxShape.circle), child: const Icon(Icons.devices, color: Colors.white, size: 20))),
-                    ]),
+                    // controls (small vs wide)
+                    LayoutBuilder(builder: (ctx2, c2) {
+                      final small = c2.maxWidth < 420;
+                      const btnSize = 64.0;
+                      Widget micBtn = _actionButton(icon: Icons.mic, active: !_audioMuted, label: 'Микрофон', onTap: () => setState(() => _audioMuted = !_audioMuted), size: btnSize, crossed: _audioMuted);
+                      Widget camBtn = _actionButton(icon: Icons.videocam, active: !_videoMuted, label: 'Камера', onTap: () => setState(() => _videoMuted = !_videoMuted), size: btnSize, crossed: _videoMuted);
+                      Widget devicesBtn = _actionButton(icon: Icons.devices, active: true, label: 'Устройства', onTap: _showDevicePicker, size: btnSize);
+                      Widget inviteBtn = ElevatedButton.icon(onPressed: _inviteUser, icon: const Icon(Icons.person_add), label: const Text('Пригласить'), style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
 
-                    const SizedBox(height: 16),
+                      if (small) {
+                        return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          PopupMenuButton<int>(icon: const Icon(Icons.more_vert, color: Colors.white), itemBuilder: (ctx) => [PopupMenuItem(value: 1, child: const Text('Камера')), PopupMenuItem(value: 2, child: const Text('Устройства')), PopupMenuItem(value: 3, child: const Text('Пригласить'))], onSelected: (v) async {
+                            if (v == 1) setState(() => _videoMuted = !_videoMuted);
+                            if (v == 2) await _showDevicePicker();
+                            if (v == 3) await _inviteUser();
+                          }),
+                          const SizedBox(width: 8),
+                          micBtn,
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              try {
+                                if (_currentCallId != null) await _callService.hangup(widget.room, _currentCallId!);
+                              } catch (_) {}
+                              if (mounted) Navigator.of(context).pop();
+                            },
+                            style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)), backgroundColor: Colors.redAccent, fixedSize: const Size(72, 72)),
+                            child: const Icon(Icons.call_end, color: Colors.white, size: 32),
+                          ),
+                        ]);
+                      }
 
-                    // action buttons
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      ElevatedButton.icon(
-                        onPressed: _inviteUser,
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Пригласить'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      ),
-                      const SizedBox(width: 18),
+                      return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        micBtn,
+                        const SizedBox(width: 14),
+                        camBtn,
+                        const SizedBox(width: 14),
+                        devicesBtn,
+                        const SizedBox(width: 14),
+                        inviteBtn,
+                        const SizedBox(width: 18),
+                        TweenAnimationBuilder<double>(tween: Tween(begin: 1.0, end: _inCall ? 0.92 : 1.0), duration: const Duration(milliseconds: 220), builder: (context, scale, child) => Transform.scale(scale: scale, child: child), child: ElevatedButton(onPressed: () async { await _joinMeeting(); }, style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)), backgroundColor: Colors.greenAccent, fixedSize: const Size(84, 84)), child: Icon(_inCall ? Icons.phone_in_talk : Icons.phone, color: Colors.white, size: 36))),
+                        const SizedBox(width: 14),
+                        ElevatedButton(onPressed: () async { try { if (_currentCallId != null) await _callService.hangup(widget.room, _currentCallId!); } catch (_) {} if (mounted) Navigator.of(context).pop(); }, style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)), backgroundColor: Colors.redAccent, fixedSize: const Size(72, 72)), child: const Icon(Icons.call_end, color: Colors.white, size: 32)),
+                      ]);
+                    }),
 
-                      // central call button with scale animation
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 1.0, end: _inCall ? 0.92 : 1.0),
-                        duration: const Duration(milliseconds: 220),
-                        builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            await _joinMeeting();
-                          },
-                          style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)), backgroundColor: Colors.greenAccent, fixedSize: const Size(84, 84)),
-                          child: Icon(_inCall ? Icons.phone_in_talk : Icons.phone, color: Colors.white, size: 36),
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-
-                      ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            if (_currentCallId != null) await _callService.hangup(widget.room, _currentCallId!);
-                          } catch (_) {}
-                          if (mounted) Navigator.of(context).pop();
-                        },
-                        style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
-                        child: const Icon(Icons.call_end, color: Colors.white),
-                      ),
-                    ]),
+                    const SizedBox(height: 12),
                   ]),
                 ),
               );
@@ -331,6 +341,29 @@ class _CallScreenState extends State<CallScreen> {
       InkWell(onTap: onTap, borderRadius: BorderRadius.circular(24), child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: active ? Colors.white24 : Colors.white12, shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 26))),
       const SizedBox(height: 8),
       Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12))
+    ]);
+  }
+
+  Widget _actionButton({required IconData icon, required bool active, required String label, required VoidCallback onTap, double size = 64.0, bool crossed = false}) {
+    return Column(children: [
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(color: active ? Colors.white24 : Colors.white12, shape: BoxShape.circle),
+          child: Stack(alignment: Alignment.center, children: [
+            Icon(icon, color: Colors.white, size: size * 0.45),
+            if (crossed)
+              Transform.rotate(
+                angle: -0.6,
+                child: Container(width: size * 1.1, height: 3, color: Colors.white70),
+              ),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(width: size + 10, child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 12))),
     ]);
   }
 

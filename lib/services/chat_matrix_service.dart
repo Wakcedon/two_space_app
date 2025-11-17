@@ -117,6 +117,65 @@ class ChatMatrixService implements ChatBackend {
           if ((name.isEmpty || name == roomId) && canonicalAlias.isNotEmpty) {
             name = canonicalAlias;
           }
+          // If still no readable name or members missing, try fetching room state/joined_members
+          try {
+            if ((name.isEmpty || name == roomId) || members.isEmpty) {
+              final stateUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state');
+              final headers = await _authHeaders();
+              if (kDebugMode) debugPrint('Fetching room state for fallback naming: $stateUri');
+              final sRes = await http.get(stateUri, headers: headers).timeout(const Duration(seconds: 6));
+              if (sRes.statusCode == 200) {
+                try {
+                  final stateList = jsonDecode(sRes.body) as List<dynamic>;
+                  for (final e in stateList) {
+                    try {
+                      final et = e['type']?.toString() ?? '';
+                      if ((name.isEmpty || name == roomId) && et == 'm.room.name' && e['content'] != null && (e['content']['name'] as String?)?.isNotEmpty == true) {
+                        name = e['content']['name'];
+                      }
+                      if (et == 'm.room.canonical_alias' && e['content'] != null && (e['content']['alias'] as String?)?.isNotEmpty == true) {
+                        canonicalAlias = e['content']['alias'];
+                      }
+                      if ((avatar.isEmpty) && et == 'm.room.avatar' && e['content'] != null && (e['content']['url'] as String?)?.isNotEmpty == true) {
+                        avatar = e['content']['url'];
+                      }
+                      if (et == 'm.room.member' && e['state_key'] != null) {
+                        final sk = e['state_key'].toString();
+                        final membership = e['content']?['membership']?.toString() ?? '';
+                        if ((membership == 'join' || membership == 'invite') && !members.contains(sk)) {
+                          members.add(sk);
+                          final dn = (e['content']?['displayname'] as String?) ?? '';
+                          if (dn.isNotEmpty) memberDisplay[sk] = dn;
+                        }
+                      }
+                    } catch (_) {}
+                  }
+                } catch (_) {}
+              }
+              // If still empty members, query joined_members as a last resort
+              if (members.isEmpty) {
+                try {
+                  final jmUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
+                  final headers2 = await _authHeaders();
+                  final jmRes = await http.get(jmUri, headers: headers2).timeout(const Duration(seconds: 6));
+                  if (jmRes.statusCode == 200) {
+                    final jm = jsonDecode(jmRes.body) as Map<String, dynamic>;
+                    final Map<String, dynamic> joined = jm['joined'] as Map<String, dynamic>? ?? {};
+                    joined.forEach((uid, info) {
+                      if (!members.contains(uid)) members.add(uid);
+                      try {
+                        String display = '';
+                        if (info is Map) {
+                          display = (info['display_name'] ?? info['displayname'])?.toString() ?? '';
+                        }
+                        if (display.isNotEmpty) memberDisplay[uid] = display;
+                      } catch (_) {}
+                    });
+                  }
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
           if ((name.isEmpty || name == roomId) && summary != null && summary['m.heroes'] is List && (summary['m.heroes'] as List).isNotEmpty) {
             final heroes = (summary['m.heroes'] as List).cast<String>();
             // Resolve displaynames from memberDisplay when available, otherwise use id localpart

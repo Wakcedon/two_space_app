@@ -141,32 +141,40 @@ class CallMatrixService {
     final headers = await _authHeaders();
     final res = await http.put(uri, headers: headers, body: jsonEncode(content)).timeout(const Duration(seconds: 8));
     if (res.statusCode >= 200 && res.statusCode < 300) return;
+    if (kDebugMode) debugPrint('sendRoomEvent initial failed ${res.statusCode} for $eventType in $roomId -> ${res.body}');
     // If we are forbidden because the user is not in room, try to join and retry once
     if (res.statusCode == 403) {
       try {
         final body = res.body;
         if (body.contains('not in room') || body.contains('M_FORBIDDEN')) {
-          // attempt to join room and retry
+          // attempt to join room and retry (use join endpoint that accepts roomId or alias)
           try {
-            final joinUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/join');
+            final joinUri = _csPath('/_matrix/client/v3/join/${Uri.encodeComponent(roomId)}');
+            if (kDebugMode) debugPrint('Attempting to join $roomId via $joinUri');
             final joinRes = await http.post(joinUri, headers: headers, body: jsonEncode({})).timeout(const Duration(seconds: 6));
+            if (kDebugMode) debugPrint('Join response: ${joinRes.statusCode} ${joinRes.body}');
             if (joinRes.statusCode >= 200 && joinRes.statusCode < 300) {
               final retry = await http.put(uri, headers: headers, body: jsonEncode(content)).timeout(const Duration(seconds: 8));
+              if (kDebugMode) debugPrint('Retry send after join: ${retry.statusCode} ${retry.body}');
               if (retry.statusCode >= 200 && retry.statusCode < 300) return;
             }
-          } catch (_) {}
+          } catch (e) {
+            if (kDebugMode) debugPrint('Join attempt failed: $e');
+          }
         }
       } catch (_) {}
     }
-      // If join retry failed, try to create a new private room and invite members from the original room
-      if (res.statusCode == 403) {
+    // If join retry failed, try to create a new private room and invite members from the original room
+    if (res.statusCode == 403) {
         try {
           final me = await AuthService().getCurrentUserId();
           if (me != null && me.isNotEmpty) {
             // Attempt to fetch joined members of the original room
             try {
               final jmUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
+              if (kDebugMode) debugPrint('Fetching joined_members for $roomId -> $jmUri');
               final jmRes = await http.get(jmUri, headers: headers).timeout(const Duration(seconds: 8));
+              if (kDebugMode) debugPrint('joined_members response: ${jmRes.statusCode} ${jmRes.body}');
               if (jmRes.statusCode >= 200 && jmRes.statusCode < 300) {
                 final jm = jsonDecode(jmRes.body) as Map<String, dynamic>;
                 final Map<String, dynamic> joined = jm['joined'] as Map<String, dynamic>? ?? {};
@@ -178,13 +186,16 @@ class CallMatrixService {
                   // Create a new private room and invite members
                   final createUri = _csPath('/_matrix/client/v3/createRoom');
                   final body = jsonEncode({'preset': 'private_chat', 'invite': invitees});
+                  if (kDebugMode) debugPrint('Creating fallback room with invitees: $invitees');
                   final cRes = await http.post(createUri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+                  if (kDebugMode) debugPrint('createRoom response: ${cRes.statusCode} ${cRes.body}');
                   if (cRes.statusCode >= 200 && cRes.statusCode < 300) {
                     final created = jsonDecode(cRes.body) as Map<String, dynamic>;
                     final newRoomId = created['room_id'] as String?;
                     if (newRoomId != null && newRoomId.isNotEmpty) {
                       final newUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(newRoomId)}/send/${Uri.encodeComponent(eventType)}/$txn');
                       final sendRes = await http.put(newUri, headers: headers, body: jsonEncode(content)).timeout(const Duration(seconds: 8));
+                      if (kDebugMode) debugPrint('send to created room: ${sendRes.statusCode} ${sendRes.body}');
                       if (sendRes.statusCode >= 200 && sendRes.statusCode < 300) return;
                     }
                   }
@@ -194,7 +205,9 @@ class CallMatrixService {
           }
         } catch (_) {}
       }
-      throw Exception('sendRoomEvent failed ${res.statusCode}: ${res.body}');
+    final msg = 'sendRoomEvent failed ${res.statusCode}: ${res.body}';
+    if (kDebugMode) debugPrint(msg);
+    throw Exception(msg);
   }
 
   Future<String> createCallId() async => 'call-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(1<<32).toRadixString(36)}';
