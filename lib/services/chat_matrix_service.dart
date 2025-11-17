@@ -33,6 +33,13 @@ class ChatMatrixService implements ChatBackend {
     } catch (_) {
       token = null;
     }
+    // If no token yet, try refreshing stored refresh token (best-effort)
+    if ((token == null || token.isEmpty)) {
+      try {
+        final refreshed = await AuthService().refreshMatrixTokenForUser();
+        if (refreshed != null && refreshed.isNotEmpty) token = refreshed;
+      } catch (_) {}
+    }
     String tokenString = '';
     if (token != null && token.isNotEmpty) tokenString = token;
     else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
@@ -358,5 +365,21 @@ class ChatMatrixService implements ChatBackend {
       'avatarUrl': json['avatar_url'] as String? ?? '',
       'prefs': <String, dynamic>{},
     };
+  }
+
+  /// Return list of joined member ids in a room. Uses /joined_members which
+  /// returns a map {joined: {user_id: {display_name: ...}}} per spec.
+  Future<List<String>> getRoomMembers(String roomId) async {
+    if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
+    final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
+    final headers = await _authHeaders();
+    if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode != 200) throw Exception('Matrix joined_members failed ${res.statusCode}: ${res.body}');
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    final joined = json['joined'] as Map<String, dynamic>? ?? {};
+    final out = <String>[];
+    for (final k in joined.keys) out.add(k.toString());
+    return out;
   }
 }

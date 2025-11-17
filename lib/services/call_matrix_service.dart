@@ -84,35 +84,63 @@ class CallMatrixService {
         try {
           final room = roomObj as Map<String, dynamic>;
           final timeline = (room['timeline'] as Map?)?['events'] as List? ?? [];
-          for (final ev in timeline) {
-            try {
-              final type = ev['type']?.toString() ?? '';
-              if (type != 'io.twospace.call.signal') continue;
-              final content = ev['content'] as Map<String, dynamic>? ?? {};
-              final callId = content['call_id']?.toString() ?? '';
-              final action = content['action']?.toString() ?? '';
-              if (action == 'invite') {
-                onInvite?.call(callId, {...content, 'room_id': roomId});
-              } else if (action == 'answer') {
-                onAnswer?.call(callId, {...content, 'room_id': roomId});
-              } else if (action == 'candidate') {
-                onCandidate?.call(callId, {...content, 'room_id': roomId});
-              } else if (action == 'hangup') {
-                onHangup?.call(callId, {...content, 'room_id': roomId});
-              }
-            } catch (_) {}
-          }
+            for (final ev in timeline) {
+              try {
+                final type = ev['type']?.toString() ?? '';
+                final content = ev['content'] as Map<String, dynamic>? ?? {};
+                // Backwards-compatible custom event
+                if (type == 'io.twospace.call.signal') {
+                  final callId = content['call_id']?.toString() ?? '';
+                  final action = content['action']?.toString() ?? '';
+                  if (action == 'invite') {
+                    onInvite?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  } else if (action == 'answer') {
+                    onAnswer?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  } else if (action == 'candidate') {
+                    onCandidate?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  } else if (action == 'hangup') {
+                    onHangup?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  }
+                  continue;
+                }
+
+                // Handle canonical m.call.* events
+                if (type == 'm.call.invite') {
+                  final callId = content['call_id']?.toString() ?? '';
+                  onInvite?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  continue;
+                }
+                if (type == 'm.call.answer') {
+                  final callId = content['call_id']?.toString() ?? '';
+                  onAnswer?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  continue;
+                }
+                if (type == 'm.call.candidates' || type == 'm.call.candidate') {
+                  final callId = content['call_id']?.toString() ?? '';
+                  onCandidate?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  continue;
+                }
+                if (type == 'm.call.hangup') {
+                  final callId = content['call_id']?.toString() ?? '';
+                  onHangup?.call(callId, {...content, 'room_id': roomId, 'sender': ev['sender']?.toString() ?? ''});
+                  continue;
+                }
+              } catch (_) {}
+            }
         } catch (_) {}
       });
     }
   }
 
-  Future<void> _sendRoomEvent(String roomId, Map<String, dynamic> content) async {
+  /// Send a room event. By default keeps compatibility with the legacy
+  /// `io.twospace.call.signal` type, but callers can specify `eventType`
+  /// (e.g. `m.call.invite`, `m.call.answer`, `m.call.candidates`, `m.call.hangup`).
+  Future<void> _sendRoomEvent(String roomId, Map<String, dynamic> content, {String eventType = 'io.twospace.call.signal'}) async {
     final txn = _randTxn();
-    final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/io.twospace.call.signal/$txn');
+    final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/${Uri.encodeComponent(eventType)}/$txn');
     final headers = await _authHeaders();
     final res = await http.put(uri, headers: headers, body: jsonEncode(content)).timeout(const Duration(seconds: 8));
-  if (res.statusCode >= 200 && res.statusCode < 300) return;
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
     // If we are forbidden because the user is not in room, try to join and retry once
     if (res.statusCode == 403) {
       try {
@@ -130,7 +158,43 @@ class CallMatrixService {
         }
       } catch (_) {}
     }
-    throw Exception('sendRoomEvent failed ${res.statusCode}: ${res.body}');
+      // If join retry failed, try to create a new private room and invite members from the original room
+      if (res.statusCode == 403) {
+        try {
+          final me = await AuthService().getCurrentUserId();
+          if (me != null && me.isNotEmpty) {
+            // Attempt to fetch joined members of the original room
+            try {
+              final jmUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
+              final jmRes = await http.get(jmUri, headers: headers).timeout(const Duration(seconds: 8));
+              if (jmRes.statusCode >= 200 && jmRes.statusCode < 300) {
+                final jm = jsonDecode(jmRes.body) as Map<String, dynamic>;
+                final Map<String, dynamic> joined = jm['joined'] as Map<String, dynamic>? ?? {};
+                final invitees = <String>[];
+                joined.forEach((uid, _) {
+                  if (uid != me) invitees.add(uid);
+                });
+                if (invitees.isNotEmpty) {
+                  // Create a new private room and invite members
+                  final createUri = _csPath('/_matrix/client/v3/createRoom');
+                  final body = jsonEncode({'preset': 'private_chat', 'invite': invitees});
+                  final cRes = await http.post(createUri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+                  if (cRes.statusCode >= 200 && cRes.statusCode < 300) {
+                    final created = jsonDecode(cRes.body) as Map<String, dynamic>;
+                    final newRoomId = created['room_id'] as String?;
+                    if (newRoomId != null && newRoomId.isNotEmpty) {
+                      final newUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(newRoomId)}/send/${Uri.encodeComponent(eventType)}/$txn');
+                      final sendRes = await http.put(newUri, headers: headers, body: jsonEncode(content)).timeout(const Duration(seconds: 8));
+                      if (sendRes.statusCode >= 200 && sendRes.statusCode < 300) return;
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+      throw Exception('sendRoomEvent failed ${res.statusCode}: ${res.body}');
   }
 
   Future<String> createCallId() async => 'call-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(1<<32).toRadixString(36)}';
@@ -164,9 +228,14 @@ class CallMatrixService {
 
     pc.onIceCandidate = (e) async {
       if (e.candidate == null) return;
-      final content = {'call_id': callId, 'action': 'candidate', 'candidate': e.candidate};
+      final candidate = {
+        'candidate': e.candidate,
+        'sdpMid': e.sdpMid,
+        'sdpMLineIndex': e.sdpMLineIndex
+      };
+      final content = {'call_id': callId, 'candidates': [candidate]};
       try {
-        await _sendRoomEvent(roomId, content);
+        await _sendRoomEvent(roomId, content, eventType: 'm.call.candidates');
       } catch (e) {
         if (kDebugMode) debugPrint('Failed to send candidate: $e');
       }
@@ -190,9 +259,14 @@ class CallMatrixService {
     final offer = await pc.createOffer({'offerToReceiveAudio': 1, 'offerToReceiveVideo': video ? 1 : 0});
     await pc.setLocalDescription(offer);
 
-    // Send invite with SDP
-    final content = {'call_id': callId, 'action': 'invite', 'sdp': offer.sdp, 'type': offer.type, 'video': video};
-    await _sendRoomEvent(roomId, content);
+    // Send invite with SDP using canonical m.call.invite
+    final content = {
+      'call_id': callId,
+      'offer': {'type': offer.type, 'sdp': offer.sdp},
+      'video': video,
+      'version': 0
+    };
+    await _sendRoomEvent(roomId, content, eventType: 'm.call.invite');
     return callId;
   }
 
@@ -239,9 +313,14 @@ class CallMatrixService {
 
     pc.onIceCandidate = (e) async {
       if (e.candidate == null) return;
-      final content = {'call_id': callId, 'action': 'candidate', 'candidate': e.candidate};
+      final candidate = {
+        'candidate': e.candidate,
+        'sdpMid': e.sdpMid,
+        'sdpMLineIndex': e.sdpMLineIndex
+      };
+      final content = {'call_id': callId, 'candidates': [candidate]};
       try {
-        await _sendRoomEvent(roomId, content);
+        await _sendRoomEvent(roomId, content, eventType: 'm.call.candidates');
       } catch (e) {
         if (kDebugMode) debugPrint('Failed to send candidate: $e');
       }
@@ -263,9 +342,13 @@ class CallMatrixService {
     final answer = await pc.createAnswer({'offerToReceiveVideo': video ? 1 : 0});
     await pc.setLocalDescription(answer);
 
-    // Send answer
-    final content = {'call_id': callId, 'action': 'answer', 'sdp': answer.sdp, 'type': answer.type};
-    await _sendRoomEvent(roomId, content);
+    // Send answer using canonical m.call.answer
+    final content = {
+      'call_id': callId,
+      'answer': {'type': answer.type, 'sdp': answer.sdp},
+      'version': 0
+    };
+    await _sendRoomEvent(roomId, content, eventType: 'm.call.answer');
   }
 
   Future<void> handleRemoteAnswer(String roomId, String callId, String sdp, String type) async {
@@ -286,8 +369,8 @@ class CallMatrixService {
   }
 
   Future<void> hangup(String roomId, String callId) async {
-    final content = {'call_id': callId, 'action': 'hangup'};
-    await _sendRoomEvent(roomId, content);
+    final content = {'call_id': callId};
+    await _sendRoomEvent(roomId, content, eventType: 'm.call.hangup');
     await _closeCall(callId);
   }
 

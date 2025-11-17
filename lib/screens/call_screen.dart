@@ -27,11 +27,14 @@ class _CallScreenState extends State<CallScreen> {
   bool _audioMuted = false;
   bool _videoMuted = false;
   bool _inCall = false;
+  bool _remoteVisible = false;
+  bool _localVisible = false;
   ChatBackend? _chatBackend;
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   late final CallMatrixService _callService;
   String? _currentCallId;
+  static const _animDur = Duration(milliseconds: 300);
 
   @override
   void initState() {
@@ -42,11 +45,17 @@ class _CallScreenState extends State<CallScreen> {
     _callService.onInvite = _onInviteReceived;
     _callService.onAnswer = _onAnswerReceived;
     _callService.onLocalStream = (callId, stream) {
-      if (mounted) _localRenderer.srcObject = stream;
+      if (mounted) {
+        _localRenderer.srcObject = stream;
+        setState(() => _localVisible = true);
+      }
     };
     _callService.onCandidate = (callId, ev) async {
       try {
-        await _callService.handleRemoteCandidate(callId, ev['candidate'] as Map<String, dynamic>);
+        Map<String, dynamic>? cand;
+        if (ev['candidate'] is Map<String, dynamic>) cand = ev['candidate'] as Map<String, dynamic>;
+        else if (ev['candidates'] is List && (ev['candidates'] as List).isNotEmpty) cand = (ev['candidates'] as List).first as Map<String, dynamic>?;
+        if (cand != null) await _callService.handleRemoteCandidate(callId, cand);
       } catch (e) {}
     };
     _callService.onHangup = (callId, ev) {
@@ -57,6 +66,7 @@ class _CallScreenState extends State<CallScreen> {
     _callService.onRemoteStream = (callId, stream) {
       if (mounted) {
         _remoteRenderer.srcObject = stream;
+        setState(() => _remoteVisible = true);
       }
     };
     _callService.startSyncLoop();
@@ -74,7 +84,7 @@ class _CallScreenState extends State<CallScreen> {
     // Incoming call — show accept dialog
     if (!mounted) return;
     final video = ev['video'] == true;
-    final from = ev['from'] ?? '';
+    final from = ev['sender'] ?? ev['from'] ?? '';
     final accept = await showDialog<bool>(context: context, builder: (c) {
       return AlertDialog(
         title: const Text('Входящий звонок'),
@@ -90,14 +100,36 @@ class _CallScreenState extends State<CallScreen> {
       _currentCallId = callId;
       // handleRemoteInvite will create PC, local stream and send answer
       final roomId = ev['room_id']?.toString() ?? widget.room;
-      await _callService.handleRemoteInvite(roomId, callId, ev['sdp']?.toString() ?? '', ev['type']?.toString() ?? 'offer', video: video);
+      // Support both legacy payloads and m.call.invite (which has 'offer')
+      String sdp = '';
+      String type = 'offer';
+      if (ev['offer'] is Map) {
+        final off = ev['offer'] as Map<String, dynamic>;
+        sdp = off['sdp']?.toString() ?? '';
+        type = off['type']?.toString() ?? 'offer';
+      } else {
+        sdp = ev['sdp']?.toString() ?? '';
+        type = ev['type']?.toString() ?? 'offer';
+      }
+      await _callService.handleRemoteInvite(roomId, callId, sdp, type, video: video);
     }
   }
 
   void _onAnswerReceived(String callId, Map<String, dynamic> ev) async {
     // Remote answered our offer
     try {
-      await _callService.handleRemoteAnswer(ev['room_id']?.toString() ?? widget.room, callId, ev['sdp']?.toString() ?? '', ev['type']?.toString() ?? 'answer');
+      // support m.call.answer shape with 'answer' object
+      String sdp = '';
+      String type = 'answer';
+      if (ev['answer'] is Map) {
+        final ans = ev['answer'] as Map<String, dynamic>;
+        sdp = ans['sdp']?.toString() ?? '';
+        type = ans['type']?.toString() ?? 'answer';
+      } else {
+        sdp = ev['sdp']?.toString() ?? '';
+        type = ev['type']?.toString() ?? 'answer';
+      }
+      await _callService.handleRemoteAnswer(ev['room_id']?.toString() ?? widget.room, callId, sdp, type);
       if (mounted) setState(() => _inCall = true);
     } catch (e) {}
   }
@@ -171,54 +203,70 @@ class _CallScreenState extends State<CallScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // blurred background
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-            child: Container(color: Colors.black.withOpacity(0.35)),
-          ),
-          SafeArea(
-            child: Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.06)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+      body: Stack(fit: StackFit.expand, children: [
+        // blurred background
+        BackdropFilter(filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0), child: Container(color: Colors.black.withOpacity(0.35))),
+        SafeArea(
+          child: Center(
+            child: LayoutBuilder(builder: (context, constraints) {
+              final maxW = constraints.maxWidth;
+              final contentWidth = maxW > 1000 ? 900.0 : (maxW * 0.95);
+              final isWide = maxW > 700;
+              return ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentWidth),
+                child: AnimatedContainer(
+                  duration: _animDur,
+                  margin: const EdgeInsets.symmetric(vertical: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.06))),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    // Video / avatar area
                     SizedBox(
-                      height: 180,
-                      child: Row(
-                        children: [
-                          Expanded(
+                      height: isWide ? 420 : 260,
+                      child: Stack(children: [
+                        // remote or placeholder
+                        Positioned.fill(
+                          child: AnimatedSwitcher(
+                            duration: _animDur,
+                            child: _remoteVisible && widget.isVideo
+                                ? Container(key: const ValueKey('remote'), color: Colors.black, child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain))
+                                : Container(key: const ValueKey('placeholder'), color: Colors.black87, alignment: Alignment.center, child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.person, size: isWide ? 72 : 48, color: Colors.white24), const SizedBox(height: 8), Text(widget.displayName ?? widget.room, style: TextStyle(color: Colors.white54, fontSize: isWide ? 22 : 16))])),
+                          ),
+                        ),
+
+                        // local preview overlay (small)
+                        Positioned(
+                          right: 14,
+                          top: 14,
+                          child: AnimatedOpacity(
+                            opacity: _localVisible ? 1 : 0,
+                            duration: _animDur,
                             child: Container(
-                              color: Colors.black,
-                              child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                              width: isWide ? 260 : 120,
+                              height: isWide ? 160 : 96,
+                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.black54, boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 8)]),
+                              child: ClipRRect(borderRadius: BorderRadius.circular(12), child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 120,
-                            child: Container(
-                              color: Colors.black54,
-                              child: RTCVideoView(_localRenderer, mirror: true),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ]),
                     ),
+
                     const SizedBox(height: 12),
-                    Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 6),
-                    Text(_inCall ? 'В разговоре' : (widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок'), style: const TextStyle(color: Colors.white70)),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                        Text(widget.displayName ?? widget.room, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        Text(_inCall ? 'В разговоре' : (widget.isVideo ? 'Видео-звонок' : 'Аудио-звонок'), style: const TextStyle(color: Colors.white70)),
+                      ])),
+                      // small quality indicator
+                      Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: const NetworkQualityIndicator())
+                    ]),
+
                     const SizedBox(height: 12),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+
+                    // controls row
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       _buildControl(Icons.mic, _audioMuted ? 'Микрофон выкл' : 'Микрофон', _audioMuted, () async {
                         setState(() => _audioMuted = !_audioMuted);
                       }),
@@ -227,49 +275,54 @@ class _CallScreenState extends State<CallScreen> {
                         setState(() => _videoMuted = !_videoMuted);
                       }),
                       const SizedBox(width: 12),
-                      // Device picker
                       InkWell(onTap: _showDevicePicker, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white12, shape: BoxShape.circle), child: const Icon(Icons.devices, color: Colors.white, size: 20))),
                     ]),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _inviteUser,
-                          icon: const Icon(Icons.person_add),
-                          label: const Text('Пригласить'),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        ),
-                        ElevatedButton(
+
+                    const SizedBox(height: 16),
+
+                    // action buttons
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      ElevatedButton.icon(
+                        onPressed: _inviteUser,
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Пригласить'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.white24, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      ),
+                      const SizedBox(width: 18),
+
+                      // central call button with scale animation
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: _inCall ? 0.92 : 1.0),
+                        duration: const Duration(milliseconds: 220),
+                        builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+                        child: ElevatedButton(
                           onPressed: () async {
                             await _joinMeeting();
                           },
-                          style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), backgroundColor: Colors.greenAccent, fixedSize: const Size(80, 80)),
-                          child: const Icon(Icons.phone, color: Colors.white, size: 36),
+                          style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)), backgroundColor: Colors.greenAccent, fixedSize: const Size(84, 84)),
+                          child: Icon(_inCall ? Icons.phone_in_talk : Icons.phone, color: Colors.white, size: 36),
                         ),
-                        ElevatedButton(
-                          onPressed: () async {
-                            try {
-                              if (_currentCallId != null) await _callService.hangup(widget.room, _currentCallId!);
-                            } catch (_) {}
-                            if (mounted) Navigator.of(context).pop();
-                          },
-                          style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
-                          child: const Icon(Icons.call_end, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(width: 18),
+
+                      ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            if (_currentCallId != null) await _callService.hangup(widget.room, _currentCallId!);
+                          } catch (_) {}
+                          if (mounted) Navigator.of(context).pop();
+                        },
+                        style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), backgroundColor: Colors.redAccent, fixedSize: const Size(64, 64)),
+                        child: const Icon(Icons.call_end, color: Colors.white),
+                      ),
+                    ]),
+                  ]),
                 ),
-              ),
-            ),
+              );
+            }),
           ),
-          // network quality indicator in the corner
-          Positioned(top: 24, right: 24, child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(8)), child: const NetworkQualityIndicator())),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 
