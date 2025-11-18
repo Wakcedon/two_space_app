@@ -85,7 +85,6 @@ class ChatMatrixService implements ChatBackend {
 
           // Prefer explicit name in room state (m.room.name)
           final stateEvents = (room['state'] != null && room['state']['events'] is List) ? List.from(room['state']['events']) : <dynamic>[];
-          // Map of member id -> displayname (from m.room.member state events)
           final Map<String, String> memberDisplay = {};
           String canonicalAlias = '';
           for (final e in stateEvents) {
@@ -104,8 +103,7 @@ class ChatMatrixService implements ChatBackend {
                 final sk = e['state_key'].toString();
                 final membership = e['content']?['membership']?.toString() ?? '';
                 if (membership == 'join' || membership == 'invite') {
-                  members.add(sk);
-                  // collect displayname if available for heroes construction
+                  if (!members.contains(sk)) members.add(sk);
                   final dn = (e['content']?['displayname'] as String?) ?? '';
                   if (dn.isNotEmpty) memberDisplay[sk] = dn;
                 }
@@ -113,95 +111,94 @@ class ChatMatrixService implements ChatBackend {
             } catch (_) {}
           }
 
-          // fallback to canonical alias or summary.heroes or timeline authors
-          if ((name.isEmpty || name == roomId) && canonicalAlias.isNotEmpty) {
+          // Matrix display-name algorithm (pragmatic):
+          // 1) m.room.name
+          // 2) m.room.canonical_alias
+          // 3) summary.m.heroes
+          // 4) 1:1 other member displayname
+          // 5) otherwise list up to 5 members (disambiguate duplicate displaynames)
+
+          // 1) explicit name already captured above
+          if ((name.isNotEmpty) && name != roomId) {
+            // keep explicit name
+          } else if (canonicalAlias.isNotEmpty) {
             name = canonicalAlias;
-          }
-          // If still no readable name or members missing, try fetching room state/joined_members
-          try {
-            if ((name.isEmpty || name == roomId) || members.isEmpty) {
-              final stateUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state');
-              final headers = await _authHeaders();
-              if (kDebugMode) debugPrint('Fetching room state for fallback naming: $stateUri');
-              final sRes = await http.get(stateUri, headers: headers).timeout(const Duration(seconds: 6));
-              if (sRes.statusCode == 200) {
-                try {
-                  final stateList = jsonDecode(sRes.body) as List<dynamic>;
-                  for (final e in stateList) {
-                    try {
-                      final et = e['type']?.toString() ?? '';
-                      if ((name.isEmpty || name == roomId) && et == 'm.room.name' && e['content'] != null && (e['content']['name'] as String?)?.isNotEmpty == true) {
-                        name = e['content']['name'];
-                      }
-                      if (et == 'm.room.canonical_alias' && e['content'] != null && (e['content']['alias'] as String?)?.isNotEmpty == true) {
-                        canonicalAlias = e['content']['alias'];
-                      }
-                      if ((avatar.isEmpty) && et == 'm.room.avatar' && e['content'] != null && (e['content']['url'] as String?)?.isNotEmpty == true) {
-                        avatar = e['content']['url'];
-                      }
-                      if (et == 'm.room.member' && e['state_key'] != null) {
-                        final sk = e['state_key'].toString();
-                        final membership = e['content']?['membership']?.toString() ?? '';
-                        if ((membership == 'join' || membership == 'invite') && !members.contains(sk)) {
-                          members.add(sk);
-                          final dn = (e['content']?['displayname'] as String?) ?? '';
-                          if (dn.isNotEmpty) memberDisplay[sk] = dn;
-                        }
-                      }
-                    } catch (_) {}
-                  }
-                } catch (_) {}
-              }
-              // If still empty members, query joined_members as a last resort
-              if (members.isEmpty) {
-                try {
-                  final jmUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
-                  final headers2 = await _authHeaders();
-                  final jmRes = await http.get(jmUri, headers: headers2).timeout(const Duration(seconds: 6));
-                  if (jmRes.statusCode == 200) {
-                    final jm = jsonDecode(jmRes.body) as Map<String, dynamic>;
-                    final Map<String, dynamic> joined = jm['joined'] as Map<String, dynamic>? ?? {};
-                    joined.forEach((uid, info) {
-                      if (!members.contains(uid)) members.add(uid);
-                      try {
-                        String display = '';
-                        if (info is Map) {
-                          display = (info['display_name'] ?? info['displayname'])?.toString() ?? '';
-                        }
-                        if (display.isNotEmpty) memberDisplay[uid] = display;
-                      } catch (_) {}
-                    });
-                  }
-                } catch (_) {}
-              }
-            }
-          } catch (_) {}
-          if ((name.isEmpty || name == roomId) && summary != null && summary['m.heroes'] is List && (summary['m.heroes'] as List).isNotEmpty) {
+          } else if (summary != null && summary['m.heroes'] is List && (summary['m.heroes'] as List).isNotEmpty) {
             final heroes = (summary['m.heroes'] as List).cast<String>();
-            // Resolve displaynames from memberDisplay when available, otherwise use id localpart
             final resolved = <String>[];
             for (final h in heroes) {
               final dn = memberDisplay[h];
               if (dn != null && dn.isNotEmpty) resolved.add(dn);
-              else resolved.add(h);
+              else resolved.add(_localpartOrId(h));
               if (resolved.length >= 5) break;
             }
             name = resolved.join(', ');
-          }
-
-          // If still no readable name and this is a 1:1 room, try to resolve other
-          // member's display name via profile lookup for a friendlier label.
-          try {
-            if ((name.isEmpty || name == roomId) && members.length == 2) {
-              final me = await MatrixService.getCurrentUserId();
-              final other = members.firstWhere((m) => m != me, orElse: () => members.isNotEmpty ? members.first : roomId);
+          } else {
+            // Ensure members populated (try joined_members)
+            if (members.isEmpty) {
               try {
-                final info = await getUserInfo(other);
-                final dn = info['displayName'] as String? ?? other;
-                if (dn.isNotEmpty) name = dn;
+                final jmUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
+                final headers2 = await _authHeaders();
+                final jmRes = await http.get(jmUri, headers: headers2).timeout(const Duration(seconds: 6));
+                if (jmRes.statusCode == 200) {
+                  final jm = jsonDecode(jmRes.body) as Map<String, dynamic>;
+                  final Map<String, dynamic> joined = jm['joined'] as Map<String, dynamic>? ?? {};
+                  joined.forEach((uid, info) {
+                    if (!members.contains(uid)) members.add(uid);
+                    try {
+                      if (info is Map) {
+                        final display = (info['display_name'] ?? info['displayname'])?.toString() ?? '';
+                        if (display.isNotEmpty) memberDisplay[uid] = display;
+                      }
+                    } catch (_) {}
+                  });
+                }
               } catch (_) {}
             }
-          } catch (_) {}
+
+            // fallback to timeline authors
+            if (members.isEmpty) {
+              try {
+                final authors = <String>[];
+                final timelineEvents = (room['timeline'] != null && room['timeline']['events'] is List) ? List.from(room['timeline']['events']) : <dynamic>[];
+                for (final ev in timelineEvents) {
+                  try {
+                    final s = ev['sender']?.toString() ?? '';
+                    if (s.isNotEmpty && !authors.contains(s)) authors.add(s);
+                    if (authors.length >= 5) break;
+                  } catch (_) {}
+                }
+                if (authors.isNotEmpty) members.addAll(authors);
+              } catch (_) {}
+            }
+
+            // 1:1 case
+            if ((name.isEmpty || name == roomId) && members.length == 2) {
+              try {
+                final me = await MatrixService.getCurrentUserId();
+                final other = members.firstWhere((m) => m != me, orElse: () => members.first);
+                final otherName = memberDisplay[other] ?? await _fetchDisplayName(other) ?? '';
+                name = otherName.isNotEmpty ? otherName : _localpartOrId(other);
+              } catch (_) {
+                name = members.isNotEmpty ? _localpartOrId(members.first) : roomId;
+              }
+            } else {
+              // multi-member: list up to 5
+              final entries = <String>[];
+              for (final uid in members) {
+                String entry = '';
+                try {
+                  final dn = memberDisplay[uid] ?? await _fetchDisplayName(uid) ?? '';
+                  entry = dn.isNotEmpty ? dn : _localpartOrId(uid);
+                } catch (_) {
+                  entry = _localpartOrId(uid);
+                }
+                entries.add(entry);
+                if (entries.length >= 5) break;
+              }
+              name = _disambiguateDisplayNames(entries, members);
+            }
+          }
 
           // determine last message from timeline
           final lastEvent = (room['timeline'] != null && room['timeline']['events'] is List && (room['timeline']['events'] as List).isNotEmpty) ? (room['timeline']['events'] as List).last : null;
@@ -365,6 +362,47 @@ class ChatMatrixService implements ChatBackend {
     // for PoC create a private room named 'Избранное' and return its id as map
     final map = await createChat([userId], name: 'Избранное');
     return map;
+  }
+
+  String _localpartOrId(String userId) {
+    try {
+      if (userId.startsWith('@') && userId.contains(':')) {
+        final local = userId.split(':')[0];
+        if (local.startsWith('@')) return local.substring(1);
+        return local;
+      }
+      return userId;
+    } catch (_) {
+      return userId;
+    }
+  }
+
+  Future<String?> _fetchDisplayName(String userId) async {
+    try {
+      final info = await getUserInfo(userId);
+      final dn = info['displayName'] as String? ?? '';
+      return dn.isNotEmpty ? dn : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _disambiguateDisplayNames(List<String> names, List<String> userIds) {
+    // names: display names/localparts in same order as userIds
+    final counts = <String, int>{};
+    for (final n in names) counts[n] = (counts[n] ?? 0) + 1;
+    final out = <String>[];
+    for (var i = 0; i < names.length; i++) {
+      final n = names[i];
+      if ((counts[n] ?? 0) > 1) {
+        final uid = (i < userIds.length) ? userIds[i] : null;
+        final suffix = uid != null ? ' (${_localpartOrId(uid)})' : '';
+        out.add('$n$suffix');
+      } else {
+        out.add(n);
+      }
+    }
+    return out.join(', ');
   }
 
   /// Mark read receipt for a specific event id in a room
