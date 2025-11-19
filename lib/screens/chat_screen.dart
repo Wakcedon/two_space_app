@@ -8,7 +8,10 @@ import 'package:two_space_app/models/chat.dart';
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
-  const ChatScreen({super.key, required this.chat});
+  final String? searchQuery;
+  final String? searchType; // 'all' | 'messages' | 'media' | 'users'
+
+  const ChatScreen({super.key, required this.chat, this.searchQuery, this.searchType});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -20,6 +23,25 @@ class _ChatScreenState extends State<ChatScreen> {
   List<_Msg> _messages = [];
   bool _loading = true;
   bool _sending = false;
+
+  List<_Msg> get _visibleMessages {
+    final q = (widget.searchQuery ?? '').trim().toLowerCase();
+    final type = (widget.searchType ?? 'all');
+    if (q.isEmpty && type == 'all') return _messages;
+    return _messages.where((m) {
+      if (type == 'messages') return m.text.toLowerCase().contains(q);
+      if (type == 'media') {
+        // crude media detection: contains mxc:// or http and common extensions
+        final t = m.text.toLowerCase();
+        if (t.contains('mxc://') || t.contains('http')) return true;
+        final exts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov'];
+        return exts.any((e) => t.endsWith(e));
+      }
+      if (type == 'users') return m.text.toLowerCase().contains('@') || m.text.toLowerCase().contains('invite');
+      // all
+      return q.isEmpty ? true : m.text.toLowerCase().contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -86,12 +108,12 @@ class _ChatScreenState extends State<ChatScreen> {
     return Column(children: [
       Expanded(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView.separated(
-                reverse: true,
-                padding: const EdgeInsets.all(12),
-                itemBuilder: (c, i) {
-                  final m = _messages[i];
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.separated(
+                  reverse: true,
+                  padding: const EdgeInsets.all(12),
+                  itemBuilder: (c, i) {
+                    final m = _visibleMessages[i];
                   return Align(
                     alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(
@@ -99,12 +121,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       decoration: BoxDecoration(color: m.isOwn ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
-                      child: Text(m.text),
+                        child: Text(m.text),
                     ),
                   );
                 },
                 separatorBuilder: (_, __) => const SizedBox(height: 2),
-                itemCount: _messages.length,
+                  itemCount: _visibleMessages.length,
               ),
       ),
       const Divider(height: 1),

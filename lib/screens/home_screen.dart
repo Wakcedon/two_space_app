@@ -4,6 +4,7 @@ import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/chat_settings_screen.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
+import 'package:two_space_app/screens/account_settings_screen.dart';
 
 /// A simplified, responsive HomeScreen that provides:
 /// - Two-pane layout on wide screens (chat list + chat)
@@ -22,6 +23,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _selectedRoomId;
   String _selectedRoomName = '';
   bool _loading = true;
+  // layout state
+  double _leftWidth = 320;
+  double _rightWidth = 380;
+  bool _rightOpen = true;
+
+  // search state
+  String _searchQuery = '';
+  String _searchType = 'all';
 
   @override
   void initState() {
@@ -32,23 +41,35 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadRooms() async {
     setState(() => _loading = true);
     try {
-      // Placeholder: real Matrix room discovery should be implemented here.
-      // For now we display example rooms so the responsive layout and
-      // settings UI can be exercised on desktop.
-    } catch (_) {}
-    // For now, show placeholder rooms to let UI layout and settings be used.
-    setState(() {
-      _rooms = [
-        {'roomId': '!example1:matrix.org', 'name': 'Общий чат'},
-        {'roomId': '!example2:matrix.org', 'name': 'Разработка'},
-        {'roomId': '!example3:matrix.org', 'name': 'Тестовый'},
-      ];
-      if (_rooms.isNotEmpty) {
-        _selectedRoomId = _rooms.first['roomId'] as String?;
-        _selectedRoomName = _rooms.first['name'] as String? ?? '';
+      final ids = await _chat.getJoinedRooms();
+      final out = <Map<String, dynamic>>[];
+      for (final id in ids) {
+        final meta = await _chat.getRoomNameAndAvatar(id);
+        out.add({'roomId': id, 'name': meta['name'] ?? id, 'avatar': meta['avatar']});
       }
-      _loading = false;
-    });
+      setState(() {
+        _rooms = out;
+        if (_rooms.isNotEmpty) {
+          _selectedRoomId = _rooms.first['roomId'] as String?;
+          _selectedRoomName = _rooms.first['name'] as String? ?? '';
+        }
+        _loading = false;
+      });
+    } catch (e) {
+      // on failure, fall back to example placeholders so UI remains functional
+      setState(() {
+        _rooms = [
+          {'roomId': '!example1:matrix.org', 'name': 'Общий чат'},
+          {'roomId': '!example2:matrix.org', 'name': 'Разработка'},
+          {'roomId': '!example3:matrix.org', 'name': 'Тестовый'},
+        ];
+        if (_rooms.isNotEmpty) {
+          _selectedRoomId = _rooms.first['roomId'] as String?;
+          _selectedRoomName = _rooms.first['name'] as String? ?? '';
+        }
+        _loading = false;
+      });
+    }
   }
 
   Widget _buildLeftColumn(double width) {
@@ -73,11 +94,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     return ListTile(
                       selected: selected,
                       title: Text(name),
-                      leading: CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
+                      leading: r['avatar'] != null
+                          ? CircleAvatar(backgroundImage: NetworkImage(r['avatar']))
+                          : CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
                       onTap: () {
                         setState(() {
                           _selectedRoomId = id;
                           _selectedRoomName = name;
+                          // open center and right when selecting
+                          _rightOpen = true;
                         });
                       },
                     );
@@ -93,32 +118,118 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: Text('Выберите комнату'));
     }
     final chat = Chat(id: _selectedRoomId!, name: _selectedRoomName, members: []);
-    return ChatScreen(chat: chat);
+    return Column(children: [
+      // header with title and search
+      Container(
+        color: Theme.of(context).colorScheme.surface,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() => _rightOpen = !_rightOpen);
+              },
+              child: Row(children: [
+                Text(_selectedRoomName, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(width: 8),
+                const Icon(Icons.open_in_new, size: 18),
+              ]),
+            ),
+          ),
+          SizedBox(
+            width: 300,
+            child: Row(children: [
+              Expanded(
+                child: TextField(
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  decoration: const InputDecoration(hintText: 'Поиск', isDense: true, prefixIcon: Icon(Icons.search)),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Тип поиска',
+                icon: const Icon(Icons.filter_list),
+                onSelected: (v) => setState(() => _searchType = v),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'all', child: Text('Все')),
+                  PopupMenuItem(value: 'messages', child: Text('Сообщения')),
+                  PopupMenuItem(value: 'media', child: Text('Медиа')),
+                  PopupMenuItem(value: 'users', child: Text('Пользователи')),
+                ],
+              )
+            ]),
+          )
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(child: ChatScreen(chat: chat, searchQuery: _searchQuery, searchType: _searchType)),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const AppLogo(large: false)),
+      appBar: AppBar(title: const AppLogo(large: false), actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12.0),
+          child: GestureDetector(
+            onTap: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountSettingsScreen()));
+              // refresh rooms in case user changed accounts
+              await _loadRooms();
+            },
+            child: CircleAvatar(child: Text((_selectedRoomName.isNotEmpty ? _selectedRoomName[0] : 'U'))),
+          ),
+        ),
+      ]),
       body: LayoutBuilder(builder: (context, constraints) {
         final maxW = constraints.maxWidth;
         final isThree = maxW >= 1200;
         final isTwo = maxW >= 900 && !isThree;
 
-        if (isThree) {
+        // adjust left/right widths to sensible bounds
+        _leftWidth = _leftWidth.clamp(220.0, maxW * 0.6);
+        _rightWidth = _rightWidth.clamp(240.0, maxW * 0.6);
+
+        if (isThree && _rightOpen) {
           return Row(children: [
-            SizedBox(width: 320, child: _buildLeftColumn(320)),
-            const VerticalDivider(width: 1),
+            SizedBox(width: _leftWidth, child: _buildLeftColumn(_leftWidth)),
+            // draggable divider
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanUpdate: (d) => setState(() => _leftWidth = (_leftWidth + d.delta.dx).clamp(220.0, maxW - 400.0)),
+              child: const VerticalDivider(width: 12, thickness: 1),
+            ),
             Expanded(child: _buildCenter()),
-            const VerticalDivider(width: 1),
-            SizedBox(width: 380, child: ChatSettingsScreen(roomId: _selectedRoomId ?? '', initialName: _selectedRoomName)),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanUpdate: (d) => setState(() => _rightWidth = (_rightWidth - d.delta.dx).clamp(240.0, maxW - 400.0)),
+              child: const VerticalDivider(width: 12, thickness: 1),
+            ),
+            SizedBox(width: _rightWidth, child: ChatSettingsScreen(roomId: _selectedRoomId ?? '', initialName: _selectedRoomName)),
+          ]);
+        }
+
+        if (isThree && !_rightOpen) {
+          // right closed: two-pane layout with left + center
+          return Row(children: [
+            SizedBox(width: _leftWidth, child: _buildLeftColumn(_leftWidth)),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanUpdate: (d) => setState(() => _leftWidth = (_leftWidth + d.delta.dx).clamp(220.0, maxW - 300.0)),
+              child: const VerticalDivider(width: 12, thickness: 1),
+            ),
+            Expanded(child: _buildCenter()),
           ]);
         }
 
         if (isTwo) {
           return Row(children: [
-            SizedBox(width: 360, child: _buildLeftColumn(360)),
-            const VerticalDivider(width: 1),
+            SizedBox(width: _leftWidth, child: _buildLeftColumn(_leftWidth)),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanUpdate: (d) => setState(() => _leftWidth = (_leftWidth + d.delta.dx).clamp(220.0, maxW - 300.0)),
+              child: const VerticalDivider(width: 12, thickness: 1),
+            ),
             Expanded(child: _buildCenter()),
           ]);
         }
@@ -126,6 +237,8 @@ class _HomeScreenState extends State<HomeScreen> {
         // single column
         return _buildLeftColumn(maxW);
       }),
+      // add user icon in the app bar actions
+      floatingActionButton: null,
     );
   }
 }
