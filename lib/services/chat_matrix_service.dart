@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
@@ -15,7 +16,8 @@ class ChatMatrixService {
     final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 6));
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final js = jsonDecode(res.body) as Map<String, dynamic>;
-      return {'displayName': js['displayname'] ?? userId, 'avatarUrl': js['avatar_url']};
+      final avatar = js['avatar_url']?.toString();
+      return {'displayName': js['displayname'] ?? userId, 'avatarUrl': avatar != null ? _mxcToHttp(avatar) : null};
     }
     return {'displayName': userId, 'avatarUrl': null};
   }
@@ -33,6 +35,42 @@ class ChatMatrixService {
       return js['content_uri']?.toString() ?? '';
     }
     throw Exception('uploadMedia failed ${res.statusCode}: ${res.body}');
+  }
+
+  /// Convert mxc://<server>/<mediaid> to a downloadable HTTP URL on the homeserver
+  String _mxcToHttp(String? mxc) {
+    if (mxc == null) return '';
+    if (!mxc.startsWith('mxc://')) return mxc;
+    try {
+      final without = mxc.substring('mxc://'.length);
+      final parts = without.split('/');
+      if (parts.length < 2) return '$homeserver/_matrix/media/v3/download/$without';
+      final server = parts[0];
+      final mediaId = parts.sublist(1).join('/');
+      return '$homeserver/_matrix/media/v3/download/$server/$mediaId';
+    } catch (_) {
+      return '$homeserver/_matrix/media/v3/download/${Uri.encodeComponent(mxc)}';
+    }
+  }
+
+  /// Public wrapper for mxc -> http conversion
+  String mxcToHttp(String? mxc) => _mxcToHttp(mxc);
+
+  /// Download media identified by MXC URI to a temporary file and return its path.
+  /// If the provided uri is already http(s), it will be downloaded as-is.
+  Future<String> downloadMediaToTempFile(String uri) async {
+    final url = uri.startsWith('mxc://') ? _mxcToHttp(uri) : uri;
+    final headers = await _authHeaders();
+    final res = await http.get(Uri.parse(url), headers: headers).timeout(const Duration(seconds: 20));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final bytes = res.bodyBytes;
+      // write to temp file
+      final dir = Directory.systemTemp;
+      final file = File('${dir.path}/matrix_media_${DateTime.now().millisecondsSinceEpoch}');
+      await file.writeAsBytes(bytes);
+      return file.path;
+    }
+    throw Exception('Failed to download media ${res.statusCode}');
   }
 
   Future<dynamic> sendMessage(String roomId, String senderId, String text, {String type = 'text', String? mediaFileId}) async {
@@ -108,7 +146,8 @@ class ChatMatrixService {
       final avRes = await http.get(avUri, headers: headers).timeout(const Duration(seconds: 6));
       if (avRes.statusCode == 200) {
         final js = jsonDecode(avRes.body) as Map<String, dynamic>;
-        out['avatar'] = js['avatar_url']?.toString();
+        final av = js['avatar_url']?.toString();
+        out['avatar'] = av != null ? mxcToHttp(av) : null;
       }
     } catch (_) {}
     return out;

@@ -92,7 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     final name = r['name'] as String? ?? id;
                     final selected = _selectedRoomId == id;
                     return ListTile(
+                      key: ValueKey(id),
                       selected: selected,
+                      selectedTileColor: Theme.of(context).colorScheme.surface.withOpacity(0.06),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       title: Text(name),
                       leading: r['avatar'] != null
                           ? CircleAvatar(backgroundImage: NetworkImage(r['avatar']))
@@ -117,8 +120,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedRoomId == null) {
       return const Center(child: Text('Выберите комнату'));
     }
-    final chat = Chat(id: _selectedRoomId!, name: _selectedRoomName, members: []);
-    return Column(children: [
+  final chat = Chat(id: _selectedRoomId!, name: _selectedRoomName, members: []);
+  return Column(children: [
       // header with title and search
       Container(
         color: Theme.of(context).colorScheme.surface,
@@ -161,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ]),
       ),
       const Divider(height: 1),
-      Expanded(child: ChatScreen(chat: chat, searchQuery: _searchQuery, searchType: _searchType)),
+      Expanded(child: ChatScreen(key: ValueKey(chat.id), chat: chat, searchQuery: _searchQuery, searchType: _searchType)),
     ]);
   }
 
