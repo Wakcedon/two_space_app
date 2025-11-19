@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
@@ -189,9 +190,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final isThree = maxW >= 1200;
         final isTwo = maxW >= 900 && !isThree;
 
-        // adjust left/right widths to sensible bounds
-        _leftWidth = _leftWidth.clamp(220.0, maxW * 0.6);
-        _rightWidth = _rightWidth.clamp(240.0, maxW * 0.6);
+  // adjust left/right widths to sensible bounds (ensure clamp upper >= lower)
+  final leftMin = 220.0;
+  final rightMin = 240.0;
+  // compute upper bounds based on available width
+  final leftMax = math.max(leftMin, maxW - ( (_rightOpen && isThree) ? (_rightWidth + 300.0) : 300.0));
+  final rightMax = math.max(rightMin, maxW - (_leftWidth + 200.0));
+  _leftWidth = _leftWidth.clamp(leftMin, leftMax);
+  _rightWidth = _rightWidth.clamp(rightMin, rightMax);
 
         if (isThree && _rightOpen) {
           return Row(children: [

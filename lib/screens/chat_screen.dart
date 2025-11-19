@@ -140,10 +140,25 @@ class _ChatScreenState extends State<ChatScreen> {
                         if (!m.isOwn) Text(m.senderName ?? m.senderId ?? '', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 6),
                         // message types
-                        if (m.type == 'm.image' && (m.mediaId != null && m.mediaId!.isNotEmpty))
-                    ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(_svc.mxcToHttp(m.mediaId!), fit: BoxFit.cover))
+                          if (m.type == 'm.image' && (m.mediaId != null && m.mediaId!.isNotEmpty))
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 300, maxHeight: 240),
+                              child: Image.network(
+                                _svc.mxcToHttp(m.mediaId!),
+                                fit: BoxFit.cover,
+                                width: 280,
+                                height: 180,
+                                errorBuilder: (c, e, s) => Container(width: 120, height: 80, color: Theme.of(context).colorScheme.surface, child: const Center(child: Icon(Icons.broken_image))),
+                              ),
+                            ),
+                          )
                         else if (m.type == 'm.audio' || (m.text.toLowerCase().endsWith('.ogg') || (m.mediaId?.toLowerCase().endsWith('.ogg') ?? false)))
-                          _AudioMessageWidget(message: m, svc: _svc, audioPlayers: _audioPlayers)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.6),
+                            child: _AudioMessageWidget(message: m, svc: _svc, audioPlayers: _audioPlayers),
+                          )
                         else
                           Text(m.text),
                       ]),
@@ -230,6 +245,8 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
       setState(() => _localPath = path);
       _player = widget.audioPlayers[widget.message.id] ?? AudioPlayer();
       widget.audioPlayers[widget.message.id] = _player!;
+      // ensure player is in low-latency mode for small clips
+      await _player!.setReleaseMode(ReleaseMode.stop);
       _player!.onDurationChanged.listen((d) => setState(() => _duration = d));
       _player!.onPositionChanged.listen((p) => setState(() => _position = p));
       _player!.onPlayerComplete.listen((_) => setState(() { _playing = false; _position = Duration.zero; }));

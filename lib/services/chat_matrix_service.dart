@@ -56,6 +56,41 @@ class ChatMatrixService {
   /// Public wrapper for mxc -> http conversion
   String mxcToHttp(String? mxc) => _mxcToHttp(mxc);
 
+  /// Search messages/rooms/users via Synapse / Matrix search API (server-side).
+  /// type: 'all'|'messages' - currently implements messages search across joined rooms.
+  Future<List<Map<String, dynamic>>> searchMessages(String query, {String type = 'all', int limit = 20}) async {
+    if (query.trim().isEmpty) return [];
+    final headers = await _authHeaders();
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/search');
+    final body = {
+      'search_categories': {
+        'room_events': {
+          'keys': ['content.body', 'sender'],
+          'search_term': query,
+          'order_by': 'recent',
+          'limit': limit,
+        }
+      }
+    };
+    try {
+      final res = await http.post(uri, headers: {...headers, 'Content-Type': 'application/json'}, body: jsonEncode(body)).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) return [];
+      final js = jsonDecode(res.body) as Map<String, dynamic>;
+      final roomEvents = js['search_categories']?['room_events']?['results'] as List? ?? [];
+      final out = <Map<String, dynamic>>[];
+      for (final ev in roomEvents) {
+        try {
+          final map = ev as Map<String, dynamic>;
+          final event = map['result'] as Map<String, dynamic>? ?? {};
+          out.add({'event': event, 'context': map['context']});
+        } catch (_) {}
+      }
+      return out;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Download media identified by MXC URI to a temporary file and return its path.
   /// If the provided uri is already http(s), it will be downloaded as-is.
   Future<String> downloadMediaToTempFile(String uri) async {
