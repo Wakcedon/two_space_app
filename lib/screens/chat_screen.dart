@@ -7,6 +7,7 @@ import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'dart:math' as math;
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
@@ -78,6 +79,78 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _sendReplyForEvent(String eventId) async {
+    // prompt for reply text then send as a reply
+    final text = await showDialog<String>(context: context, builder: (c) {
+      final ctl = TextEditingController();
+      return AlertDialog(
+        title: const Text('Ответить'),
+        content: TextField(controller: ctl, decoration: const InputDecoration(hintText: 'Текст ответа')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, null), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, ctl.text.trim()), child: const Text('Отправить')),
+        ],
+      );
+    });
+    if (text == null || text.isEmpty) return;
+    try {
+      final formatted = '<mx-reply><blockquote>${text.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</blockquote></mx-reply>';
+      await _svc.sendReply(widget.chat.id, eventId, text, formatted);
+      await _loadMessages();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка ответа: $e')));
+    }
+  }
+
+  Future<void> _sendReactionForEvent(String eventId) async {
+    final choices = ['👍','👎','❤️','😂','🔥','😮','🎉','🙌','🚀'];
+    final pick = await showDialog<String>(context: context, builder: (c) => SimpleDialog(title: const Text('Реакция'), children: choices.map((e) => SimpleDialogOption(child: Text(e), onPressed: () => Navigator.pop(c, e))).toList()));
+    if (pick == null) return;
+    try {
+      await _svc.sendReaction(widget.chat.id, eventId, pick);
+      await _loadMessages();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка реакции: $e')));
+    }
+  }
+
+  Future<void> _pinUnpinEvent(String eventId) async {
+    try {
+      final pinned = await _svc.getPinnedEvents(widget.chat.id);
+      if (pinned.contains(eventId)) pinned.remove(eventId); else pinned.insert(0, eventId);
+      await _svc.setPinnedEvents(widget.chat.id, pinned);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Закрепления обновлены')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка закрепа: $e')));
+    }
+  }
+
+  Future<void> _redactEvent(String eventId) async {
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: const Text('Удалить сообщение?'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Отмена')), ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Удалить'))]));
+    if (ok != true) return;
+    try {
+      await _svc.redactEvent(widget.chat.id, eventId);
+      await _loadMessages();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка удаления: $e')));
+    }
+  }
+
+  Future<void> _showMessageActions(_Msg m) async {
+    final options = <String, VoidCallback>{
+      'Ответить': () => _sendReplyForEvent(m.id),
+      'Реакция': () => _sendReactionForEvent(m.id),
+      'Закрепить/Открепить': () => _pinUnpinEvent(m.id),
+      'Удалить': () => _redactEvent(m.id),
+    };
+    final pick = await showModalBottomSheet<String>(context: context, builder: (c) {
+      return SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: options.keys.map((k) => ListTile(title: Text(k), onTap: () => Navigator.pop(c, k))).toList()));
+    });
+    if (pick == null) return;
+    final action = options[pick];
+    if (action != null) action();
   }
 
   Future<void> _sendText() async {
@@ -177,7 +250,10 @@ class _ChatScreenState extends State<ChatScreen> {
                           tween: Tween(begin: 8.0, end: 0.0),
                           duration: Duration(milliseconds: 240 + (i % 5) * 30),
                           builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
-                          child: bubble,
+                          child: GestureDetector(
+                            onLongPress: () => _showMessageActions(m),
+                            child: bubble,
+                          ),
                         ),
                         if (m.isOwn) const SizedBox(width: 8),
                         if (m.isOwn) CircleAvatar(radius: 16, child: Text('Y')),
