@@ -399,6 +399,24 @@ class MatrixService {
     } catch (_) {}
   }
 
+  /// Set room name helper delegating to ChatMatrixService
+  static Future<void> setRoomName(String roomId, String name) async {
+    if (Environment.useMatrix) {
+      return await ChatMatrixService().setRoomName(roomId, name);
+    }
+    throw Exception('setRoomName: Matrix mode required');
+  }
+
+  /// Set room avatar helper delegating to ChatMatrixService. Accepts a file path.
+  static Future<String> setRoomAvatarFromFile(String roomId, String filePath) async {
+    if (Environment.useMatrix) {
+      final bytes = await File(filePath).readAsBytes();
+      final mime = 'application/octet-stream';
+      return await ChatMatrixService().setRoomAvatar(roomId, bytes, contentType: mime, fileName: File(filePath).uri.pathSegments.last);
+    }
+    throw Exception('setRoomAvatarFromFile: Matrix mode required');
+  }
+
   static Future<void> saveCredentials(String email, String password) async {
     try {
       await SecureStore.write('matrix_saved_email', email);

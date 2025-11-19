@@ -6,6 +6,7 @@ import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/matrix_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:two_space_app/services/debug_service.dart';
 
 /// Minimal Matrix-backed Chat service.
 ///
@@ -67,8 +68,10 @@ class ChatMatrixService implements ChatBackend {
     if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
     final res = await http.get(uri, headers: headers);
     if (res.statusCode != 200) {
+      debugLog('ChatMatrix.loadChats', 'sync failed ${res.statusCode}: ${res.body}');
       throw Exception('Matrix /sync failed ${res.statusCode}: ${res.body}');
     }
+    debugLog('ChatMatrix.loadChats', 'sync OK, rooms parsed');
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     final rooms = <Chat>[];
     final join = (json['rooms'] as Map?)?['join'] as Map?;
@@ -109,7 +112,7 @@ class ChatMatrixService implements ChatBackend {
                 }
               }
             } catch (_) {}
-          }
+            }
 
           // Matrix display-name algorithm (pragmatic):
           // 1) m.room.name
@@ -140,6 +143,7 @@ class ChatMatrixService implements ChatBackend {
                 final jmUri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
                 final headers2 = await _authHeaders();
                 final jmRes = await http.get(jmUri, headers: headers2).timeout(const Duration(seconds: 6));
+                debugLog('ChatMatrix.loadChats', 'joined_members ${roomId} -> ${jmRes.statusCode}');
                 if (jmRes.statusCode == 200) {
                   final jm = jsonDecode(jmRes.body) as Map<String, dynamic>;
                   final Map<String, dynamic> joined = jm['joined'] as Map<String, dynamic>? ?? {};
@@ -242,7 +246,9 @@ class ChatMatrixService implements ChatBackend {
             lastMessage: lastMessage ?? '',
             lastMessageTime: lastTs,
           ));
-        } catch (_) {}
+          } catch (e) {
+            debugLog('ChatMatrix.loadChats', 'error parsing room $roomId: $e');
+          }
       }
     }
     return rooms;
@@ -255,8 +261,9 @@ class ChatMatrixService implements ChatBackend {
     final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/messages?dir=b&limit=$limit');
     final headers = await _authHeaders();
     if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
-    final res = await http.get(uri, headers: headers);
-    if (res.statusCode != 200) throw Exception('Matrix messages failed ${res.statusCode}: ${res.body}');
+  final res = await http.get(uri, headers: headers);
+  debugLog('ChatMatrix.loadMessages', 'GET ${uri.toString()} -> ${res.statusCode}');
+  if (res.statusCode != 200) throw Exception('Matrix messages failed ${res.statusCode}: ${res.body}');
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     final chunk = json['chunk'] as List? ?? [];
     final out = <Message>[];
@@ -304,9 +311,11 @@ class ChatMatrixService implements ChatBackend {
     final body = jsonEncode(payload);
     final headers = await _authHeaders();
     if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
-    final res = await http.put(uri, headers: headers, body: body);
-    if (res.statusCode < 200 || res.statusCode >= 300) throw Exception('Matrix send failed ${res.statusCode}: ${res.body}');
-    final json = jsonDecode(res.body) as Map<String, dynamic>;
+  debugLog('ChatMatrix.sendMessage', 'PUT ${uri.toString()} payload: $payload');
+  final res = await http.put(uri, headers: headers, body: body);
+  debugLog('ChatMatrix.sendMessage', 'response ${res.statusCode}: ${res.body}');
+  if (res.statusCode < 200 || res.statusCode >= 300) throw Exception('Matrix send failed ${res.statusCode}: ${res.body}');
+  final json = jsonDecode(res.body) as Map<String, dynamic>;
     final eventId = json['event_id'] as String? ?? txn;
     // Record mapping so markDelivered/markRead can resolve room
     _messageIdToRoom[eventId] = roomId;
@@ -343,9 +352,11 @@ class ChatMatrixService implements ChatBackend {
     if (avatarUrl != null && avatarUrl.isNotEmpty) payload['room_alias_name'] = avatarUrl;
     final headers = await _authHeaders();
     if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
-    final res = await http.post(uri, headers: headers, body: jsonEncode(payload));
-    if (res.statusCode != 200) throw Exception('Matrix createRoom failed ${res.statusCode}: ${res.body}');
-    final json = jsonDecode(res.body) as Map<String, dynamic>;
+  debugLog('ChatMatrix.createChat', 'POST ${uri.toString()} payload: ${jsonEncode(payload)}');
+  final res = await http.post(uri, headers: headers, body: jsonEncode(payload));
+  debugLog('ChatMatrix.createChat', 'response ${res.statusCode}: ${res.body}');
+  if (res.statusCode != 200) throw Exception('Matrix createRoom failed ${res.statusCode}: ${res.body}');
+  final json = jsonDecode(res.body) as Map<String, dynamic>;
     final roomId = json['room_id'] as String;
     return {'\u0024id': roomId, 'name': name ?? roomId, 'avatarUrl': avatarUrl ?? '', 'members': members};
   }
@@ -353,7 +364,9 @@ class ChatMatrixService implements ChatBackend {
   /// For direct chat convenience: try to find an existing room with exactly the
   /// two members (no strict guarantee, but uses /joined_members for the bot account)
   Future<Map<String, dynamic>> getOrCreateDirectChat(String peerUserId) async {
+    debugLog('ChatMatrix.getOrCreateDirectChat', 'peer: $peerUserId');
     final map = await createChat([peerUserId]);
+    debugLog('ChatMatrix.getOrCreateDirectChat', 'created ${map['\u0024id']}');
     return map;
   }
 
@@ -441,7 +454,9 @@ class ChatMatrixService implements ChatBackend {
     final headers = await _authHeaders();
     // Override content-type for binary upload
     headers['Content-Type'] = contentType;
+    debugLog('ChatMatrix.uploadMedia', 'POST ${uri.toString()} filename:$fileName contentType:$contentType size:${bytes.length}');
     final res = await http.post(uri, headers: headers, body: bytes);
+    debugLog('ChatMatrix.uploadMedia', 'response ${res.statusCode}: ${res.body}');
     if (res.statusCode < 200 || res.statusCode >= 300) throw Exception('Matrix media upload failed ${res.statusCode}: ${res.body}');
     final json = jsonDecode(res.body) as Map<String, dynamic>;
     return json['content_uri'] as String;
@@ -453,9 +468,11 @@ class ChatMatrixService implements ChatBackend {
     final uri = _csPath('/_matrix/client/v3/profile/${Uri.encodeComponent(userId)}');
     final headers = await _authHeaders();
     if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
-    final res = await http.get(uri, headers: headers);
-    if (res.statusCode != 200) throw Exception('Matrix profile failed ${res.statusCode}: ${res.body}');
-    final json = jsonDecode(res.body) as Map<String, dynamic>;
+  debugLog('ChatMatrix.getUserInfo', 'GET ${uri.toString()}');
+  final res = await http.get(uri, headers: headers);
+  debugLog('ChatMatrix.getUserInfo', 'response ${res.statusCode}: ${res.body}');
+  if (res.statusCode != 200) throw Exception('Matrix profile failed ${res.statusCode}: ${res.body}');
+  final json = jsonDecode(res.body) as Map<String, dynamic>;
     // json may contain displayname and avatar_url
     return {
       'displayName': json['displayname'] as String? ?? userId,
@@ -478,5 +495,31 @@ class ChatMatrixService implements ChatBackend {
     final out = <String>[];
     for (final k in joined.keys) out.add(k.toString());
     return out;
+  }
+
+  /// Set the human-readable room name (m.room.name state event)
+  Future<void> setRoomName(String roomId, String name) async {
+    if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
+    final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state/m.room.name');
+    final headers = await _authHeaders();
+    if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
+    final body = jsonEncode({'name': name});
+    final res = await http.put(uri, headers: headers, body: body);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw Exception('Matrix setRoomName failed ${res.statusCode}: ${res.body}');
+  }
+
+  /// Set the room avatar by uploading the file and setting m.room.avatar state
+  Future<String> setRoomAvatar(String roomId, List<int> bytes, {required String contentType, String? fileName}) async {
+    if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
+    // Upload media to content repo
+    final mxc = await uploadMedia(bytes, contentType: contentType, fileName: fileName);
+    // Set m.room.avatar state
+    final uri = _csPath('/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state/m.room.avatar');
+    final headers = await _authHeaders();
+    if (!headers.containsKey('Authorization')) throw Exception('Matrix access token not configured');
+    final body = jsonEncode({'url': mxc});
+    final res = await http.put(uri, headers: headers, body: body);
+    if (res.statusCode < 200 || res.statusCode >= 300) throw Exception('Matrix setRoomAvatar failed ${res.statusCode}: ${res.body}');
+    return mxc;
   }
 }

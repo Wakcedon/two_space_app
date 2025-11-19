@@ -18,6 +18,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
+import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/realtime_service.dart';
@@ -125,7 +126,20 @@ class _ChatScreenState extends State<ChatScreen> {
           doc = null;
         }
       }
-      if (doc == null) doc = await _chatService.getOrCreateDirectChat(peerId);
+      if (doc == null) {
+        try {
+          doc = await _chatService.getOrCreateDirectChat(peerId);
+        } catch (e) {
+          // If creating/joining a Matrix room failed (no token / server error),
+          // fallback to a local placeholder chat id so the UI remains usable
+          // and messages will be queued by the existing pending queue logic.
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось создать/открыть комнату: ${MatrixService.readableError(e)}. Сообщения будут поставлены в очередь.')));
+          }
+          final fallbackId = 'local_chat_${peerId.replaceAll(RegExp(r"[^A-Za-z0-9_]"), '_')}_${DateTime.now().millisecondsSinceEpoch}';
+          doc = {'\u0024id': fallbackId, 'members': [peerId], 'name': widget.title ?? peerId, 'avatarUrl': widget.avatarUrl ?? ''};
+        }
+      }
       // Set initial displayName/avatar from provided widget values (fast path)
       if (widget.title != null || (widget.chat != null && widget.chat!.name.isNotEmpty)) {
         final initialName = widget.title ?? (widget.chat != null ? widget.chat!.name : null);
@@ -423,6 +437,127 @@ class _ChatScreenState extends State<ChatScreen> {
       return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
     } catch (_) {
       return '';
+    }
+  }
+
+  Future<void> _editRoomName() async {
+    if (_chatId == null) return;
+    if (!Environment.useMatrix || _chatId!.startsWith('local_chat_')) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Изменение имени доступно только при подключении к серверу')));
+      return;
+    }
+    final ctrl = TextEditingController(text: _peerDisplayName ?? '');
+    final res = await showDialog<String?>(context: context, builder: (c) {
+      return AlertDialog(
+        title: const Text('Изменить имя чата'),
+        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: 'Имя чата')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(c).pop(null), child: const Text('Отмена')),
+          TextButton(onPressed: () => Navigator.of(c).pop(ctrl.text.trim()), child: const Text('Сохранить')),
+        ],
+      );
+    });
+    if (res == null) return;
+    final newName = res.trim();
+    if (newName.isEmpty) return;
+    try {
+      await MatrixService.setRoomName(_chatId!, newName);
+      if (mounted) setState(() => _peerDisplayName = newName);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Имя чата обновлено')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось обновить имя: ${MatrixService.readableError(e)}')));
+    }
+  }
+
+  Future<void> _pickRoomAvatar() async {
+    if (_chatId == null) return;
+    if (!Environment.useMatrix || _chatId!.startsWith('local_chat_')) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Изменение аватара доступно только при подключении к серверу')));
+      return;
+    }
+    final choice = await showModalBottomSheet<String?>(context: context, builder: (c) {
+      return SafeArea(
+        child: Wrap(children: [
+          ListTile(leading: const Icon(Icons.photo_library), title: const Text('Галерея'), onTap: () => Navigator.of(c).pop('gallery')),
+          ListTile(leading: const Icon(Icons.camera_alt), title: const Text('Камера'), onTap: () => Navigator.of(c).pop('camera')),
+          ListTile(leading: const Icon(Icons.insert_drive_file), title: const Text('Файл'), onTap: () => Navigator.of(c).pop('file')),
+          ListTile(leading: const Icon(Icons.close), title: const Text('Отмена'), onTap: () => Navigator.of(c).pop(null)),
+        ]),
+      );
+    });
+    if (choice == null) return;
+    try {
+      String? path;
+      if (choice == 'gallery') {
+        final picker = ImagePicker();
+        final picked = await picker.pickImage(source: ImageSource.gallery);
+        if (picked != null) path = picked.path;
+      } else if (choice == 'camera') {
+        final picker = ImagePicker();
+        final picked = await picker.pickImage(source: ImageSource.camera);
+        if (picked != null) path = picked.path;
+      } else if (choice == 'file') {
+        final res = await FilePicker.platform.pickFiles(allowMultiple: false, type: FileType.image);
+        if (res != null && res.files.isNotEmpty) path = res.files.first.path;
+      }
+      if (path == null) return;
+      // Upload and set avatar
+      final mxc = await MatrixService.setRoomAvatarFromFile(_chatId!, path);
+      final view = MatrixService.getFileViewUrl(mxc).toString();
+      if (mounted) setState(() => _peerAvatarUrl = view);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Аватар обновлён')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось обновить аватар: ${MatrixService.readableError(e)}')));
+    }
+  }
+
+  Future<void> _showParticipants() async {
+    if (_chatId == null) return;
+    if (!Environment.useMatrix || _chatId!.startsWith('local_chat_')) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Список участников недоступен оффлайн')));
+      return;
+    }
+    try {
+      final members = await ChatMatrixService().getRoomMembers(_chatId!);
+      final users = await MatrixService.getUsersByIds(members, concurrency: 6);
+      if (!mounted) return;
+      await showModalBottomSheet(context: context, builder: (c) {
+        return SafeArea(
+          child: SizedBox(
+            height: 420,
+            child: Column(
+              children: [
+                Padding(padding: const EdgeInsets.all(12), child: Text('Участники (${users.length})', style: const TextStyle(fontWeight: FontWeight.w600))),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: users.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, i) {
+                      final u = users[i];
+                      final id = (u['\u0024id'] ?? u['id'] ?? u['id'])?.toString() ?? '';
+                      final prefs = (u['prefs'] is Map) ? Map<String, dynamic>.from(u['prefs']) : <String, dynamic>{};
+                      final avatar = prefs['avatarUrl'] as String?;
+                      final name = (u['name'] ?? id) as String;
+                      return ListTile(
+                        leading: UserAvatar(avatarUrl: avatar, radius: 20),
+                        title: Text(name),
+                        subtitle: Text(id),
+                        onTap: () {
+                          Navigator.pop(c);
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: id, initialName: name, initialAvatar: avatar)));
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      });
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось загрузить участников: ${MatrixService.readableError(e)}')));
     }
   }
 
@@ -1131,18 +1266,41 @@ class _ChatScreenState extends State<ChatScreen> {
                 bottom: false,
                 child: Row(
                   children: [
-                    UserAvatar(avatarUrl: _peerAvatarUrl ?? widget.avatarUrl, radius: 20),
+                    // Tappable avatar: allow changing room avatar when user taps
+                    GestureDetector(
+                      onTap: () async {
+                        await _pickRoomAvatar();
+                      },
+                      child: UserAvatar(avatarUrl: _peerAvatarUrl ?? widget.avatarUrl, radius: 20),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(_peerDisplayName ?? widget.title ?? 'Чат', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          // Tappable name: open edit dialog
+                          InkWell(
+                            onTap: () async {
+                              await _editRoomName();
+                            },
+                            child: Row(children: [
+                              Expanded(child: Text(_peerDisplayName ?? widget.title ?? 'Чат', style: const TextStyle(fontWeight: FontWeight.w600))),
+                              const SizedBox(width: 6),
+                              const Icon(Icons.edit, size: 16),
+                            ]),
+                          ),
                           const SizedBox(height: 2),
                           Text(_formatUserStatusFromPrefs(_peerPrefs).isEmpty ? '' : _formatUserStatusFromPrefs(_peerPrefs), style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color)),
                         ],
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Участники',
+                      onPressed: () async {
+                        if (_chatId != null) await _showParticipants();
+                      },
+                      icon: const Icon(Icons.group_outlined),
                     ),
                     // actions
                     _syncing
