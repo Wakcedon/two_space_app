@@ -76,6 +76,44 @@ class ChatMatrixService {
     return out;
   }
 
+  /// Return list of room IDs the current user has joined.
+  Future<List<String>> getJoinedRooms() async {
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/joined_rooms');
+    final headers = await _authHeaders();
+    final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) return <String>[];
+    try {
+      final js = jsonDecode(res.body) as Map<String, dynamic>;
+      final joined = (js['joined_rooms'] as List? ?? []).cast<String>();
+      return joined;
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  /// Fetch room name and avatar (state events) for a room
+  Future<Map<String, String?>> getRoomNameAndAvatar(String roomId) async {
+    final headers = await _authHeaders();
+    final out = <String, String?>{'name': null, 'avatar': null};
+    try {
+      final nameUri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state/m.room.name');
+      final nameRes = await http.get(nameUri, headers: headers).timeout(const Duration(seconds: 6));
+      if (nameRes.statusCode == 200) {
+        final js = jsonDecode(nameRes.body) as Map<String, dynamic>;
+        out['name'] = js['name']?.toString();
+      }
+    } catch (_) {}
+    try {
+      final avUri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state/m.room.avatar');
+      final avRes = await http.get(avUri, headers: headers).timeout(const Duration(seconds: 6));
+      if (avRes.statusCode == 200) {
+        final js = jsonDecode(avRes.body) as Map<String, dynamic>;
+        out['avatar'] = js['avatar_url']?.toString();
+      }
+    } catch (_) {}
+    return out;
+  }
+
   Future<String> setRoomName(String roomId, String name) async {
     final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/state/m.room.name');
     final headers = await _authHeaders();
