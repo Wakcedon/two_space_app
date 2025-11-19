@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
@@ -9,6 +10,11 @@ import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_session.dart';
 
 class ChatMatrixService {
   ChatMatrixService();
+
+  // simple in-memory cache for generated waveforms keyed by media id or local path
+  final Map<String, List<double>> _waveformCache = {};
+  bool _syncRunning = false;
+  String? _nextBatch;
 
   String get homeserver => Environment.matrixHomeserverUrl.replaceAll(RegExp(r'/$'), '');
 
@@ -177,13 +183,20 @@ class ChatMatrixService {
   /// Generate waveform samples for an audio file (ogg/mp3) located at localPath.
   /// Returns a list of normalized amplitude values (0..1). Uses FFmpeg to convert to WAV then samples.
   Future<List<double>> generateWaveform(String localPath, {int samples = 64}) async {
+    // If the exact path was generated before, reuse
+    try {
+      if (_waveformCache.containsKey(localPath)) return _waveformCache[localPath]!;
+    } catch (_) {}
+
     // convert to wav in temp
     final out = File('${Directory.systemTemp.path}/wave_${DateTime.now().millisecondsSinceEpoch}.wav');
     final cmd = '-y -i "${localPath.replaceAll('"', '\\"')}" -ac 1 -ar 16000 "${out.path.replaceAll('"', '\\"')}"';
     final session = await FFmpegKit.execute(cmd);
     final rc = await session.getReturnCode();
     if (rc == null || !rc.isValueSuccess()) {
-      return List<double>.filled(samples, 0.12);
+      final fallback = List<double>.filled(samples, 0.12);
+      _waveformCache[localPath] = fallback;
+      return fallback;
     }
     try {
       final bytes = await out.readAsBytes();
@@ -191,7 +204,11 @@ class ChatMatrixService {
       if (bytes.length <= 44) return List<double>.filled(samples, 0.12);
       final data = bytes.sublist(44);
       final sampleCount = data.length ~/ 2;
-      if (sampleCount <= 0) return List<double>.filled(samples, 0.12);
+      if (sampleCount <= 0) {
+        final fallback = List<double>.filled(samples, 0.12);
+        _waveformCache[localPath] = fallback;
+        return fallback;
+      }
       final step = math.max(1, sampleCount ~/ samples);
       final outVals = <double>[];
       for (var i = 0; i < samples; i++) {
@@ -204,10 +221,61 @@ class ChatMatrixService {
         final norm = signed.abs() / 32768.0;
         outVals.add(norm.clamp(0.0, 1.0));
       }
+      _waveformCache[localPath] = outVals;
       return outVals;
     } catch (_) {
-      return List<double>.filled(samples, 0.12);
+      final fallback = List<double>.filled(samples, 0.12);
+      _waveformCache[localPath] = fallback;
+      return fallback;
     }
+  }
+
+  /// Return waveform for a media id (preferred) or localPath as fallback. Uses in-memory cache.
+  Future<List<double>> getWaveformForMedia({required String mediaId, required String localPath, int samples = 64}) async {
+    final key = mediaId.isNotEmpty ? mediaId : localPath;
+    if (_waveformCache.containsKey(key)) return _waveformCache[key]!;
+    final wf = await generateWaveform(localPath, samples: samples);
+    try { _waveformCache[key] = wf; } catch (_) {}
+    return wf;
+  }
+
+  /// Start a long-polling /sync loop. onSync will be called with parsed JSON each time a sync response arrives.
+  void startSync(Function(Map<String, dynamic>) onSync, {int timeoutMs = 30000}) {
+    if (_syncRunning) return;
+    _syncRunning = true;
+    () async {
+      var backoff = 1;
+      while (_syncRunning) {
+        try {
+          final headers = await _authHeaders();
+          final uri = Uri.parse('$homeserver/_matrix/client/v3/sync?timeout=$timeoutMs${_nextBatch != null ? '&since=${Uri.encodeComponent(_nextBatch!)}' : ''}');
+          final res = await http.get(uri, headers: headers).timeout(Duration(milliseconds: timeoutMs + 10000));
+          if (res.statusCode == 200) {
+            backoff = 1;
+            final js = jsonDecode(res.body) as Map<String, dynamic>;
+            _nextBatch = js['next_batch']?.toString() ?? _nextBatch;
+            try {
+              onSync(js);
+            } catch (_) {}
+          } else if (res.statusCode == 401 || res.statusCode == 403) {
+            // auth problem - stop sync
+            _syncRunning = false;
+            break;
+          } else {
+            await Future.delayed(Duration(seconds: math.min(8, backoff)));
+            backoff = (backoff * 2).clamp(1, 8);
+          }
+        } catch (_) {
+          await Future.delayed(Duration(seconds: math.min(8, backoff)));
+          backoff = (backoff * 2).clamp(1, 8);
+        }
+      }
+    }();
+  }
+
+  /// Stop sync loop
+  void stopSync() {
+    _syncRunning = false;
   }
 
   Future<dynamic> sendMessage(String roomId, String senderId, String text, {String type = 'text', String? mediaFileId}) async {
@@ -288,6 +356,33 @@ class ChatMatrixService {
       }
     } catch (_) {}
     return out;
+  }
+
+  /// Fetch joined members for a room. Returns list of maps: {userId, displayName, avatarUrl}
+  Future<List<Map<String, String?>>> getRoomMembers(String roomId) async {
+    try {
+      final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
+      final headers = await _authHeaders();
+      final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return [];
+      final js = jsonDecode(res.body) as Map<String, dynamic>;
+      final joined = js['joined'] as Map<String, dynamic>? ?? {};
+      final out = <Map<String, String?>>[];
+      for (final entry in joined.entries) {
+        final uid = entry.key;
+        String? display;
+        String? avatar;
+        try {
+          final info = await getUserInfo(uid);
+          display = info['displayName']?.toString();
+          avatar = info['avatarUrl']?.toString();
+        } catch (_) {}
+        out.add({'userId': uid, 'displayName': display, 'avatarUrl': avatar});
+      }
+      return out;
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<String> setRoomName(String roomId, String name) async {

@@ -8,6 +8,7 @@ import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:math' as math;
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
@@ -23,6 +24,8 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final ChatMatrixService _svc = ChatMatrixService();
   final TextEditingController _controller = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _searching = false;
   List<_Msg> _messages = [];
   bool _loading = true;
   bool _sending = false;
@@ -51,6 +54,62 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadMessages();
+    // start sync loop to receive new events
+    _svc.startSync((js) {
+      _handleSync(js);
+    });
+  }
+
+  @override
+  void dispose() {
+    _svc.stopSync();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldQ = (oldWidget.searchQuery ?? '').trim();
+    final newQ = (widget.searchQuery ?? '').trim();
+    if (oldQ != newQ) {
+      _performServerSearch(newQ, widget.searchType ?? 'all');
+    }
+  }
+
+  void _handleSync(Map<String, dynamic> js) {
+    try {
+      final rooms = js['rooms'] as Map<String, dynamic>? ?? {};
+      final join = rooms['join'] as Map<String, dynamic>? ?? {};
+      if (join.containsKey(widget.chat.id)) {
+        final room = join[widget.chat.id] as Map<String, dynamic>;
+        final timeline = room['timeline'] as Map<String, dynamic>?;
+        final events = (timeline?['events'] as List? ?? []);
+        for (final ev in events) {
+          final e = ev as Map<String, dynamic>;
+          if (e['type'] == 'm.room.message') {
+            // reload messages for simplicity
+            if (mounted) _loadMessages();
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _performServerSearch(String q, String type) async {
+    if (q.isEmpty) {
+      setState(() { _searchResults = []; _searching = false; });
+      return;
+    }
+    setState(() { _searching = true; _searchResults = []; });
+    try {
+      final res = await _svc.searchMessages(q, type: type);
+      setState(() { _searchResults = res; });
+    } catch (_) {
+      setState(() { _searchResults = []; });
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -138,19 +197,75 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _showMessageActions(_Msg m) async {
-    final options = <String, VoidCallback>{
-      'Ответить': () => _sendReplyForEvent(m.id),
-      'Реакция': () => _sendReactionForEvent(m.id),
-      'Закрепить/Открепить': () => _pinUnpinEvent(m.id),
-      'Удалить': () => _redactEvent(m.id),
-    };
-    final pick = await showModalBottomSheet<String>(context: context, builder: (c) {
-      return SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: options.keys.map((k) => ListTile(title: Text(k), onTap: () => Navigator.pop(c, k))).toList()));
+  Future<void> _showMessageActions(_Msg m, Offset globalPos) async {
+    final overlay = Overlay.of(context);
+    OverlayEntry? entry;
+    entry = OverlayEntry(builder: (ctx) {
+      final mq = MediaQuery.of(ctx);
+      final left = math.max(8.0, globalPos.dx - 120);
+      final top = math.max(8.0, globalPos.dy - 80 - mq.viewPadding.top);
+      return GestureDetector(
+        onTap: () { entry?.remove(); },
+        behavior: HitTestBehavior.translucent,
+        child: Stack(children: [
+          Positioned(left: left, top: top, child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.85, end: 1.0),
+            duration: const Duration(milliseconds: 180),
+            builder: (ctx, s, child2) => Transform.scale(scale: s, child: Opacity(opacity: ((s - 0.85) / 0.15).clamp(0.0, 1.0), child: child2)),
+            child: Material(
+              color: Colors.transparent,
+              child: Stack(children: [
+                // triangle pointer
+                Positioned(left: 20, top: -8, child: Transform.rotate(angle: 0.0, child: ClipPath(clipper: _TriangleClipper(), child: Container(width: 18, height: 12, color: Theme.of(context).colorScheme.surface)))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8)]),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    // reactions row
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      for (final e in ['👍','❤️','😂','🔥','😮','🎉'])
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: InkWell(
+                            onTap: () async {
+                              entry?.remove();
+                              try {
+                                await _svc.sendReaction(widget.chat.id, m.id, e);
+                                await _loadMessages();
+                              } catch (_) {}
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant, shape: BoxShape.circle),
+                              child: Text(e, style: const TextStyle(fontSize: 18)),
+                            ),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 6),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      TextButton.icon(onPressed: () { entry?.remove(); _sendReplyForEvent(m.id); }, icon: const Icon(Icons.reply), label: const Text('Ответ')), 
+                      TextButton.icon(onPressed: () { entry?.remove(); _pinUnpinEvent(m.id); }, icon: const Icon(Icons.push_pin), label: const Text('Закрепить')), 
+                      TextButton.icon(onPressed: () { entry?.remove(); _redactEvent(m.id); }, icon: const Icon(Icons.delete), label: const Text('Удалить')),
+                      TextButton.icon(onPressed: () async { entry?.remove(); final picked = await _showEmojiPickerDialog(); if (picked != null) { try { await _svc.sendReaction(widget.chat.id, m.id, picked); await _loadMessages(); } catch (_) {} } }, icon: const Icon(Icons.emoji_emotions), label: const Text('Ещё')),
+                    ])
+                  ]),
+                ),
+              ]),
+            ),
+          )),
+        ]),
+      );
     });
-    if (pick == null) return;
-    final action = options[pick];
-    if (action != null) action();
+    overlay?.insert(entry);
+  }
+
+  Future<String?> _showEmojiPickerDialog() async {
+    String? chosen;
+    await showDialog(context: context, builder: (c) {
+      return Dialog(child: SizedBox(width: 360, height: 420, child: EmojiPicker(onEmojiSelected: (cat, em) { chosen = em.emoji; Navigator.of(c).pop(); }, onBackspacePressed: () {}, config: const Config(emojiSizeMax: 32))));
+    });
+    return chosen;
   }
 
   Future<void> _sendText() async {
@@ -195,75 +310,105 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Expanded(
-        child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.separated(
-                  reverse: true,
-                  padding: const EdgeInsets.all(12),
-                  itemBuilder: (c, i) {
-                    final m = _visibleMessages[i];
-                    final bubble = Container(
-                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      decoration: BoxDecoration(color: m.isOwn ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        if (!m.isOwn) Text(m.senderName ?? m.senderId ?? '', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 6),
-                        // message types
-                          if (m.type == 'm.image' && (m.mediaId != null && m.mediaId!.isNotEmpty))
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 300, maxHeight: 240),
-                              child: Image.network(
-                                _svc.mxcToHttp(m.mediaId!),
-                                fit: BoxFit.cover,
-                                width: 280,
-                                height: 180,
-                                errorBuilder: (c, e, s) => Container(width: 120, height: 80, color: Theme.of(context).colorScheme.surface, child: const Center(child: Icon(Icons.broken_image))),
-                              ),
-                            ),
-                          )
-                        else if (m.type == 'm.audio' || (m.text.toLowerCase().endsWith('.ogg') || (m.mediaId?.toLowerCase().endsWith('.ogg') ?? false)))
-                          ConstrainedBox(
-                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.6),
-                            child: _AudioMessageWidget(message: m, svc: _svc, audioPlayers: _audioPlayers),
-                          )
-                        else
-                          Text(m.text),
-                      ]),
-                    );
+    final Widget bodyWidget;
+    if (_loading) {
+      bodyWidget = const Center(child: CircularProgressIndicator());
+    } else if ((widget.searchQuery ?? '').trim().isNotEmpty) {
+      if (_searching) {
+        bodyWidget = const Center(child: CircularProgressIndicator());
+      } else {
+        bodyWidget = ListView.separated(
+          padding: const EdgeInsets.all(8),
+          itemBuilder: (c, i) {
+            final item = _searchResults[i];
+            final ev = item['event'] as Map<String, dynamic>? ?? {};
+            final content = ev['content'] as Map<String, dynamic>? ?? {};
+            final body = content['body']?.toString() ?? '';
+            final sender = ev['sender']?.toString() ?? '';
+            final roomId = (item['context'] is Map) ? ((item['context'] as Map)['room_id']?.toString() ?? '') : '';
+            return ListTile(
+              title: Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text(sender + (roomId.isNotEmpty ? ' • $roomId' : '')),
+              onTap: () async {
+                if (roomId.isEmpty) return;
+                final info = await _svc.getRoomNameAndAvatar(roomId);
+                final chat = Chat(id: roomId, name: info['name'] ?? roomId, avatarUrl: info['avatar'], members: [], lastMessage: '');
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)));
+              },
+            );
+          },
+          separatorBuilder: (_, __) => const Divider(),
+          itemCount: _searchResults.length,
+        );
+      }
+    } else {
+      bodyWidget = ListView.separated(
+        reverse: true,
+        padding: const EdgeInsets.all(12),
+        itemBuilder: (c, i) {
+          final m = _visibleMessages[i];
+          final bubble = Container(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(color: m.isOwn ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (!m.isOwn) Text(m.senderName ?? m.senderId ?? '', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              if (m.type == 'm.image' && (m.mediaId != null && m.mediaId!.isNotEmpty))
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300, maxHeight: 240),
+                    child: Image.network(
+                      _svc.mxcToHttp(m.mediaId!),
+                      fit: BoxFit.cover,
+                      width: 280,
+                      height: 180,
+                      errorBuilder: (c, e, s) => Container(width: 120, height: 80, color: Theme.of(context).colorScheme.surface, child: const Center(child: Icon(Icons.broken_image))),
+                    ),
+                  ),
+                )
+              else if (m.type == 'm.audio' || (m.text.toLowerCase().endsWith('.ogg') || (m.mediaId?.toLowerCase().endsWith('.ogg') ?? false)))
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.6),
+                  child: _AudioMessageWidget(message: m, svc: _svc, audioPlayers: _audioPlayers),
+                )
+              else
+                Text(m.text),
+            ]),
+          );
 
-                    return Align(
-                      alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        if (!m.isOwn)
-                          GestureDetector(
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: m.senderId ?? ''))),
-                            child: CircleAvatar(radius: 16, backgroundImage: m.senderAvatar != null ? NetworkImage(m.senderAvatar!) : null, child: m.senderAvatar == null ? Text((m.senderName ?? '?')[0]) : null),
-                          ),
-                        const SizedBox(width: 8),
-                        TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 8.0, end: 0.0),
-                          duration: Duration(milliseconds: 240 + (i % 5) * 30),
-                          builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
-                          child: GestureDetector(
-                            onLongPress: () => _showMessageActions(m),
-                            child: bubble,
-                          ),
-                        ),
-                        if (m.isOwn) const SizedBox(width: 8),
-                        if (m.isOwn) CircleAvatar(radius: 16, child: Text('Y')),
-                      ]),
-                    );
-                  },
-                separatorBuilder: (_, __) => const SizedBox(height: 2),
-                  itemCount: _visibleMessages.length,
+          return Align(
+            alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
+            child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (!m.isOwn)
+                GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: m.senderId ?? ''))),
+                  child: CircleAvatar(radius: 16, backgroundImage: m.senderAvatar != null ? NetworkImage(m.senderAvatar!) : null, child: m.senderAvatar == null ? Text((m.senderName ?? '?')[0]) : null),
+                ),
+              const SizedBox(width: 8),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 8.0, end: 0.0),
+                duration: Duration(milliseconds: 240 + (i % 5) * 30),
+                builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
+                child: GestureDetector(
+                  onLongPressStart: (details) => _showMessageActions(m, details.globalPosition),
+                  child: bubble,
+                ),
               ),
-      ),
+              if (m.isOwn) const SizedBox(width: 8),
+              if (m.isOwn) CircleAvatar(radius: 16, child: Text('Y')),
+            ]),
+          );
+        },
+        separatorBuilder: (_, __) => const SizedBox(height: 2),
+        itemCount: _visibleMessages.length,
+      );
+    }
+
+    return Column(children: [
+      Expanded(child: bodyWidget),
       const Divider(height: 1),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6),
@@ -306,6 +451,7 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
   Duration _position = Duration.zero;
   bool _playing = false;
   AudioPlayer? _player;
+  List<double> _waveform = [];
 
   @override
   void initState() {
@@ -319,6 +465,11 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
       final path = await widget.svc.downloadMediaToTempFile(m ?? '');
       if (!mounted) return;
       setState(() => _localPath = path);
+      // request waveform (cached by service)
+      try {
+        final wf = await widget.svc.getWaveformForMedia(mediaId: widget.message.mediaId ?? '', localPath: path, samples: 24);
+        if (mounted) setState(() => _waveform = wf);
+      } catch (_) {}
       _player = widget.audioPlayers[widget.message.id] ?? AudioPlayer();
       widget.audioPlayers[widget.message.id] = _player!;
       // ensure player is in low-latency mode for small clips
@@ -354,7 +505,8 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final bars = Row(mainAxisSize: MainAxisSize.min, children: List.generate(16, (i) => Container(margin: const EdgeInsets.symmetric(horizontal: 2), width: 4, height: 12.0 + (i.isEven ? 8 : 0), decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.12), borderRadius: BorderRadius.circular(2)))));
+    final samples = (_waveform.isNotEmpty) ? _waveform : List<double>.generate(24, (i) => 0.2 + (i.isEven ? 0.12 : 0.0));
+    final bars = Row(mainAxisSize: MainAxisSize.min, children: List.generate(samples.length, (i) { final h = 12.0 + (samples[i] * 48.0); return Container(margin: const EdgeInsets.symmetric(horizontal: 2), width: 4, height: h, decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.12), borderRadius: BorderRadius.circular(2))); }));
     final progress = (_duration.inMilliseconds > 0) ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0) : 0.0;
     return GestureDetector(
       onTapDown: (ev) {
@@ -368,8 +520,22 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
       child: Row(children: [
         IconButton(icon: _playing ? const Icon(Icons.pause_circle) : const Icon(Icons.play_circle), onPressed: _togglePlay),
         Stack(children: [
-          ClipRRect(borderRadius: BorderRadius.circular(8), child: Container(width: 200, height: 36, color: Theme.of(context).colorScheme.surface.withOpacity(0.08), child: Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0), child: bars)))) ,
-          Positioned.fill(child: FractionallySizedBox(widthFactor: progress, alignment: Alignment.centerLeft, child: Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(0.18), borderRadius: BorderRadius.circular(8)))))
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 200,
+              height: 36,
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.08),
+              child: Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0), child: bars)),
+            ),
+          ),
+          Positioned.fill(
+            child: FractionallySizedBox(
+              widthFactor: progress,
+              alignment: Alignment.centerLeft,
+              child: Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(0.18), borderRadius: BorderRadius.circular(8))),
+            ),
+          ),
         ]),
         const SizedBox(width: 8),
         Text(_formatDuration(_position)),
@@ -382,4 +548,19 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
     final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$mm:$ss';
   }
+}
+
+class _TriangleClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final p = Path();
+    p.moveTo(0, size.height);
+    p.lineTo(size.width / 2, 0);
+    p.lineTo(size.width, size.height);
+    p.close();
+    return p;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
