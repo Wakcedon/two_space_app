@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../config/environment.dart';
+import 'sso_webview_screen.dart';
 import '../services/appwrite_service.dart';
 import '../widgets/section_card.dart';
+import '../widgets/glass_card.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/app_logo.dart';
@@ -168,7 +172,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               constraints: const BoxConstraints(minWidth: 320, maxWidth: 520),
                 child: Form(
                 key: _formKey,
-                child: SectionCard(
+                child: GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -255,6 +260,41 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         TextButton(
                           onPressed: () => Navigator.pushNamed(context, '/register'),
                           child: Text('Создать аккаунт', style: TextStyle(color: textColor.withAlpha((0.85 * 255).round()))),
+                        ),
+                      // SSO buttons (open homeserver SSO redirect in browser)
+                      if (Environment.useMatrix)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Column(children: [
+                            Text('Войти через SSO', style: TextStyle(color: textColor.withAlpha(200))),
+                            const SizedBox(height: 8),
+                            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.login),
+                                label: const Text('Google'),
+                                onPressed: () async {
+                                  // in-app SSO via embedded WebView
+                                  final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google')));
+                                  if (ok == true) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Вход через Google завершён')));
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.person),
+                                label: const Text('Yandex'),
+                                onPressed: () async {
+                                  final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex')));
+                                  if (ok == true) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Вход через Yandex завершён')));
+                                  }
+                                },
+                              ),
+                            ]),
+                          ]),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pushNamed(context, '/forgot'),

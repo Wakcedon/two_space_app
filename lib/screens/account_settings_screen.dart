@@ -9,6 +9,8 @@ import 'package:two_space_app/models/user.dart';
 import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/services/update_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../config/environment.dart';
 import 'package:two_space_app/services/settings_service.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:two_space_app/screens/update_screen.dart';
@@ -709,6 +711,51 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                                         ],
                                       ),
                                     ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                // Linked accounts section (SSO)
+                                Material(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(UITokens.corner)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text('Связанные аккаунты', style: Theme.of(context).textTheme.titleMedium),
+                                      const SizedBox(height: 8),
+                                      Row(children: [
+                                        Expanded(child: Text('Google', style: Theme.of(context).textTheme.bodyLarge)),
+                                        ElevatedButton(onPressed: () async {
+                                          final hs = Environment.matrixHomeserverUrl.trim();
+                                          if (hs.isEmpty) return;
+                                          var base = hs;
+                                          if (!base.startsWith('http://') && !base.startsWith('https://')) base = 'https://' + base;
+                                          final url = Uri.parse(base + '/_matrix/client/v3/login/sso/redirect?idp=google');
+                                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                                        }, child: const Text('Привязать')),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton(onPressed: () async {
+                                          // unlink instructions dialog
+                                          await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('Отвязать Google'), content: const Text('Чтобы отвязать Google от аккаунта, выполните отвязку на стороне сервера/в консоли Synapse или обратитесь к администратору. Можно также удалить сессии OAuth в настройках провайдера.'), actions: [TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('Понятно'))]));
+                                        }, child: const Text('Отвязать')),
+                                      ]),
+                                      const SizedBox(height: 10),
+                                      Row(children: [
+                                        Expanded(child: Text('Yandex', style: Theme.of(context).textTheme.bodyLarge)),
+                                        ElevatedButton(onPressed: () async {
+                                          final hs = Environment.matrixHomeserverUrl.trim();
+                                          if (hs.isEmpty) return;
+                                          var base = hs;
+                                          if (!base.startsWith('http://') && !base.startsWith('https://')) base = 'https://' + base;
+                                          final url = Uri.parse(base + '/_matrix/client/v3/login/sso/redirect?idp=yandex');
+                                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                                        }, child: const Text('Привязать')),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton(onPressed: () async {
+                                          await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('Отвязать Yandex'), content: const Text('Чтобы отвязать Yandex от аккаунта, выполните отвязку на стороне сервера/в консоли Synapse или обратитесь к администратору.'), actions: [TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('Понятно'))]));
+                                        }, child: const Text('Отвязать')),
+                                      ]),
+                                    ]),
                                   ),
                                 ),
                               ],

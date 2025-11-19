@@ -402,7 +402,8 @@ class MatrixService {
   /// Set room name helper delegating to ChatMatrixService
   static Future<void> setRoomName(String roomId, String name) async {
     if (Environment.useMatrix) {
-      return await ChatMatrixService().setRoomName(roomId, name);
+      await ChatMatrixService().setRoomName(roomId, name);
+      return;
     }
     throw Exception('setRoomName: Matrix mode required');
   }

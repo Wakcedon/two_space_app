@@ -259,6 +259,37 @@ class AuthService {
     return await _secure.read(key: '$_kMatrixTokenKeyPrefix$keyId');
   }
 
+  /// Exchange an SSO/login token (returned by Synapse after OIDC) for a Matrix session.
+  /// This calls POST /_matrix/client/v3/login with type 'm.login.token'.
+  Future<void> loginWithSsoToken(String token) async {
+    final homeserver = Environment.matrixHomeserverUrl;
+    if (homeserver.isEmpty) throw Exception('Matrix homeserver not configured');
+    var base = homeserver.trim();
+    if (!base.startsWith('http://') && !base.startsWith('https://')) base = 'https://' + base;
+    base = base.replaceAll(RegExp(r'/$'), '');
+    final uri = Uri.parse('$base/_matrix/client/v3/login');
+    final body = jsonEncode({'type': 'm.login.token', 'token': token});
+    final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: body).timeout(const Duration(seconds: 15));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception('SSO token exchange failed ${res.statusCode}: ${res.body}');
+    }
+    final js = jsonDecode(res.body) as Map<String, dynamic>;
+    final tokenResp = js['access_token'] as String?;
+    final refresh = js['refresh_token'] as String?;
+    final deviceId = js['device_id'] as String?;
+    final userId = js['user_id'] as String?;
+    if (tokenResp == null || userId == null) throw Exception('SSO login response missing token/user_id');
+    String keyId = userId;
+    try {
+      final me = await MatrixService.getCurrentUserId();
+      if (me != null && me.isNotEmpty) keyId = me;
+    } catch (_) {}
+    await _secure.write(key: '$_kMatrixTokenKeyPrefix$keyId', value: tokenResp);
+    try { await MatrixService.setCurrentUserId(userId); } catch (_) {}
+    if (refresh != null && refresh.isNotEmpty) await _secure.write(key: '$_kMatrixRefreshKeyPrefix$keyId', value: refresh);
+    if (deviceId != null && deviceId.isNotEmpty) await _secure.write(key: '$_kMatrixDeviceIdPrefix$keyId', value: deviceId);
+  }
+
   /// Return current application user id. This method centralizes access to
   /// the notion of current user and allows migrating away from Appwrite later.
   Future<String?> getCurrentUserId() async {
