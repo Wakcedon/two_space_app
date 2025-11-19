@@ -6,6 +6,7 @@ import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/chat_settings_screen.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
 import 'package:two_space_app/screens/account_settings_screen.dart';
+import 'package:two_space_app/widgets/user_avatar.dart';
 
 /// A simplified, responsive HomeScreen that provides:
 /// - Two-pane layout on wide screens (chat list + chat)
@@ -77,8 +78,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: Column(children: [
-        SizedBox(height: 12),
-        const AppLogo(large: false),
+        const SizedBox(height: 12),
+        // Search field (moved here from center). Keep the app title in the AppBar only.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: TextField(
+            onChanged: (v) => setState(() => _searchQuery = v),
+            decoration: InputDecoration(
+              hintText: 'Поиск',
+              isDense: true,
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceVariant,
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
         const SizedBox(height: 8),
         Expanded(
           child: _loading
@@ -98,9 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       selectedTileColor: Theme.of(context).colorScheme.surface.withOpacity(0.06),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       title: Text(name),
-                      leading: r['avatar'] != null
-                          ? CircleAvatar(backgroundImage: NetworkImage(r['avatar']))
-                          : CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
+            leading: r['avatar'] != null
+              ? UserAvatar(avatarUrl: r['avatar'] as String?, radius: 20)
+              : CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
                       onTap: () {
                         setState(() {
                           _selectedRoomId = id;
@@ -153,11 +168,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 tooltip: 'Тип поиска',
                 icon: const Icon(Icons.filter_list),
                 onSelected: (v) => setState(() => _searchType = v),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'all', child: Text('Все')),
-                  PopupMenuItem(value: 'messages', child: Text('Сообщения')),
-                  PopupMenuItem(value: 'media', child: Text('Медиа')),
-                  PopupMenuItem(value: 'users', child: Text('Пользователи')),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'all', child: Row(children: [Expanded(child: Text('Все')), if (_searchType == 'all') const Icon(Icons.check, size: 16)])),
+                  PopupMenuItem(value: 'messages', child: Row(children: [Expanded(child: Text('Сообщения')), if (_searchType == 'messages') const Icon(Icons.check, size: 16)])),
+                  PopupMenuItem(value: 'media', child: Row(children: [Expanded(child: Text('Медиа')), if (_searchType == 'media') const Icon(Icons.check, size: 16)])),
+                  PopupMenuItem(value: 'users', child: Row(children: [Expanded(child: Text('Пользователи')), if (_searchType == 'users') const Icon(Icons.check, size: 16)])),
                 ],
               )
             ]),

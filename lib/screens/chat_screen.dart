@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';
+import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
@@ -27,6 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _searching = false;
   List<_Msg> _messages = [];
+  final Map<String, Map<String, dynamic>> _reactions = {};
   bool _loading = true;
   bool _sending = false;
   final Map<String, AudioPlayer> _audioPlayers = {};
@@ -133,6 +135,15 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         _messages = out;
       });
+      // fetch reactions for messages in background
+      for (final m in out) {
+        () async {
+          try {
+            final r = await _svc.getReactions(widget.chat.id, m.id);
+            if (mounted) setState(() => _reactions[m.id] = r);
+          } catch (_) {}
+        }();
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки сообщений: $e')));
     } finally {
@@ -360,12 +371,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   borderRadius: BorderRadius.circular(10),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 300, maxHeight: 240),
-                    child: Image.network(
-                      _svc.mxcToHttp(m.mediaId!),
-                      fit: BoxFit.cover,
-                      width: 280,
-                      height: 180,
-                      errorBuilder: (c, e, s) => Container(width: 120, height: 80, color: Theme.of(context).colorScheme.surface, child: const Center(child: Icon(Icons.broken_image))),
+                    child: FutureBuilder<String>(
+                      future: _svc.downloadMediaToTempFile(m.mediaId!),
+                      builder: (ctx, snap) {
+                        if (snap.connectionState != ConnectionState.done) return Container(width: 280, height: 180, color: Theme.of(context).colorScheme.surfaceVariant);
+                        if (snap.hasError || snap.data == null) return Container(width: 120, height: 80, color: Theme.of(context).colorScheme.surface, child: const Center(child: Icon(Icons.broken_image)));
+                        return Image.file(File(snap.data!), fit: BoxFit.cover, width: 280, height: 180);
+                      },
                     ),
                   ),
                 )
@@ -376,25 +388,59 @@ class _ChatScreenState extends State<ChatScreen> {
                 )
               else
                 Text(m.text),
+              // reactions row
+              if ((_reactions[m.id] ?? {}).isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 6, runSpacing: 4, children: [
+                  for (final entry in (_reactions[m.id] ?? {}).entries)
+                    GestureDetector(
+                      onTap: () async {
+                        // toggle reaction: if myEventId present -> redact it, else send reaction
+                        final data = entry.value as Map<String, dynamic>;
+                        final myEvent = data['myEventId'] as String?;
+                        try {
+                          if (myEvent != null && myEvent.isNotEmpty) {
+                            await _svc.redactEvent(widget.chat.id, myEvent);
+                          } else {
+                            await _svc.sendReaction(widget.chat.id, m.id, entry.key);
+                          }
+                          final r = await _svc.getReactions(widget.chat.id, m.id);
+                          if (mounted) setState(() => _reactions[m.id] = r);
+                        } catch (_) {}
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(12)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(entry.key, style: TextStyle(fontSize: 14, color: ((entry.value as Map)['myEventId'] != null) ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface)),
+                          const SizedBox(width: 6),
+                          Text('${(entry.value as Map)['count']}', style: Theme.of(context).textTheme.bodySmall),
+                        ]),
+                      ),
+                    ),
+                ]),
+              ]
             ]),
           );
 
           return Align(
             alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
-            child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Row(mainAxisSize: MainAxisSize.max, crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (!m.isOwn)
                 GestureDetector(
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: m.senderId ?? ''))),
-                  child: CircleAvatar(radius: 16, backgroundImage: m.senderAvatar != null ? NetworkImage(m.senderAvatar!) : null, child: m.senderAvatar == null ? Text((m.senderName ?? '?')[0]) : null),
+                  child: UserAvatar(avatarUrl: m.senderAvatar, initials: (m.senderName ?? '?').isNotEmpty ? (m.senderName ?? '?')[0] : '?', radius: 16),
                 ),
               const SizedBox(width: 8),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 8.0, end: 0.0),
-                duration: Duration(milliseconds: 240 + (i % 5) * 30),
-                builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
-                child: GestureDetector(
-                  onLongPressStart: (details) => _showMessageActions(m, details.globalPosition),
-                  child: bubble,
+              Flexible(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 8.0, end: 0.0),
+                  duration: Duration(milliseconds: 240 + (i % 5) * 30),
+                  builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
+                  child: GestureDetector(
+                    onLongPressStart: (details) => _showMessageActions(m, details.globalPosition),
+                    child: bubble,
+                  ),
                 ),
               ),
               if (m.isOwn) const SizedBox(width: 8),

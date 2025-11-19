@@ -31,12 +31,17 @@ class ChatMatrixService {
   }
 
   Future<String> uploadMedia(List<int> bytes, {required String contentType, String? fileName}) async {
-    final uri = Uri.parse('$homeserver/_matrix/media/v3/upload');
+    // Per Matrix spec we can pass filename as query parameter. Avoid putting raw
+    // (possibly non-ASCII) filenames into HTTP header values which the Dart
+    // http package will reject. Encode filename for the query string.
+    final fnameQuery = (fileName != null && fileName.isNotEmpty) ? '?filename=${Uri.encodeQueryComponent(fileName)}' : '';
+    final uri = Uri.parse('$homeserver/_matrix/media/v3/upload$fnameQuery');
     final headers = await _authHeaders();
     // content-type should be provided; matrix expects raw body
     final h = Map<String, String>.from(headers);
     h['Content-Type'] = contentType;
-    if (fileName != null && fileName.isNotEmpty) h['Filename'] = fileName;
+    // Do NOT place the filename into a custom header - this caused FormatException
+    // for non-ASCII filenames. Use the encoded query parameter above instead.
     final res = await http.post(uri, headers: h, body: bytes).timeout(const Duration(seconds: 20));
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final js = jsonDecode(res.body) as Map<String, dynamic>;
@@ -137,6 +142,39 @@ class ChatMatrixService {
     final res = await http.put(uri, headers: {...headers, 'Content-Type': 'application/json'}, body: jsonEncode(content)).timeout(const Duration(seconds: 6));
     if (res.statusCode >= 200 && res.statusCode < 300) return;
     throw Exception('sendReaction failed ${res.statusCode}: ${res.body}');
+  }
+
+  /// Fetch aggregated reactions (annotations) for an event.
+  /// Returns a map: emoji -> { 'count': int, 'myEventId': String? }
+  Future<Map<String, Map<String, dynamic>>> getReactions(String roomId, String eventId) async {
+    final out = <String, Map<String, dynamic>>{};
+    try {
+      final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/event/${Uri.encodeComponent(eventId)}/relations/m.annotation');
+      final headers = await _authHeaders();
+      final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return out;
+      final js = jsonDecode(res.body) as Map<String, dynamic>;
+      final chunk = (js['chunk'] as List? ?? []);
+      final me = await AuthService().getCurrentUserId();
+      for (final ev in chunk) {
+        try {
+          final map = ev as Map<String, dynamic>;
+          final content = map['content'] as Map<String, dynamic>? ?? {};
+          final relates = content['m.relates_to'] as Map<String, dynamic>? ?? {};
+          final key = relates['key']?.toString() ?? '';
+          final sender = map['sender']?.toString();
+          final rid = map['event_id']?.toString();
+          if (key.isEmpty) continue;
+          final existing = out[key] ?? {'count': 0, 'myEventId': null};
+          existing['count'] = (existing['count'] as int) + 1;
+          if (sender != null && sender == me) existing['myEventId'] = rid;
+          out[key] = existing;
+        } catch (_) {}
+      }
+      return out;
+    } catch (_) {
+      return out;
+    }
   }
 
   /// Send a reply message referencing another event.

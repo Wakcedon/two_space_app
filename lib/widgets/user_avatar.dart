@@ -34,9 +34,10 @@ class _UserAvatarState extends State<UserAvatar> {
 
   Future<void> _loadIfNeeded() async {
     String? fid = widget.avatarFileId;
+    // Avatar URL (if any)
+    final String? url = widget.avatarUrl;
     // If avatarFileId not provided, try to extract file id from avatarUrl if it contains /files/{id}
     if (fid == null || fid.isEmpty) {
-      final url = widget.avatarUrl;
       if (url != null && url.isNotEmpty) {
         try {
           final uri = Uri.parse(url);
@@ -48,6 +49,24 @@ class _UserAvatarState extends State<UserAvatar> {
           }
         } catch (_) {}
       }
+    }
+    // If url looks like a Matrix media download path, try authenticated fetch
+    if ((fid == null || fid.isEmpty) && Environment.useMatrix && url != null && url.contains('/_matrix/media/v3/download')) {
+      try {
+        final uri = Uri.parse(url);
+        String? token;
+        try { token = await AuthService().getMatrixTokenForUser(); } catch (_) { token = null; }
+        String tokenString = '';
+        if (token != null && token.isNotEmpty) tokenString = token;
+        else if (Environment.matrixAccessToken.isNotEmpty) tokenString = Environment.matrixAccessToken;
+        final headers = tokenString.isNotEmpty ? {'Authorization': 'Bearer $tokenString'} : <String, String>{};
+        final res = await http.get(uri, headers: headers);
+        if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+          final u = Uint8List.fromList(res.bodyBytes);
+          if (mounted) setState(() => _bytes = u);
+          return;
+        }
+      } catch (_) {}
     }
     if (fid == null || fid.isEmpty) {
       // If using Matrix and avatarUrl is an mxc:// URL, try to fetch it from
