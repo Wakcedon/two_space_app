@@ -312,8 +312,39 @@ class AuthService {
     return await MatrixService.createPhoneToken(phone);
   }
 
+  /// Send a login token to email (passwordless login / verification)
+  Future<dynamic> sendEmailToken(String email) async {
+    // Prefer Appwrite SDK if available, else try Matrix facade (if implemented)
+    if (accountClient != null) {
+      try {
+        // Appwrite SDK: try to create an email session (passwordless) if supported
+        // Fallback: request passwordless session or magic URL.
+        if (accountClient.createEmailSession != null) {
+          final tokenResp = await accountClient.createEmailSession(email: email);
+          return tokenResp;
+        }
+      } catch (_) {}
+    }
+
+    // Try Matrix-level path (server-provided endpoint must implement this)
+    try {
+      return await MatrixService.createEmailSession(email, '');
+    } catch (_) {
+      throw Exception('Email token delivery not implemented; configure Appwrite or Matrix-side endpoint to support email token flows.');
+    }
+  }
+
   // For session creation from token (phone flow), ensure JWT saved after session creation
   Future<void> createSessionFromToken(String userId, String secret) async {
+    // When using Matrix, prefer token-based login: if the token is a Matrix
+    // login token that Synapse recognizes for m.login.token, exchange it here
+    // and save the returned access token.
+    if (Environment.useMatrix) {
+      if (secret.isEmpty) throw Exception('Empty token');
+      await loginWithSsoToken(secret);
+      return;
+    }
+
     if (accountClient != null) {
       await accountClient.createPhoneSession(userId: userId, secret: secret);
       final jwtResp = await accountClient.createJWT();
@@ -324,24 +355,24 @@ class AuthService {
     }
 
     // REST fallback - create session and then jwt
-  final base = MatrixService.v1Endpoint();
-  final uri = Uri.parse('$base/account/sessions/token');
+    final base = MatrixService.v1Endpoint();
+    final uri = Uri.parse('$base/account/sessions/token');
     final resp = await http.post(uri,
         headers: {'X-Appwrite-Project': Environment.appwriteProjectId, 'Content-Type': 'application/json'},
         body: jsonEncode({'userId': userId, 'secret': secret}));
     if (resp.statusCode < 200 || resp.statusCode >= 300) throw Exception('Failed to create session: ${resp.statusCode} ${resp.body}');
-  final jwtUri = Uri.parse('$base/account/jwt');
-  final receivedCookie = resp.headers['set-cookie'];
-  final jwtHeaders = <String, String>{'X-Appwrite-Project': Environment.appwriteProjectId};
-  if (receivedCookie != null && receivedCookie.isNotEmpty) jwtHeaders['cookie'] = receivedCookie;
-  final jwtResp = await http.post(jwtUri, headers: jwtHeaders);
+    final jwtUri = Uri.parse('$base/account/jwt');
+    final receivedCookie = resp.headers['set-cookie'];
+    final jwtHeaders = <String, String>{'X-Appwrite-Project': Environment.appwriteProjectId};
+    if (receivedCookie != null && receivedCookie.isNotEmpty) jwtHeaders['cookie'] = receivedCookie;
+    final jwtResp = await http.post(jwtUri, headers: jwtHeaders);
     if (jwtResp.statusCode < 200 || jwtResp.statusCode >= 300) {
       throw Exception('Failed to create JWT: ${jwtResp.statusCode} ${jwtResp.body}');
     }
     final jwtJson = jsonDecode(jwtResp.body) as Map<String, dynamic>;
     final jwt = jwtJson['jwt'] as String?;
     if (jwt == null) throw Exception('JWT missing in response');
-  if (receivedCookie != null && receivedCookie.isNotEmpty) await MatrixService.saveSessionCookie(receivedCookie);
+    if (receivedCookie != null && receivedCookie.isNotEmpty) await MatrixService.saveSessionCookie(receivedCookie);
     await MatrixService.saveJwt(jwt);
   }
 }

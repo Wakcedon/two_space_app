@@ -3,8 +3,9 @@ import '../services/auth_service.dart';
 import '../services/appwrite_service.dart';
 import '../config/environment.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
-import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 import 'sso_webview_screen.dart';
+import 'otp_screen.dart';
 import '../services/settings_service.dart';
 import '../widgets/app_logo.dart';
 import 'package:two_space_app/utils/responsive.dart';
@@ -21,6 +22,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController nickController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final AuthService _auth = AuthService();
@@ -33,10 +35,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _hasSpecial = false;
   bool _hasLength = false;
   bool _showPwDetails = false;
+  String? _avatarPath;
 
   @override
   void dispose() {
     nameController.dispose();
+    nickController.dispose();
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
@@ -75,10 +79,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _loading = true);
     try {
       var identifier = emailController.text.trim();
-      await _auth.registerUser(nameController.text.trim(), identifier, passwordController.text.trim());
+  await _auth.registerUser(nameController.text.trim(), identifier, passwordController.text.trim());
       // Try to auto-login, but don't treat login failure as registration failure.
       try {
+        // If email token flow configured, try passwordless confirmation
+        if (Environment.useMatrix && Environment.matrixEmailTokenEndpoint.isNotEmpty) {
+          try {
+            final token = await _auth.sendEmailToken(identifier);
+            if (!mounted) return;
+            final code = await Navigator.push<String?>(context, MaterialPageRoute(builder: (_) => OtpScreen(phone: identifier)));
+            if (code != null && code.isNotEmpty) {
+              try {
+                await _auth.createSessionFromToken(token['userId'] ?? identifier, code);
+                if (!mounted) return;
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+                return;
+              } catch (_) {}
+            }
+          } catch (_) {}
+        }
+        // Fallback to classic login after registration
         await _auth.loginUser(identifier, passwordController.text.trim());
+        if (_avatarPath != null && _avatarPath!.isNotEmpty) {
+          try {
+            final id = await AppwriteService.uploadAvatar(_avatarPath!);
+            // set avatar in Matrix account
+            await AppwriteService.updateAccount(prefs: {'avatarUrl': id['viewUrl'] ?? ''});
+          } catch (_) {}
+        }
         if (!mounted) return;
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
         return;
@@ -254,6 +282,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          TextFormField(
+                            controller: nickController,
+                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите никнейм' : null,
+                            style: TextStyle(color: textColor),
+                            decoration: InputDecoration(
+                              hintText: 'Никнейм (уникальное имя)',
+                              hintStyle: TextStyle(color: hintColor),
+                              filled: true,
+                              fillColor: themeFill,
+                              prefixIcon: Icon(Icons.alternate_email, color: theme.colorScheme.onSurface.withAlpha(180)),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30 * Responsive.scaleWidth(context)), borderSide: BorderSide.none),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 20 * Responsive.scaleWidth(context), vertical: 18 * Responsive.scaleHeight(context)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(child: Text('Аватар (опционально)', style: TextStyle(color: textColor))),
+                            TextButton.icon(onPressed: () async {
+                              final res = await FilePicker.platform.pickFiles();
+                              if (res != null && res.files.isNotEmpty) {
+                                _avatarPath = res.files.single.path;
+                                if (mounted) setState(() {});
+                              }
+                            }, icon: const Icon(Icons.photo_camera), label: const Text('Загрузить')),
+                          ]),
                           TextFormField(
                             controller: emailController,
                             validator: _validateEmailOrPhone,

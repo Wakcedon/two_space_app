@@ -350,7 +350,25 @@ class MatrixService {
   }
 
   static Future<dynamic> createEmailSession(String email, String password) async {
-    throw Exception('createEmailSession not available in Matrix-only mode');
+    // Imagine this is a helper that calls a server-side endpoint which sends
+    // an email with a verification code and returns either a token object or
+    // a minimal payload the app can use to verify the code.
+    final endpoint = Environment.matrixEmailTokenEndpoint;
+    if (endpoint.isEmpty) throw Exception('createEmailSession not available in Matrix-only mode; set MATRIX_EMAIL_TOKEN_ENDPOINT');
+    try {
+      final uri = Uri.parse(endpoint);
+      final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode({'email': email})).timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        try {
+          return jsonDecode(res.body) as Map<String, dynamic>;
+        } catch (_) {
+          return {'ok': true};
+        }
+      }
+      throw Exception('Email session endpoint returned ${res.statusCode}: ${res.body}');
+    } catch (e) {
+      throw Exception('createEmailSession failed: $e');
+    }
   }
 
   static Future<dynamic> createPhoneToken(String phone) async {

@@ -196,4 +196,10 @@ class Environment {
     }
     return <Map<String, dynamic>>[];
   }
+
+  // Optional endpoint that sends email tokens for passwordless login/verification.
+  // If set, the app will POST {"email": "user@example.org"} and expect a response
+  // like {"userId": "@user:server", "token": "login-token"} or any custom shape
+  // you can adapt MatrixService.createEmailSession to match your endpoint.
+  static String get matrixEmailTokenEndpoint => _get('MATRIX_EMAIL_TOKEN_ENDPOINT');
 }

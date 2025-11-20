@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../config/environment.dart';
 import 'sso_webview_screen.dart';
 import '../services/appwrite_service.dart';
-import '../widgets/section_card.dart';
 import '../widgets/glass_card.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
@@ -49,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     try {
       final identifier = emailController.text.trim();
       
-      if (identifier.startsWith('+')) {
+  if (identifier.startsWith('+')) {
         // Phone login via AuthService (uses SDK or REST fallback)
         final token = await _auth.sendPhoneToken(identifier);
         if (!mounted) return;
@@ -69,7 +67,20 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         await _auth.createSessionFromToken(token['userId'], code);
       } else {
         // Email login via AuthService (handles SDK or REST flows and JWT saving)
-        await _auth.loginUser(identifier, passwordController.text.trim());
+          // If password is empty, offer email token flow
+          if (passwordController.text.trim().isEmpty) {
+            try {
+              final token = await _auth.sendEmailToken(identifier);
+              if (!mounted) return;
+              final code = await Navigator.push<String?>(context, MaterialPageRoute(builder: (_) => OtpScreen(phone: identifier)));
+              if (code == null || code.isEmpty) return;
+              await _auth.createSessionFromToken(token['userId'], code);
+            } catch (e) {
+              throw e;
+            }
+          } else {
+            await _auth.loginUser(identifier, passwordController.text.trim());
+          }
       }
 
       if (_remember) {
@@ -208,6 +219,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(UITokens.cornerLg), borderSide: BorderSide.none),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                       ),
+                    ),
+                    // Note: leave password empty to receive a magic code via email
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6.0),
+                      child: Text('Подсказка: оставьте поле пароля пустым, чтобы получить код по почте (если настроено)', style: Theme.of(context).textTheme.bodySmall),
                     ),
                     const SizedBox(height: UITokens.space),
                     TextFormField(

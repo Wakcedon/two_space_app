@@ -50,7 +50,7 @@ class _OtpScreenState extends State<OtpScreen> {
   Widget build(BuildContext context) {
     final primaryColor = Color(SettingsService.themeNotifier.value.primaryColorValue);
     return Scaffold(
-      appBar: AppBar(title: const Text('Подтвердите телефон')),
+  appBar: AppBar(title: const Text('Подтвердите код')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
