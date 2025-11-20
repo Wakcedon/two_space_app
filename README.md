@@ -1,4 +1,4 @@
-![Static Badge](https://img.shields.io/badge/flutter-blue?style=flat&logo=flutter) ![Static Badge](https://img.shields.io/badge/matrix-black?style=flat&logo=matrix&link=https%3A%2F%2Fmatrix.org%2F)
+![Static Badge](https://img.shields.io/badge/flutter-blue?style=flat&logo=flutter) ![Static Badge](https://img.shields.io/badge/matrix-black?style=flat&logo=matrix&link=https%3A%2F%2Fmatrix.org%2F) ![Static Badge](https://img.shields.io/badge/dart-darkviolet?style=flat&logo=dart&link=https%3A%2F%2Fdart.dev%2F)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android%20%7C%20iOS-lightgrey.svg)
 
 # TwoSpace
