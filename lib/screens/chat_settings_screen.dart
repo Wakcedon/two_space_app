@@ -2,7 +2,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';
-import 'package:two_space_app/models/chat.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   final String roomId;

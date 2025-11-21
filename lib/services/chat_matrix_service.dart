@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_session.dart';
 
 class ChatMatrixService {
   ChatMatrixService();

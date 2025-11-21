@@ -3,6 +3,7 @@ import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/screens/change_email_screen.dart';
 import 'package:two_space_app/screens/change_phone_screen.dart';
 import 'package:two_space_app/services/settings_service.dart';
+import 'package:two_space_app/screens/tfa_setup_screen.dart';
 
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
@@ -144,6 +145,21 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChangeEmailScreen()));
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Material(
+          color: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: ListTile(
+            leading: const Icon(Icons.security),
+            title: const Text('Двухфакторная аутентификация (2FA)'),
+            subtitle: const Text('Включить/отключить 2FA через приложение аутентификатора'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              // Navigate to TFA setup screen
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TfaSetupScreen()));
             },
           ),
         ),

@@ -202,4 +202,12 @@ class Environment {
   // like {"userId": "@user:server", "token": "login-token"} or any custom shape
   // you can adapt MatrixService.createEmailSession to match your endpoint.
   static String get matrixEmailTokenEndpoint => _get('MATRIX_EMAIL_TOKEN_ENDPOINT');
+  // Endpoint to request a TOTP setup (server should return a QR/secret for QR code)
+  static String get matrixTotpSetupEndpoint => _get('MATRIX_TOTP_SETUP_ENDPOINT');
+  // Endpoint to verify a TOTP token (for enabling/disabling 2FA)
+  static String get matrixTotpVerifyEndpoint => _get('MATRIX_TOTP_VERIFY_ENDPOINT');
+  // If set to true, SSO should use native app flow on mobile and only be allowed on mobile devices
+  static bool get matrixSsoNativeOnly {
+    try { return (_get('MATRIX_SSO_NATIVE_ONLY').toLowerCase() == 'true'); } catch (_) { return false; }
+  }
 }

@@ -121,9 +121,9 @@ class _ChatScreenState extends State<ChatScreen> {
       final auth = AuthService();
       final me = await auth.getCurrentUserId();
       final out = <_Msg>[];
-      for (final m in msgs) {
+  for (final m in msgs) {
         // fetch sender info lazily
-        String senderName = m.senderId ?? '';
+  String senderName = m.senderId;
         String? senderAvatar;
         try {
           final info = await _svc.getUserInfo(m.senderId);
@@ -174,17 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _sendReactionForEvent(String eventId) async {
-    final choices = ['👍','👎','❤️','😂','🔥','😮','🎉','🙌','🚀'];
-    final pick = await showDialog<String>(context: context, builder: (c) => SimpleDialog(title: const Text('Реакция'), children: choices.map((e) => SimpleDialogOption(child: Text(e), onPressed: () => Navigator.pop(c, e))).toList()));
-    if (pick == null) return;
-    try {
-      await _svc.sendReaction(widget.chat.id, eventId, pick);
-      await _loadMessages();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка реакции: $e')));
-    }
-  }
+
 
   Future<void> _pinUnpinEvent(String eventId) async {
     try {
@@ -209,7 +199,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _showMessageActions(_Msg m, Offset globalPos) async {
-    final overlay = Overlay.of(context);
+  final overlay = Overlay.of(context);
     OverlayEntry? entry;
     entry = OverlayEntry(builder: (ctx) {
       final mq = MediaQuery.of(ctx);
@@ -268,7 +258,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ]),
       );
     });
-    overlay?.insert(entry);
+  overlay.insert(entry);
   }
 
   Future<String?> _showEmojiPickerDialog() async {
@@ -508,7 +498,7 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
   Future<void> _init() async {
     try {
       final m = widget.message.mediaId ?? widget.message.text;
-      final path = await widget.svc.downloadMediaToTempFile(m ?? '');
+        final path = await widget.svc.downloadMediaToTempFile(m);
       if (!mounted) return;
       setState(() => _localPath = path);
       // request waveform (cached by service)

@@ -327,11 +327,35 @@ class AuthService {
     }
 
     // Try Matrix-level path (server-provided endpoint must implement this)
-    try {
-      return await MatrixService.createEmailSession(email, '');
-    } catch (_) {
-      throw Exception('Email token delivery not implemented; configure Appwrite or Matrix-side endpoint to support email token flows.');
-    }
+      try {
+        final res = await MatrixService.createEmailSession(email, '');
+        return res;
+      } catch (e) {
+        throw Exception('Email token delivery not implemented; configure MATRIX_EMAIL_TOKEN_ENDPOINT. $e');
+      }
+  }
+
+  // Request TOTP setup and return secret/otpauth URI
+  Future<Map<String,dynamic>> requestTotpSetup() async {
+    if (!Environment.useMatrix) throw Exception('Matrix is not enabled');
+    final endpoint = Environment.matrixTotpSetupEndpoint;
+    if (endpoint.isEmpty) throw Exception('TOTP endpoint not configured');
+    final uri = Uri.parse(endpoint);
+    final res = await http.post(uri, headers: {'Content-Type': 'application/json'});
+    if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body) as Map<String, dynamic>;
+    throw Exception('requestTotpSetup failed ${res.statusCode}: ${res.body}');
+  }
+
+  // Verify the TOTP token and enable/disable TOTP on server-side
+  Future<void> verifyTotpSetup(String code, {bool disable = false}) async {
+    if (!Environment.useMatrix) throw Exception('Matrix is not enabled');
+    final endpoint = Environment.matrixTotpVerifyEndpoint;
+    if (endpoint.isEmpty) throw Exception('TOTP verify endpoint not configured');
+    final uri = Uri.parse(endpoint);
+    final body = jsonEncode({'code': code, 'action': disable ? 'disable' : 'enable'});
+    final res = await http.post(uri, headers: {'Content-Type': 'application/json'}, body: body);
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    throw Exception('verifyTotpSetup failed ${res.statusCode}: ${res.body}');
   }
 
   // For session creation from token (phone flow), ensure JWT saved after session creation
