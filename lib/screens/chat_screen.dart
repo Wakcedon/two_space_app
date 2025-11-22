@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/services/auth_service.dart';
+import 'package:two_space_app/services/voice_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -37,7 +38,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _loading = true;
   bool _sending = false;
   final Map<String, AudioPlayer> _audioPlayers = {};
-  final Map<String, Map<String, dynamic>> _userInfoCache = {}; // Кэш информации о пользователях
+  final Map<String, Map<String, dynamic>> _userInfoCache = {};
+  late final VoiceService _voiceService;
 
   List<_Msg> get _visibleMessages {
     final q = (widget.searchQuery ?? '').trim().toLowerCase();
@@ -61,6 +63,8 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _voiceService = VoiceService();
+    _voiceService.init();
     _loadMessages();
     _scrollToEventId = widget.scrollToEventId;
     // start sync loop to receive new events
@@ -73,6 +77,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _svc.stopSync();
     _listController.dispose();
+    _voiceService.dispose();
     super.dispose();
   }
 
@@ -387,6 +392,52 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _recordVoiceMessage() async {
+    final path = await _voiceService.startRecording();
+    if (path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Нужно разрешение микрофона')));
+      }
+      return;
+    }
+    setState(() {});
+  }
+
+  Future<void> _stopVoiceAndSend() async {
+    final path = await _voiceService.stopRecording();
+    if (path == null || !File(path).existsSync()) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ошибка записи')));
+      return;
+    }
+
+    setState(() => _sending = true);
+    try {
+      final auth = AuthService();
+      final sender = await auth.getCurrentUserId();
+      await _svc.sendMessage(widget.chat.id, sender ?? '', path, type: 'm.audio', mediaFileId: path);
+      
+      if (mounted) {
+        setState(() {
+          _messages.insert(0, _Msg(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            text: path,
+            isOwn: true,
+            time: DateTime.now(),
+            senderId: '',
+            senderName: 'You',
+            senderAvatar: null,
+            type: 'm.audio',
+            mediaId: path,
+          ));
+        });
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   Future<void> _sendAttachment() async {
     final res = await FilePicker.platform.pickFiles();
     if (res == null || res.files.isEmpty) return;
@@ -428,22 +479,23 @@ class _ChatScreenState extends State<ChatScreen> {
             final tsNum = ev['origin_server_ts'] as num?;
             final ts = tsNum != null ? DateTime.fromMillisecondsSinceEpoch(tsNum.toInt()) : null;
             final roomId = (item['context'] is Map) ? ((item['context'] as Map)['room_id']?.toString() ?? '') : '';
-            return FutureBuilder<Map<String, dynamic>>(future: _svc.getUserInfo(sender), builder: (ctx, s2) {
-              final info = s2.data ?? {};
-              final avatar = info['avatarUrl']?.toString();
-              final displayName = info['displayName']?.toString() ?? sender;
-              return ListTile(
-                leading: avatar != null ? UserAvatar(avatarUrl: avatar, radius: 18) : CircleAvatar(radius: 18, child: Text(displayName.isNotEmpty ? displayName[0] : '?')),
-                title: Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text('$displayName${roomId.isNotEmpty ? ' • $roomId' : ''}${ts != null ? ' • ${ts.hour.toString().padLeft(2,'0')}:${ts.minute.toString().padLeft(2,'0')}' : ''}'),
-                onTap: () async {
-                  if (roomId.isEmpty) return;
-                  final infoRoom = await _svc.getRoomNameAndAvatar(roomId);
-                  final chat = Chat(id: roomId, name: infoRoom['name'] ?? roomId, avatarUrl: infoRoom['avatar'], members: [], lastMessage: '');
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(chat: chat, scrollToEventId: ev['event_id']?.toString())));
-                },
-              );
-            });
+            
+            // Используем кэшированную информацию вместо отдельного FutureBuilder
+            final info = _userInfoCache[sender] ?? {};
+            final avatar = info['avatarUrl']?.toString();
+            final displayName = info['displayName']?.toString() ?? sender;
+            
+            return ListTile(
+              leading: avatar != null ? UserAvatar(avatarUrl: avatar, radius: 18) : CircleAvatar(radius: 18, child: Text(displayName.isNotEmpty ? displayName[0] : '?')),
+              title: Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text('$displayName${roomId.isNotEmpty ? ' • $roomId' : ''}${ts != null ? ' • ${ts.hour.toString().padLeft(2,'0')}:${ts.minute.toString().padLeft(2,'0')}' : ''}'),
+              onTap: () async {
+                if (roomId.isEmpty) return;
+                final infoRoom = await _svc.getRoomNameAndAvatar(roomId);
+                final chat = Chat(id: roomId, name: infoRoom['name'] ?? roomId, avatarUrl: infoRoom['avatar'], members: [], lastMessage: '');
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(chat: chat, scrollToEventId: ev['event_id']?.toString())));
+              },
+            );
           },
           separatorBuilder: (_, __) => const Divider(),
           itemCount: _searchResults.length,
@@ -454,6 +506,8 @@ class _ChatScreenState extends State<ChatScreen> {
         reverse: true,
         controller: _listController,
         padding: const EdgeInsets.all(12),
+        cacheExtent: 1000, // Увеличиваем кэш для лучшей производительности
+        addRepaintBoundaries: true, // Добавляем репaint boundaries для оптимизации
         itemBuilder: (c, i) {
           final m = _visibleMessages[i];
           final key = _messageKeys.putIfAbsent(m.id, () => GlobalKey());
@@ -486,7 +540,16 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: _AudioMessageWidget(message: m, svc: _svc, audioPlayers: _audioPlayers),
                 )
               else
-                Text(m.text),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                  child: Text(
+                    m.text,
+                    softWrap: true,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: m.isOwn ? Colors.white : null,
+                    ),
+                  ),
+                ),
               // reactions row
               if ((_reactions[m.id] ?? {}).isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -570,6 +633,16 @@ class _ChatScreenState extends State<ChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
         child: Row(children: [
           IconButton(icon: const Icon(Icons.attach_file), onPressed: _sending ? null : _sendAttachment),
+          if (!_voiceService.isRecording)
+            IconButton(
+              icon: Icon(Icons.mic, color: Theme.of(context).colorScheme.primary),
+              onPressed: _sending ? null : _recordVoiceMessage,
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.mic, color: Colors.red),
+              onPressed: _voiceService.isRecording ? _stopVoiceAndSend : null,
+            ),
           Expanded(
             child: TextField(
               controller: _controller,
@@ -581,11 +654,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
               ),
+              enabled: !_voiceService.isRecording,
+              maxLines: null,
             ),
           ),
           IconButton(
             icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.send, color: Theme.of(context).colorScheme.primary),
-            onPressed: _sending ? null : _sendText,
+            onPressed: (_sending || _voiceService.isRecording) ? null : _sendText,
           ),
         ]),
       )

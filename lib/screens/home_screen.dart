@@ -26,9 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _selectedRoomId;
   String _selectedRoomName = '';
   bool _loading = true;
-  // layout state
-  double _leftWidth = 320;
-  double _rightWidth = 380;
+  // layout state - адаптивная ширина
+  late double _leftWidth;
+  late double _rightWidth;
   bool _rightOpen = true;
 
   // search state
@@ -38,7 +38,29 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Инициализируем ширину после построения
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateLayoutDimensions();
+    });
     _checkAuthAndLoadRooms();
+  }
+
+  void _updateLayoutDimensions() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 768;
+    
+    if (isSmallScreen) {
+      _leftWidth = screenWidth; // На мобиле - полный экран
+      _rightWidth = 0;
+      _rightOpen = false;
+    } else {
+      _leftWidth = math.min(320, screenWidth * 0.25); // 25% но не более 320
+      if (screenWidth > 1400) {
+        _rightWidth = 380; // На больших экранах 3-панель
+      } else {
+        _rightWidth = screenWidth > 1000 ? 300 : 0; // На средних - 2-панель
+      }
+    }
   }
 
   Future<void> _checkAuthAndLoadRooms() async {

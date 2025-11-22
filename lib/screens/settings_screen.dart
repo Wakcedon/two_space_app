@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/widgets/glass_card.dart';
 import 'package:two_space_app/services/auth_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +15,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundEnabled = true;
   String _selectedTheme = 'system';
   bool _loggingOut = false;
+  String _appVersion = 'загрузка...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() => _appVersion = info.version);
+    } catch (_) {
+      setState(() => _appVersion = 'неизвестно');
+    }
+  }
 
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
@@ -21,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Выход из аккаунта'),
         content: const Text('Вы уверены, что хотите выйти?'),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
           TextButton(
@@ -56,10 +74,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.surface,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Внешний вид
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
@@ -188,15 +207,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ListTile(
                       leading: const Icon(Icons.info),
                       title: const Text('TwoSpace'),
-                      subtitle: const Text('v1.0.5'),
+                      subtitle: Text(_appVersion),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                     const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.description),
-                      title: const Text('Матрикс-клиент'),
-                      subtitle: const Text('Flutter'),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    Tooltip(
+                      message: 'Matrix — это открытый протокол для обмена сообщениями, мы используем именно его!',
+                      child: ListTile(
+                      subtitle: const Text('Клиент TwoSpace написан на Flutter/Dart'),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
                     ),
                   ],
                 ),
@@ -267,6 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 32),
           ],
         ),
+      ),
       ),
     );
   }

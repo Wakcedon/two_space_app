@@ -5,6 +5,7 @@ import 'otp_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import '../services/matrix_service.dart';
+import '../utils/responsive.dart';
 // import '../services/chat_matrix_service.dart'; // kept for future uses
 
 class RegisterScreen extends StatefulWidget {
@@ -129,6 +130,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 500;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Регистрация'),
@@ -138,10 +141,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16.0 * Responsive.scaleWidth(context)),
           child: Column(
             children: [
-              const SizedBox(height: 16),
+              SizedBox(height: 16 * Responsive.scaleHeight(context)),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
@@ -153,13 +156,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24 * Responsive.scaleHeight(context)),
               Theme(
                 data: Theme.of(context).copyWith(
                   useMaterial3: true,
                 ),
                 child: Stepper(
                   currentStep: _step,
+                  type: isSmallScreen ? StepperType.vertical : StepperType.horizontal,
                   onStepContinue: _loading ? null : () async {
                     if (_step == 0) {
                       await _register();

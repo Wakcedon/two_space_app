@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'otp_screen.dart';
 import 'sso_webview_screen.dart';
+import '../utils/responsive.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,35 +62,83 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _ssoButtons() {
+    final isSmallScreen = MediaQuery.of(context).size.width < 500;
+    
+    if (isSmallScreen) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _loading || _ssoLoading ? null : () async {
+                if (_ssoLoading) return;
+                setState(() => _ssoLoading = true);
+                try {
+                  final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google')));
+                  if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
+                } finally {
+                  if (mounted) setState(() => _ssoLoading = false);
+                }
+              },
+              icon: const Icon(Icons.login),
+              label: const Text('Войти через Google'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _loading || _ssoLoading ? null : () async {
+                if (_ssoLoading) return;
+                setState(() => _ssoLoading = true);
+                try {
+                  final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex')));
+                  if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
+                } finally {
+                  if (mounted) setState(() => _ssoLoading = false);
+                }
+              },
+              icon: const Icon(Icons.person),
+              label: const Text('Войти через Yandex'),
+            ),
+          ),
+        ],
+      );
+    }
+    
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      ElevatedButton.icon(
-        onPressed: _loading || _ssoLoading ? null : () async {
-          if (_ssoLoading) return;
-          setState(() => _ssoLoading = true);
-          try {
-            final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google')));
-            if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
-          } finally {
-            if (mounted) setState(() => _ssoLoading = false);
-          }
-        },
-        icon: const Icon(Icons.login),
-        label: const Text('Google'),
+      Expanded(
+        child: ElevatedButton.icon(
+          onPressed: _loading || _ssoLoading ? null : () async {
+            if (_ssoLoading) return;
+            setState(() => _ssoLoading = true);
+            try {
+              final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google')));
+              if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
+            } finally {
+              if (mounted) setState(() => _ssoLoading = false);
+            }
+          },
+          icon: const Icon(Icons.login),
+          label: const Text('Google'),
+        ),
       ),
-      const SizedBox(width: 8),
-      ElevatedButton.icon(
-        onPressed: _loading || _ssoLoading ? null : () async {
-          if (_ssoLoading) return;
-          setState(() => _ssoLoading = true);
-          try {
-            final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex')));
-            if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
-          } finally {
-            if (mounted) setState(() => _ssoLoading = false);
-          }
-        },
-        icon: const Icon(Icons.person),
-        label: const Text('Yandex'),
+      const SizedBox(width: 12),
+      Expanded(
+        child: ElevatedButton.icon(
+          onPressed: _loading || _ssoLoading ? null : () async {
+            if (_ssoLoading) return;
+            setState(() => _ssoLoading = true);
+            try {
+              final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex')));
+              if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
+            } finally {
+              if (mounted) setState(() => _ssoLoading = false);
+            }
+          },
+          icon: const Icon(Icons.person),
+          label: const Text('Yandex'),
+        ),
       ),
     ]);
   }
@@ -113,32 +162,36 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: 20.0 * Responsive.scaleWidth(context),
+            vertical: 16.0,
+          ),
           child: Form(
             key: _formKey,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const SizedBox(height: 24),
-              // Header icon and text
+              SizedBox(height: 24 * Responsive.scaleHeight(context)),
+              // Header icon and text - масштабируемый
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20 * Responsive.scaleWidth(context)),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                 ),
                 child: Icon(
                   Icons.chat,
-                  size: 48,
+                  size: 48 * Responsive.scaleWidth(context),
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16 * Responsive.scaleHeight(context)),
               Text(
                 'TwoSpace',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
+                  fontSize: (Theme.of(context).textTheme.headlineMedium?.fontSize ?? 32) * Responsive.scaleFor(context),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8 * Responsive.scaleHeight(context)),
               Text(
                 'Мессенджер нового поколения',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -146,64 +199,64 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: 32 * Responsive.scaleHeight(context)),
               TextFormField(
                 controller: _emailCtl,
                 decoration: InputDecoration(
                   hintText: 'Email или номер',
                   prefixIcon: const Icon(Icons.email),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14 * Responsive.scaleHeight(context)),
                   filled: true,
                   fillColor: Theme.of(context).colorScheme.surface,
                 ),
                 validator: _validateEmail,
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14 * Responsive.scaleHeight(context)),
               TextFormField(
                 controller: _passCtl,
                 decoration: InputDecoration(
                   hintText: 'Пароль',
                   prefixIcon: const Icon(Icons.lock),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14 * Responsive.scaleHeight(context)),
                   filled: true,
                   fillColor: Theme.of(context).colorScheme.surface,
                 ),
                 obscureText: true,
                 validator: _validatePassword,
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8 * Responsive.scaleHeight(context)),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  padding: EdgeInsets.symmetric(horizontal: 8.0),
                   child: Text('Оставьте пароль пустым для одноразового кода', style: Theme.of(context).textTheme.bodySmall),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24 * Responsive.scaleHeight(context)),
               SizedBox(
                 width: double.infinity,
                 child: _loading
                     ? const SizedBox(height: 50, child: Center(child: CircularProgressIndicator()))
                     : ElevatedButton(
                         onPressed: _ssoLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                        child: const Text('Войти', style: TextStyle(fontSize: 16)),
+                        style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 14 * Responsive.scaleHeight(context))),
+                        child: Text('Войти', style: TextStyle(fontSize: 16 * Responsive.scaleFor(context))),
                       ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12 * Responsive.scaleHeight(context)),
               Row(children: [
                 Expanded(child: Divider(color: Theme.of(context).dividerColor)),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 12 * Responsive.scaleWidth(context)),
                   child: Text('или', style: Theme.of(context).textTheme.bodySmall),
                 ),
                 Expanded(child: Divider(color: Theme.of(context).dividerColor)),
               ]),
-              const SizedBox(height: 12),
+              SizedBox(height: 12 * Responsive.scaleHeight(context)),
               _ssoButtons(),
-              const SizedBox(height: 20),
+              SizedBox(height: 20 * Responsive.scaleHeight(context)),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text("Нет аккаунта? ", style: Theme.of(context).textTheme.bodyMedium),
                 TextButton(onPressed: () => Navigator.pushNamed(context, '/register'), child: const Text('Создать')),
