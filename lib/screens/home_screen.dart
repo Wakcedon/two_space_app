@@ -5,6 +5,7 @@ import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/chat_settings_screen.dart';
+import 'package:two_space_app/screens/settings_screen.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 
@@ -216,11 +217,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.only(right: 12.0),
           child: GestureDetector(
-            onTap: () {
-              // Settings button - placeholder
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Настройки')));
+            onTap: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
             },
-            child: CircleAvatar(child: Text((_selectedRoomName.isNotEmpty ? _selectedRoomName[0] : 'U'))),
+            child: CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+              child: Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+            ),
           ),
         ),
       ]),

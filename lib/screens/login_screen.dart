@@ -77,26 +77,75 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Вход')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextFormField(controller: _emailCtl, decoration: const InputDecoration(hintText: 'Email'), validator: _validateEmail),
-            const SizedBox(height: 8),
-            TextFormField(controller: _passCtl, decoration: const InputDecoration(hintText: 'Пароль'), obscureText: true, validator: _validatePassword),
-            const SizedBox(height: 6),
-            Text('Оставьте поле пароля пустым для одноразового кода по email (если настроено)', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 12),
-            _loading ? const CircularProgressIndicator() : ElevatedButton(onPressed: _login, child: const Text('Войти')),
-            TextButton(onPressed: () => Navigator.pushNamed(context, '/register'), child: const Text('Создать аккаунт')),
-            const SizedBox(height: 8),
-            _ssoButtons(),
-          ]),
+      appBar: AppBar(title: const Text('Вход'), elevation: 0, backgroundColor: Theme.of(context).colorScheme.surface),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _emailCtl,
+                decoration: InputDecoration(
+                  hintText: 'Email или номер',
+                  prefixIcon: const Icon(Icons.email),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                validator: _validateEmail,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _passCtl,
+                decoration: InputDecoration(
+                  hintText: 'Пароль',
+                  prefixIcon: const Icon(Icons.lock),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                obscureText: true,
+                validator: _validatePassword,
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text('Оставьте пароль пустым для одноразового кода', style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: _loading
+                    ? const SizedBox(height: 50, child: Center(child: CircularProgressIndicator()))
+                    : ElevatedButton(
+                        onPressed: _login,
+                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                        child: const Text('Войти', style: TextStyle(fontSize: 16)),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('или', style: Theme.of(context).textTheme.bodySmall),
+                ),
+                Expanded(child: Divider(color: Theme.of(context).dividerColor)),
+              ]),
+              const SizedBox(height: 12),
+              _ssoButtons(),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text("Нет аккаунта? ", style: Theme.of(context).textTheme.bodyMedium),
+                TextButton(onPressed: () => Navigator.pushNamed(context, '/register'), child: const Text('Создать')),
+              ]),
+            ]),
+          ),
         ),
       ),
     );
   }
 }
-

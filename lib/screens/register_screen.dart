@@ -99,12 +99,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Регистрация')),
+      appBar: AppBar(title: const Text('Регистрация'), elevation: 0, backgroundColor: Theme.of(context).colorScheme.surface),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Stepper(
           currentStep: _step,
-          onStepContinue: () async {
+          onStepContinue: _loading ? null : () async {
             if (_step == 0) {
               // create basic user account
               await _register();
@@ -114,26 +114,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
               await _finishRegistration();
             }
           },
-          onStepCancel: () {
+          onStepCancel: _loading ? null : () {
             if (_step > 0) setState(() => _step -= 1);
           },
           steps: [
             Step(title: const Text('Аккаунт'), content: Column(children: [
-              TextField(controller: _emailCtl, decoration: const InputDecoration(hintText: 'Email')),
-              const SizedBox(height: 8),
-              TextField(controller: _passCtl, decoration: const InputDecoration(hintText: 'Пароль (опционально)'), obscureText: true),
+              TextFormField(
+                controller: _emailCtl,
+                decoration: InputDecoration(
+                  hintText: 'Email',
+                  prefixIcon: const Icon(Icons.email),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passCtl,
+                decoration: InputDecoration(
+                  hintText: 'Пароль (опционально)',
+                  prefixIcon: const Icon(Icons.lock),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                obscureText: true,
+              ),
             ])),
             Step(title: const Text('Профиль'), content: Column(children: [
-              TextField(controller: _nameCtl, decoration: const InputDecoration(hintText: 'Имя')),
-              const SizedBox(height: 8),
-              TextField(controller: _nicknameCtl, decoration: const InputDecoration(hintText: 'Никнейм')),
+              TextFormField(
+                controller: _nameCtl,
+                decoration: InputDecoration(
+                  hintText: 'Имя',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _nicknameCtl,
+                decoration: InputDecoration(
+                  hintText: 'Никнейм',
+                  prefixIcon: const Icon(Icons.badge),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+              ),
             ])),
             Step(title: const Text('Аватар'), content: Column(children: [
-              Row(children: [Expanded(child: Text('Аватар (опционально)')), TextButton.icon(onPressed: () async { final res = await FilePicker.platform.pickFiles(type: FileType.image); if (res != null && res.files.isNotEmpty) { setState(() { _avatarPath = res.files.single.path; _avatarBytes = res.files.single.bytes; }); } }, icon: const Icon(Icons.photo), label: const Text('Загрузить'))]),
-              const SizedBox(height: 8),
-              if (_avatarBytes != null) Image.memory(_avatarBytes!, width: 120, height: 120),
+              Row(children: [Expanded(child: const Text('Аватар (опционально)', style: TextStyle(fontWeight: FontWeight.w500))), TextButton.icon(onPressed: () async { final res = await FilePicker.platform.pickFiles(type: FileType.image); if (res != null && res.files.isNotEmpty) { setState(() { _avatarPath = res.files.single.path; _avatarBytes = res.files.single.bytes; }); } }, icon: const Icon(Icons.add_a_photo), label: const Text('Загрузить'))]),
               const SizedBox(height: 16),
-              Row(children: [TextButton(onPressed: () => setState(() => _step = 1), child: const Text('Назад')), const Spacer(), _loading ? const CircularProgressIndicator() : ElevatedButton(onPressed: _finishRegistration, child: const Text('Завершить'))])
+              if (_avatarBytes != null) ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(_avatarBytes!, width: 120, height: 120, fit: BoxFit.cover)),
+              const SizedBox(height: 16),
             ])),
           ],
         ),

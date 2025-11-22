@@ -517,11 +517,26 @@ class _ChatScreenState extends State<ChatScreen> {
       Expanded(child: bodyWidget),
       const Divider(height: 1),
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
         child: Row(children: [
           IconButton(icon: const Icon(Icons.attach_file), onPressed: _sending ? null : _sendAttachment),
-          Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Написать сообщение...'))),
-          IconButton(icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send), onPressed: _sending ? null : _sendText),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              decoration: InputDecoration(
+                hintText: 'Написать сообщение...',
+                hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.send, color: Theme.of(context).colorScheme.primary),
+            onPressed: _sending ? null : _sendText,
+          ),
         ]),
       )
     ]);
