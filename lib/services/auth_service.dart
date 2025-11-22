@@ -256,7 +256,15 @@ class AuthService {
       } catch (_) {}
     }
     if (keyId.isEmpty) return null;
-    return await _secure.read(key: '$_kMatrixTokenKeyPrefix$keyId');
+    var token = await _secure.read(key: '$_kMatrixTokenKeyPrefix$keyId');
+    if (token == null || token.isEmpty) {
+      // Try to refresh using a refresh token if available (silent refresh)
+      try {
+        final refreshed = await refreshMatrixTokenForUser(appUserId: keyId);
+        if (refreshed != null && refreshed.isNotEmpty) return refreshed;
+      } catch (_) {}
+    }
+    return token;
   }
 
   /// Exchange an SSO/login token (returned by Synapse after OIDC) for a Matrix session.

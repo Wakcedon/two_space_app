@@ -358,8 +358,18 @@ class ChatMatrixService {
   /// Return list of room IDs the current user has joined.
   Future<List<String>> getJoinedRooms() async {
     final uri = Uri.parse('$homeserver/_matrix/client/v3/joined_rooms');
-    final headers = await _authHeaders();
-    final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    var headers = await _authHeaders();
+    var res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    // If token expired or unauthorized, try refreshing silently and retry once
+    if (res.statusCode == 401 || res.statusCode == 403) {
+      try {
+        final refreshed = await AuthService().refreshMatrixTokenForUser();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          headers = await _authHeaders();
+          res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+        }
+      } catch (_) {}
+    }
     if (res.statusCode != 200) return <String>[];
     try {
       final js = jsonDecode(res.body) as Map<String, dynamic>;
@@ -463,7 +473,9 @@ class ChatMatrixService {
       token = null;
     }
     final headers = <String, String>{};
-    if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
+    // Prefer per-user token from secure storage; fall back to a configured global token
+    final effectiveToken = (token != null && token.isNotEmpty) ? token : (Environment.matrixAccessToken.isNotEmpty ? Environment.matrixAccessToken : null);
+    if (effectiveToken != null && effectiveToken.isNotEmpty) headers['Authorization'] = 'Bearer $effectiveToken';
     return headers;
   }
 }

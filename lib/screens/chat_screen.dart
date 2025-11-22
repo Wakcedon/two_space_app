@@ -31,6 +31,7 @@ class _ChatScreenState extends State<ChatScreen> {
   List<_Msg> _messages = [];
   final Map<String, Map<String, dynamic>> _reactions = {};
   final ScrollController _listController = ScrollController();
+  final Map<String, GlobalKey> _messageKeys = {};
   String? _scrollToEventId;
   final Set<String> _highlighted = {};
   bool _loading = true;
@@ -158,18 +159,27 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       // If we have an initial scroll target, try to scroll to it
       if (_scrollToEventId != null && _scrollToEventId!.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final idx = _messages.indexWhere((m) => m.id == _scrollToEventId);
-          if (idx >= 0 && _listController.hasClients) {
-            final approxItemHeight = 80.0;
-            final N = _messages.length;
-            final revIdx = (N - 1 - idx);
-            final offset = revIdx * approxItemHeight;
-            _listController.animateTo(offset.clamp(0.0, _listController.position.maxScrollExtent), duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
-            setState(() { _highlighted.clear(); _highlighted.add(_scrollToEventId!); });
-            // clear target afterwards
-            _scrollToEventId = null;
-          }
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          try {
+            final targetId = _scrollToEventId!;
+            final key = _messageKeys[targetId];
+            if (key != null && key.currentContext != null) {
+              await Scrollable.ensureVisible(key.currentContext!, duration: const Duration(milliseconds: 450), alignment: 0.4, curve: Curves.easeInOut);
+              setState(() { _highlighted.clear(); _highlighted.add(targetId); });
+            } else {
+              // Fallback to index-based scroll
+              final idx = _messages.indexWhere((m) => m.id == targetId);
+              if (idx >= 0 && _listController.hasClients) {
+                final approxItemHeight = 84.0; // slightly increased default
+                final N = _messages.length;
+                final revIdx = (N - 1 - idx);
+                final offset = revIdx * approxItemHeight;
+                await _listController.animateTo(offset.clamp(0.0, _listController.position.maxScrollExtent), duration: const Duration(milliseconds: 450), curve: Curves.easeInOut);
+                setState(() { _highlighted.clear(); _highlighted.add(targetId); });
+              }
+            }
+          } catch (_) {}
+          _scrollToEventId = null;
         });
       }
       // fetch reactions for messages in background
@@ -394,6 +404,7 @@ class _ChatScreenState extends State<ChatScreen> {
         padding: const EdgeInsets.all(12),
         itemBuilder: (c, i) {
           final m = _visibleMessages[i];
+          final key = _messageKeys.putIfAbsent(m.id, () => GlobalKey());
           final bubble = Container(
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -458,30 +469,40 @@ class _ChatScreenState extends State<ChatScreen> {
               ]
             ]),
           );
-
-          return Align(
-            alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
-            child: Row(mainAxisSize: MainAxisSize.max, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (!m.isOwn)
-                GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: m.senderId ?? ''))),
-                  child: UserAvatar(avatarUrl: m.senderAvatar, initials: (m.senderName ?? '?').isNotEmpty ? (m.senderName ?? '?')[0] : '?', radius: 16),
-                ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 8.0, end: 0.0),
-                  duration: Duration(milliseconds: 240 + (i % 5) * 30),
-                  builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
-                  child: GestureDetector(
-                    onLongPressStart: (details) => _showMessageActions(m, details.globalPosition),
-                          child: AnimatedContainer(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut, decoration: _highlighted.contains(m.id) ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2), borderRadius: BorderRadius.circular(16)) : null, child: bubble),
+          ;
+          return KeyedSubtree(
+            key: key,
+            child: Align(
+              alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
+              child: Row(mainAxisSize: MainAxisSize.max, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (!m.isOwn)
+                  GestureDetector(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: m.senderId ?? ''))),
+                    child: UserAvatar(avatarUrl: m.senderAvatar, initials: (m.senderName ?? '?').isNotEmpty ? (m.senderName ?? '?')[0] : '?', radius: 16),
+                  ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 8.0, end: 0.0),
+                    duration: Duration(milliseconds: 240 + (i % 5) * 30),
+                    builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
+                    child: GestureDetector(
+                      onLongPressStart: (details) => _showMessageActions(m, details.globalPosition),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 400),
+                                      curve: Curves.easeInOut,
+                                      decoration: _highlighted.contains(m.id)
+                                          ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2), color: Theme.of(context).colorScheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(16))
+                                          : null,
+                                      child: bubble,
+                                    ),
+                    ),
                   ),
                 ),
-              ),
-              if (m.isOwn) const SizedBox(width: 8),
-              if (m.isOwn) CircleAvatar(radius: 16, child: Text('Y')),
-            ]),
+                if (m.isOwn) const SizedBox(width: 8),
+                if (m.isOwn) CircleAvatar(radius: 16, child: Text('Y')),
+              ])
+            )
           );
         },
         separatorBuilder: (_, __) => const SizedBox(height: 2),
