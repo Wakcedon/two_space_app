@@ -15,8 +15,9 @@ class ChatScreen extends StatefulWidget {
   final Chat chat;
   final String? searchQuery;
   final String? searchType; // 'all' | 'messages' | 'media' | 'users'
+  final String? scrollToEventId;
 
-  const ChatScreen({super.key, required this.chat, this.searchQuery, this.searchType});
+  const ChatScreen({super.key, required this.chat, this.searchQuery, this.searchType, this.scrollToEventId});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -29,6 +30,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _searching = false;
   List<_Msg> _messages = [];
   final Map<String, Map<String, dynamic>> _reactions = {};
+  final ScrollController _listController = ScrollController();
+  String? _scrollToEventId;
+  final Set<String> _highlighted = {};
   bool _loading = true;
   bool _sending = false;
   final Map<String, AudioPlayer> _audioPlayers = {};
@@ -56,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadMessages();
+    _scrollToEventId = widget.scrollToEventId;
     // start sync loop to receive new events
     _svc.startSync((js) {
       _handleSync(js);
@@ -65,6 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _svc.stopSync();
+    _listController.dispose();
     super.dispose();
   }
 
@@ -73,6 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.didUpdateWidget(oldWidget);
     final oldQ = (oldWidget.searchQuery ?? '').trim();
     final newQ = (widget.searchQuery ?? '').trim();
+    if (oldWidget.scrollToEventId != widget.scrollToEventId) _scrollToEventId = widget.scrollToEventId;
     if (oldQ != newQ) {
       _performServerSearch(newQ, widget.searchType ?? 'all');
     }
@@ -130,11 +137,41 @@ class _ChatScreenState extends State<ChatScreen> {
           senderName = info['displayName'] ?? senderName;
           senderAvatar = info['avatarUrl'];
         } catch (_) {}
-        out.add(_Msg(id: m.id, text: m.content, isOwn: (me != null && me == m.senderId), time: m.time, senderId: m.senderId, senderName: senderName, senderAvatar: senderAvatar, type: m.type, mediaId: m.mediaId));
+        // Determine isOwn in a tolerant way: compare normalized localparts if full MXIDs are mismatched
+        bool isOwn = false;
+        try {
+          String normalize(String? mx) {
+            if (mx == null || mx.isEmpty) return '';
+            var s = mx;
+            if (s.startsWith('@')) s = s.substring(1);
+            if (s.contains(':')) s = s.split(':').first;
+            return s.toLowerCase();
+          }
+          final meNorm = normalize(me);
+          final senderNorm = normalize(m.senderId);
+          isOwn = meNorm.isNotEmpty && meNorm == senderNorm;
+        } catch (_) { isOwn = (me != null && me == m.senderId); }
+        out.add(_Msg(id: m.id, text: m.content, isOwn: isOwn, time: m.time, senderId: m.senderId, senderName: senderName, senderAvatar: senderAvatar, type: m.type, mediaId: m.mediaId));
       }
       setState(() {
         _messages = out;
       });
+      // If we have an initial scroll target, try to scroll to it
+      if (_scrollToEventId != null && _scrollToEventId!.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final idx = _messages.indexWhere((m) => m.id == _scrollToEventId);
+          if (idx >= 0 && _listController.hasClients) {
+            final approxItemHeight = 80.0;
+            final N = _messages.length;
+            final revIdx = (N - 1 - idx);
+            final offset = revIdx * approxItemHeight;
+            _listController.animateTo(offset.clamp(0.0, _listController.position.maxScrollExtent), duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+            setState(() { _highlighted.clear(); _highlighted.add(_scrollToEventId!); });
+            // clear target afterwards
+            _scrollToEventId = null;
+          }
+        });
+      }
       // fetch reactions for messages in background
       for (final m in out) {
         () async {
@@ -326,17 +363,25 @@ class _ChatScreenState extends State<ChatScreen> {
             final content = ev['content'] as Map<String, dynamic>? ?? {};
             final body = content['body']?.toString() ?? '';
             final sender = ev['sender']?.toString() ?? '';
+            final tsNum = ev['origin_server_ts'] as num?;
+            final ts = tsNum != null ? DateTime.fromMillisecondsSinceEpoch(tsNum.toInt()) : null;
             final roomId = (item['context'] is Map) ? ((item['context'] as Map)['room_id']?.toString() ?? '') : '';
-            return ListTile(
-              title: Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
-              subtitle: Text(sender + (roomId.isNotEmpty ? ' • $roomId' : '')),
-              onTap: () async {
-                if (roomId.isEmpty) return;
-                final info = await _svc.getRoomNameAndAvatar(roomId);
-                final chat = Chat(id: roomId, name: info['name'] ?? roomId, avatarUrl: info['avatar'], members: [], lastMessage: '');
-                Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(chat: chat)));
-              },
-            );
+            return FutureBuilder<Map<String, dynamic>>(future: _svc.getUserInfo(sender), builder: (ctx, s2) {
+              final info = s2.data ?? {};
+              final avatar = info['avatarUrl']?.toString();
+              final displayName = info['displayName']?.toString() ?? sender;
+              return ListTile(
+                leading: avatar != null ? UserAvatar(avatarUrl: avatar, radius: 18) : CircleAvatar(radius: 18, child: Text(displayName.isNotEmpty ? displayName[0] : '?')),
+                title: Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${displayName}${roomId.isNotEmpty ? ' • $roomId' : ''}${ts != null ? ' • ${ts.hour.toString().padLeft(2,'0')}:${ts.minute.toString().padLeft(2,'0')}' : ''}'),
+                onTap: () async {
+                  if (roomId.isEmpty) return;
+                  final infoRoom = await _svc.getRoomNameAndAvatar(roomId);
+                  final chat = Chat(id: roomId, name: infoRoom['name'] ?? roomId, avatarUrl: infoRoom['avatar'], members: [], lastMessage: '');
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(chat: chat, scrollToEventId: ev['event_id']?.toString())));
+                },
+              );
+            });
           },
           separatorBuilder: (_, __) => const Divider(),
           itemCount: _searchResults.length,
@@ -345,6 +390,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       bodyWidget = ListView.separated(
         reverse: true,
+        controller: _listController,
         padding: const EdgeInsets.all(12),
         itemBuilder: (c, i) {
           final m = _visibleMessages[i];
@@ -429,7 +475,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   builder: (context, val, child) => Transform.translate(offset: Offset(0, val), child: Opacity(opacity: 1.0 - (val / 12.0).clamp(0.0, 1.0), child: child)),
                   child: GestureDetector(
                     onLongPressStart: (details) => _showMessageActions(m, details.globalPosition),
-                    child: bubble,
+                          child: AnimatedContainer(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut, decoration: _highlighted.contains(m.id) ? BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2), borderRadius: BorderRadius.circular(16)) : null, child: bubble),
                   ),
                 ),
               ),
@@ -489,6 +535,8 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
   AudioPlayer? _player;
   List<double> _waveform = [];
 
+  // No fake controller needed; removed unused variable
+
   @override
   void initState() {
     super.initState();
@@ -528,7 +576,15 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
       await _player!.pause();
       setState(() => _playing = false);
     } else {
-      await _player!.play(DeviceFileSource(_localPath!));
+      try {
+        await _player!.play(DeviceFileSource(_localPath!));
+      } catch (e) {
+        // fallback: try setting source then resume
+        try {
+          await _player!.setSource(DeviceFileSource(_localPath!));
+          await _player!.resume();
+        } catch (_) {}
+      }
       setState(() => _playing = true);
     }
   }
@@ -553,13 +609,13 @@ class _AudioMessageWidgetState extends State<_AudioMessageWidget> {
           _seekTo((local.dx / box.size.width).clamp(0.0, 1.0));
         }
       },
-      child: Row(children: [
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(icon: _playing ? const Icon(Icons.pause_circle) : const Icon(Icons.play_circle), onPressed: _togglePlay),
         Stack(children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              width: 200,
+              width: math.min(MediaQuery.of(context).size.width * 0.35, 260.0),
               height: 36,
               color: Theme.of(context).colorScheme.surface.withOpacity(0.08),
               child: Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0), child: bars)),

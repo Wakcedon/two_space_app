@@ -32,6 +32,19 @@ class _UserAvatarState extends State<UserAvatar> {
     _loadIfNeeded();
   }
 
+  @override
+  void didUpdateWidget(covariant UserAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If avatar data changed, clear cached bytes and reload
+    if (oldWidget.avatarFileId != widget.avatarFileId || oldWidget.avatarUrl != widget.avatarUrl) {
+      if (widget.avatarFileId != null && widget.avatarFileId!.isNotEmpty) {
+        _cache.remove(widget.avatarFileId);
+      }
+      _bytes = null;
+      _loadIfNeeded();
+    }
+  }
+
   Future<void> _loadIfNeeded() async {
     String? fid = widget.avatarFileId;
     // Avatar URL (if any)
@@ -101,7 +114,7 @@ class _UserAvatarState extends State<UserAvatar> {
       }
       return;
     }
-    if (_cache.containsKey(fid)) {
+  if (fid.isNotEmpty && _cache.containsKey(fid)) {
       setState(() => _bytes = _cache[fid]);
       return;
     }
@@ -122,7 +135,7 @@ class _UserAvatarState extends State<UserAvatar> {
       return CircleAvatar(radius: r, backgroundColor: Colors.transparent, child: ClipOval(child: Image.memory(_bytes!, width: r * 2, height: r * 2, fit: BoxFit.cover)));
     }
     if (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty) {
-      return CircleAvatar(radius: r, backgroundImage: NetworkImage(widget.avatarUrl!), backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: widget.initials == null ? null : Text(widget.initials ?? ''));
+      return CircleAvatar(key: ValueKey(widget.avatarUrl), radius: r, backgroundImage: NetworkImage(widget.avatarUrl!), backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: widget.initials == null ? null : Text(widget.initials ?? ''));
     }
 
     // Fallback: display local initials text (no Appwrite dependency)

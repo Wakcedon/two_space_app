@@ -95,6 +95,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: Row(children: [
+            PopupMenuButton<String>(
+              tooltip: 'Тип поиска',
+              icon: const Icon(Icons.filter_list),
+              onSelected: (v) => setState(() => _searchType = v),
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'all', child: Row(children: [Expanded(child: Text('Все')), if (_searchType == 'all') const Icon(Icons.check, size: 16)])),
+                PopupMenuItem(value: 'messages', child: Row(children: [Expanded(child: Text('Сообщения')), if (_searchType == 'messages') const Icon(Icons.check, size: 16)])),
+                PopupMenuItem(value: 'media', child: Row(children: [Expanded(child: Text('Медиа')), if (_searchType == 'media') const Icon(Icons.check, size: 16)])),
+                PopupMenuItem(value: 'users', child: Row(children: [Expanded(child: Text('Пользователи')), if (_searchType == 'users') const Icon(Icons.check, size: 16)])),
+              ],
+            ),
+          ]),
+        ),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -138,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   final chat = Chat(id: _selectedRoomId!, name: _selectedRoomName, members: []);
   return Column(children: [
-      // header with title and search
+        // header with title
       Container(
         color: Theme.of(context).colorScheme.surface,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -155,28 +171,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ]),
             ),
           ),
-          SizedBox(
-            width: 300,
-            child: Row(children: [
-              Expanded(
-                child: TextField(
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  decoration: const InputDecoration(hintText: 'Поиск', isDense: true, prefixIcon: Icon(Icons.search)),
-                ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: 'Тип поиска',
-                icon: const Icon(Icons.filter_list),
-                onSelected: (v) => setState(() => _searchType = v),
-                itemBuilder: (_) => [
-                  PopupMenuItem(value: 'all', child: Row(children: [Expanded(child: Text('Все')), if (_searchType == 'all') const Icon(Icons.check, size: 16)])),
-                  PopupMenuItem(value: 'messages', child: Row(children: [Expanded(child: Text('Сообщения')), if (_searchType == 'messages') const Icon(Icons.check, size: 16)])),
-                  PopupMenuItem(value: 'media', child: Row(children: [Expanded(child: Text('Медиа')), if (_searchType == 'media') const Icon(Icons.check, size: 16)])),
-                  PopupMenuItem(value: 'users', child: Row(children: [Expanded(child: Text('Пользователи')), if (_searchType == 'users') const Icon(Icons.check, size: 16)])),
-                ],
-              )
-            ]),
-          )
+          SizedBox(width: 170, child: Row(children: [
+            PopupMenuButton<String>(
+              tooltip: 'Тип поиска',
+              icon: const Icon(Icons.filter_list),
+              onSelected: (v) => setState(() => _searchType = v),
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'all', child: Row(children: [Expanded(child: Text('Все')), if (_searchType == 'all') const Icon(Icons.check, size: 16)])),
+                PopupMenuItem(value: 'messages', child: Row(children: [Expanded(child: Text('Сообщения')), if (_searchType == 'messages') const Icon(Icons.check, size: 16)])),
+                PopupMenuItem(value: 'media', child: Row(children: [Expanded(child: Text('Медиа')), if (_searchType == 'media') const Icon(Icons.check, size: 16)])),
+                PopupMenuItem(value: 'users', child: Row(children: [Expanded(child: Text('Пользователи')), if (_searchType == 'users') const Icon(Icons.check, size: 16)])),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Text(''),
+          ])),
         ]),
       ),
       const Divider(height: 1),

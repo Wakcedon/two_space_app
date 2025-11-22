@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'otp_screen.dart';
+import 'sso_webview_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,7 +28,26 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await _auth.loginUser(_emailCtl.text.trim(), _passCtl.text.trim());
+      final identifier = _emailCtl.text.trim();
+      // Phone flow
+      if (identifier.startsWith('+')) {
+        final token = await _auth.sendPhoneToken(identifier);
+        if (!mounted) return;
+        final code = await Navigator.push<String?>(context, MaterialPageRoute(builder: (_) => OtpScreen(phone: identifier)));
+        if (code == null || code.isEmpty) return;
+        await _auth.createSessionFromToken(token is Map && token.containsKey('userId') ? token['userId'] : identifier, code);
+      } else {
+        final password = _passCtl.text.trim();
+        if (password.isEmpty) {
+          final token = await _auth.sendEmailToken(identifier);
+          if (!mounted) return;
+          final code = await Navigator.push<String?>(context, MaterialPageRoute(builder: (_) => OtpScreen(phone: identifier)));
+          if (code == null || code.isEmpty) return;
+          await _auth.createSessionFromToken(token is Map && token.containsKey('userId') ? token['userId'] : identifier, code);
+        } else {
+          await _auth.loginUser(identifier, password);
+        }
+      }
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
@@ -37,8 +58,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Widget _ssoButtons() {
+    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      ElevatedButton.icon(onPressed: () async { final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google'))); if (ok == true) Navigator.pushReplacementNamed(context, '/home'); }, icon: const Icon(Icons.login), label: const Text('Google')),
+      const SizedBox(width: 8),
+      ElevatedButton.icon(onPressed: () async { final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex'))); if (ok == true) Navigator.pushReplacementNamed(context, '/home'); }, icon: const Icon(Icons.person), label: const Text('Yandex')),
+    ]);
+  }
+
   String? _validateEmail(String? v) => (v == null || v.trim().isEmpty) ? 'Введите email' : null;
-  String? _validatePassword(String? v) => (v == null || v.isEmpty) ? 'Введите пароль' : null;
+  // Password may be empty to trigger magic link flow. If provided, it must be non-empty.
+  String? _validatePassword(String? v) {
+    if (v == null || v.isEmpty) return null;
+    if (v.length < 6) return 'Пароль должен быть не менее 6 символов';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,9 +86,13 @@ class _LoginScreenState extends State<LoginScreen> {
             TextFormField(controller: _emailCtl, decoration: const InputDecoration(hintText: 'Email'), validator: _validateEmail),
             const SizedBox(height: 8),
             TextFormField(controller: _passCtl, decoration: const InputDecoration(hintText: 'Пароль'), obscureText: true, validator: _validatePassword),
+            const SizedBox(height: 6),
+            Text('Оставьте поле пароля пустым для одноразового кода по email (если настроено)', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 12),
             _loading ? const CircularProgressIndicator() : ElevatedButton(onPressed: _login, child: const Text('Войти')),
             TextButton(onPressed: () => Navigator.pushNamed(context, '/register'), child: const Text('Создать аккаунт')),
+            const SizedBox(height: 8),
+            _ssoButtons(),
           ]),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/auth_service.dart';
 
 class TfaSetupScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _TfaSetupScreenState extends State<TfaSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_error != null) Text('Ошибка: $_error', style: const TextStyle(color: Colors.red)),
-            if (_otpauthUrl != null) Center(child: Column(mainAxisSize: MainAxisSize.min, children: [SelectableText(_otpauthUrl!), IconButton(icon: const Icon(Icons.copy), onPressed: () { Clipboard.setData(ClipboardData(text: _otpauthUrl!)); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Код скопирован'))); })])),
+            if (_otpauthUrl != null) Center(child: Column(mainAxisSize: MainAxisSize.min, children: [QrImageView(data: _otpauthUrl!, size: 220.0), const SizedBox(height: 8), SelectableText(_otpauthUrl!), IconButton(icon: const Icon(Icons.copy), onPressed: () { Clipboard.setData(ClipboardData(text: _otpauthUrl!)); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Код скопирован'))); })])),
             const SizedBox(height: 12),
             if (_secret != null) Row(children: [Expanded(child: SelectableText('Код: $_secret')), IconButton(icon: const Icon(Icons.copy), onPressed: () { /* copy */ })]),
             const SizedBox(height: 12),
