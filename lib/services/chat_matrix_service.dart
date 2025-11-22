@@ -24,8 +24,16 @@ class ChatMatrixService {
     final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 6));
     if (res.statusCode >= 200 && res.statusCode < 300) {
       final js = jsonDecode(res.body) as Map<String, dynamic>;
+      String display = js['displayname'] ?? userId;
+      // If display name is stored as NICKNAME:server, strip server suffix for UI
+      try {
+        if (display.contains(':') && !display.contains(' ')) {
+          final parts = display.split(':');
+          if (parts.isNotEmpty && parts[0].isNotEmpty) display = parts[0];
+        }
+      } catch (_) {}
       final avatar = js['avatar_url']?.toString();
-      return {'displayName': js['displayname'] ?? userId, 'avatarUrl': avatar != null ? _mxcToHttp(avatar) : null};
+      return {'displayName': display, 'avatarUrl': avatar != null ? _mxcToHttp(avatar) : null};
     }
     return {'displayName': userId, 'avatarUrl': null};
   }
@@ -469,6 +477,15 @@ class ChatMatrixService {
     final res = await http.put(uri, headers: headers, body: body).timeout(const Duration(seconds: 6));
     if (res.statusCode >= 200 && res.statusCode < 300) return;
     throw Exception('setJoinRule failed ${res.statusCode}: ${res.body}');
+  }
+
+  /// Leave a room (Matrix /leave endpoint)
+  Future<void> leaveRoom(String roomId) async {
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/leave');
+    final headers = await _authHeaders();
+    final res = await http.post(uri, headers: headers).timeout(const Duration(seconds: 6));
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    throw Exception('leaveRoom failed ${res.statusCode}: ${res.body}');
   }
 
   Future<void> markRead(String eventId, String userId) async {

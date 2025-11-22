@@ -123,6 +123,52 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     } finally { if (mounted) setState(() => _loadingMembers = false); }
   }
 
+  Future<void> _showLeaveConfirmation() async {
+    // Telegram-like multi-step confirmation for leaving a room
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => AlertDialog(
+        title: const Text('Покинуть комнату?'),
+        content: const Text('Вы не сможете вернуться в эту комнату, если вас не пригласят заново.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Покинуть', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Perform the leave action
+    setState(() => _saving = true);
+    try {
+      await ChatMatrixService().leaveRoom(widget.roomId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Вы покинули комнату')));
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        Navigator.pop(context);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка при выходе: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _handleDangerAction(String key) async {
+    if (key == 'leave') {
+      await _showLeaveConfirmation();
+    } else if (key == 'report') {
+      // TODO: Implement report spam/abuse flow
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Функция жалобы еще не реализована')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sections = [
@@ -190,16 +236,30 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
                       onTap: () async {
+                        final key = s['key'] as String;
+                        final isDanger = s['danger'] == true;
+                        
+                        // Handle danger actions with confirmation
+                        if (isDanger) {
+                          await _handleDangerAction(key);
+                          return;
+                        }
+                        
                         setState(() => _selectedIndex = index);
-                        if (s['key'] == 'members') await _loadMembers();
+                        if (key == 'members') await _loadMembers();
                         if (isMobile) {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatSettingDetailPage(keyName: s['key'] as String, title: s['title'] as String, roomId: widget.roomId, contentBuilder: _buildSectionContent)));
+                          await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatSettingDetailPage(keyName: key, title: s['title'] as String, roomId: widget.roomId, contentBuilder: _buildSectionContent)));
                         }
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 10),
                         child: Row(children: [
-                          CircleAvatar(backgroundColor: isDanger ? Colors.red : (isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surface), child: Icon(s['icon'] as IconData, size: 18, color: isDanger ? Colors.white : (isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurface))),
+                          AnimatedScale(
+                            scale: isSelected ? 1.12 : 1.0,
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOutCubic,
+                            child: CircleAvatar(backgroundColor: isDanger ? Colors.red : (isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surface), child: Icon(s['icon'] as IconData, size: 18, color: isDanger ? Colors.white : (isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurface))),
+                          ),
                           const SizedBox(width: 12),
                           Expanded(child: Text(s['title'] as String, style: isDanger ? const TextStyle(color: Colors.red) : (isSelected ? TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary) : null))),
                           if (s['key'] == 'pinned') const Chip(label: Text('0')),

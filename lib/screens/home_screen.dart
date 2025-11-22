@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:two_space_app/services/chat_matrix_service.dart';
+import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/chat_settings_screen.dart';
@@ -37,7 +38,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadRooms();
+    _checkAuthAndLoadRooms();
+  }
+
+  Future<void> _checkAuthAndLoadRooms() async {
+    try {
+      final auth = AuthService();
+      final token = await auth.getMatrixTokenForUser();
+      if (token == null || token.isEmpty) {
+        // Not authenticated, redirect to login
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        return;
+      }
+      await _loadRooms();
+    } catch (e) {
+      // On auth error, redirect to login
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    }
   }
 
   Future<void> _loadRooms() async {
@@ -114,35 +133,48 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
-              : ListView.separated(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: _rooms.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
-                  itemBuilder: (context, index) {
-                    final r = _rooms[index];
-                    final id = r['roomId'] as String? ?? '';
-                    final name = r['name'] as String? ?? id;
-                    final selected = _selectedRoomId == id;
-                    return ListTile(
-                      key: ValueKey(id),
-                      selected: selected,
-                      selectedTileColor: Theme.of(context).colorScheme.surface.withOpacity(0.06),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      title: Text(name),
-            leading: r['avatar'] != null
-              ? UserAvatar(avatarUrl: r['avatar'] as String?, radius: 20)
-              : CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
-                      onTap: () {
-                        setState(() {
-                          _selectedRoomId = id;
-                          _selectedRoomName = name;
-                          // open center and right when selecting
-                          _rightOpen = true;
-                        });
+              : _rooms.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.surfaceVariant),
+                          const SizedBox(height: 16),
+                          Text('Нет чатов', style: Theme.of(context).textTheme.titleLarge),
+                          const SizedBox(height: 8),
+                          Text('Присоединитесь к комнате или создайте новую', style: Theme.of(context).textTheme.bodyMedium),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: _rooms.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final r = _rooms[index];
+                        final id = r['roomId'] as String? ?? '';
+                        final name = r['name'] as String? ?? id;
+                        final selected = _selectedRoomId == id;
+                        return ListTile(
+                          key: ValueKey(id),
+                          selected: selected,
+                          selectedTileColor: Theme.of(context).colorScheme.surface.withOpacity(0.06),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          title: Text(name),
+              leading: r['avatar'] != null
+                ? UserAvatar(avatarUrl: r['avatar'] as String?, radius: 20)
+                : CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
+                          onTap: () {
+                            setState(() {
+                              _selectedRoomId = id;
+                              _selectedRoomName = name;
+                              // open center and right when selecting
+                              _rightOpen = true;
+                            });
+                          },
+                        );
                       },
-                    );
-                  },
-                ),
+                    ),
         ),
       ]),
     );
