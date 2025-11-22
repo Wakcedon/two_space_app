@@ -13,6 +13,8 @@ class ChatMatrixService {
   final Map<String, List<double>> _waveformCache = {};
   bool _syncRunning = false;
   String? _nextBatch;
+  final Map<String, Map<String, String?>> _roomNameCache = {};
+  final Map<String, List<Map<String, String?>>> _roomMembersCache = {};
 
   String get homeserver => Environment.matrixHomeserverUrl.replaceAll(RegExp(r'/$'), '');
 
@@ -381,7 +383,8 @@ class ChatMatrixService {
   }
 
   /// Fetch room name and avatar (state events) for a room
-  Future<Map<String, String?>> getRoomNameAndAvatar(String roomId) async {
+  Future<Map<String, String?>> getRoomNameAndAvatar(String roomId, {bool forceRefresh = false}) async {
+    if (!forceRefresh && _roomNameCache.containsKey(roomId)) return _roomNameCache[roomId]!;
     final headers = await _authHeaders();
     final out = <String, String?>{'name': null, 'avatar': null};
     try {
@@ -401,12 +404,15 @@ class ChatMatrixService {
         out['avatar'] = av != null ? mxcToHttp(av) : null;
       }
     } catch (_) {}
+    // Save to cache and return
+    _roomNameCache[roomId] = out;
     return out;
   }
 
   /// Fetch joined members for a room. Returns list of maps: {userId, displayName, avatarUrl}
-  Future<List<Map<String, String?>>> getRoomMembers(String roomId) async {
+  Future<List<Map<String, String?>>> getRoomMembers(String roomId, {bool forceRefresh = false}) async {
     try {
+      if (!forceRefresh && _roomMembersCache.containsKey(roomId)) return _roomMembersCache[roomId]!;
       final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/joined_members');
       final headers = await _authHeaders();
       final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
@@ -425,10 +431,17 @@ class ChatMatrixService {
         } catch (_) {}
         out.add({'userId': uid, 'displayName': display, 'avatarUrl': avatar});
       }
+      // cache
+  _roomMembersCache[roomId] = out;
       return out;
     } catch (_) {
       return [];
     }
+  }
+
+  Future<void> clearRoomCache(String roomId) async {
+    _roomNameCache.remove(roomId);
+    _roomMembersCache.remove(roomId);
   }
 
   Future<String> setRoomName(String roomId, String name) async {

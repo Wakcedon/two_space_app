@@ -82,7 +82,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       const SizedBox(height: 12),
       Expanded(child: ListView.separated(itemBuilder: (c, i) {
         final m = _members[i];
-        return ListTile(
+                return ListTile(
           leading: CircleAvatar(backgroundImage: m['avatarUrl'] != null ? NetworkImage(m['avatarUrl']!) : null, child: m['avatarUrl'] == null ? Text((m['displayName'] ?? m['userId'] ?? '?')![0]) : null),
           title: Text(m['displayName'] ?? m['userId'] ?? ''),
           subtitle: Text(m['userId'] ?? ''),
@@ -113,7 +113,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   Future<void> _loadMembers() async {
     setState(() { _loadingMembers = true; _members = []; });
     try {
-      final list = await _svc.getRoomMembers(widget.roomId);
+      // Force refresh members list from server
+      await _svc.clearRoomCache(widget.roomId);
+      final list = await _svc.getRoomMembers(widget.roomId, forceRefresh: true);
       if (!mounted) return;
       setState(() { _members = list; });
     } catch (e) {
@@ -161,7 +163,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                       leading: meta['avatar'] != null ? UserAvatar(avatarUrl: meta['avatar'], radius: 22) : CircleAvatar(child: Text((meta['name'] ?? widget.initialName).isNotEmpty ? (meta['name'] ?? widget.initialName)[0] : '?')),
                       title: Text(meta['name'] ?? widget.initialName, style: Theme.of(context).textTheme.titleMedium),
                       subtitle: Text('Настройки комнаты'),
-                      trailing: IconButton(icon: const Icon(Icons.edit), onPressed: _pickAndUploadAvatar),
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(icon: const Icon(Icons.refresh), onPressed: () async { setState(() {}); await ChatMatrixService().clearRoomCache(widget.roomId); }),
+                          IconButton(icon: const Icon(Icons.edit), onPressed: _pickAndUploadAvatar),
+                        ]),
                     ),
                   );
                 },
