@@ -35,11 +35,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final u = await AppwriteService.getUserById(widget.userId);
       final me = await AppwriteService.getCurrentUserId();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _user = u.isNotEmpty ? Map<String, dynamic>.from(u) : null;
         _isMe = (me != null && me == widget.userId);
         _loading = false;
       });
+      }
     } catch (_) {
       if (mounted) setState(() { _loading = false; _user = null; });
     }
@@ -155,10 +157,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             final serverShowEmail = prefs['showEmail'] == true;
                             final email = (_user!['email'] as String?) ?? '';
                             final shouldShowEmail = (_isMe ? SettingsService.showEmailNotifier.value : serverShowEmail);
-                            if (email.isNotEmpty && shouldShowEmail) return Column(children: [
+                            if (email.isNotEmpty && shouldShowEmail) {
+                              return Column(children: [
                               _buildInfoRow('Email', email),
                               const Divider(),
                             ]);
+                            }
                             return const SizedBox.shrink();
                           }),
 
@@ -169,10 +173,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             final serverShowPhone = prefs['showPhone'] == true;
                             final phone = (_user!['phone'] as String?) ?? '';
                             final shouldShowPhone = (_isMe ? SettingsService.showPhoneNotifier.value : serverShowPhone);
-                            if (phone.isNotEmpty && shouldShowPhone) return Column(children: [
+                            if (phone.isNotEmpty && shouldShowPhone) {
+                              return Column(children: [
                               _buildInfoRow('Телефон', phone),
                               const Divider(),
                             ]);
+                            }
                             return const SizedBox.shrink();
                           }),
 

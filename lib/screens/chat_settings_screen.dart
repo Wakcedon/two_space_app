@@ -230,7 +230,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 240),
                   margin: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(color: isSelected ? Theme.of(context).colorScheme.surfaceVariant : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: isSelected ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.transparent, borderRadius: BorderRadius.circular(12)),
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(

@@ -4,7 +4,6 @@ import 'package:two_space_app/services/update_service.dart';
 import 'package:two_space_app/services/settings_service.dart';
 import 'package:two_space_app/screens/login_screen.dart';
 import 'package:two_space_app/screens/register_screen.dart';
-import 'package:two_space_app/screens/account_settings_screen.dart';
 import 'package:two_space_app/screens/home_screen.dart';
 import 'package:two_space_app/screens/customization_screen.dart';
 import 'package:two_space_app/screens/privacy_screen.dart';
@@ -35,7 +34,6 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
       {'label': 'Home', 'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HomeScreen()))},
       {'label': 'Login', 'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()))},
       {'label': 'Register', 'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()))},
-      {'label': 'Settings', 'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountSettingsScreen()))},
       {'label': 'Customization', 'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomizationScreen()))},
       {'label': 'Privacy', 'action': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyScreen()))},
     ];

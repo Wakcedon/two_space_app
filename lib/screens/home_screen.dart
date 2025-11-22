@@ -6,7 +6,6 @@ import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/chat_settings_screen.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
-import 'package:two_space_app/screens/account_settings_screen.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 
 /// A simplified, responsive HomeScreen that provides:
@@ -107,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
               hintText: 'Поиск',
               isDense: true,
               filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceVariant,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               prefixIcon: const Icon(Icons.search),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
             ),
@@ -138,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.surfaceVariant),
+                          Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.surfaceContainerHighest),
                           const SizedBox(height: 16),
                           Text('Нет чатов', style: Theme.of(context).textTheme.titleLarge),
                           const SizedBox(height: 8),
@@ -203,21 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ]),
             ),
           ),
-          SizedBox(width: 170, child: Row(children: [
-            PopupMenuButton<String>(
-              tooltip: 'Тип поиска',
-              icon: const Icon(Icons.filter_list),
-              onSelected: (v) => setState(() => _searchType = v),
-              itemBuilder: (_) => [
-                PopupMenuItem(value: 'all', child: Row(children: [Expanded(child: Text('Все')), if (_searchType == 'all') const Icon(Icons.check, size: 16)])),
-                PopupMenuItem(value: 'messages', child: Row(children: [Expanded(child: Text('Сообщения')), if (_searchType == 'messages') const Icon(Icons.check, size: 16)])),
-                PopupMenuItem(value: 'media', child: Row(children: [Expanded(child: Text('Медиа')), if (_searchType == 'media') const Icon(Icons.check, size: 16)])),
-                PopupMenuItem(value: 'users', child: Row(children: [Expanded(child: Text('Пользователи')), if (_searchType == 'users') const Icon(Icons.check, size: 16)])),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Text(''),
-          ])),
         ]),
       ),
       const Divider(height: 1),
@@ -232,10 +216,9 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.only(right: 12.0),
           child: GestureDetector(
-            onTap: () async {
-              await Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountSettingsScreen()));
-              // refresh rooms in case user changed accounts
-              await _loadRooms();
+            onTap: () {
+              // Settings button - placeholder
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Настройки')));
             },
             child: CircleAvatar(child: Text((_selectedRoomName.isNotEmpty ? _selectedRoomName[0] : 'U'))),
           ),

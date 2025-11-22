@@ -33,8 +33,8 @@ class _SsoWebviewScreenState extends State<SsoWebviewScreen> {
       ));
     final hs = Environment.matrixHomeserverUrl.trim();
     var base = hs;
-    if (base.isEmpty) base = ''; else if (!base.startsWith('http://') && !base.startsWith('https://')) base = 'https://' + base;
-    final startUrl = Uri.parse(base + '/_matrix/client/v3/login/sso/redirect?idp=${widget.idpId}').toString();
+    if (base.isEmpty) base = ''; else if (!base.startsWith('http://') && !base.startsWith('https://')) base = 'https://$base';
+    final startUrl = Uri.parse('$base/_matrix/client/v3/login/sso/redirect?idp=${widget.idpId}').toString();
     _controller.loadRequest(Uri.parse(startUrl));
   }
 

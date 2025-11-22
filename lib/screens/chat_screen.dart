@@ -226,7 +226,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _pinUnpinEvent(String eventId) async {
     try {
       final pinned = await _svc.getPinnedEvents(widget.chat.id);
-      if (pinned.contains(eventId)) pinned.remove(eventId); else pinned.insert(0, eventId);
+      if (pinned.contains(eventId)) {
+        pinned.remove(eventId);
+      } else {
+        pinned.insert(0, eventId);
+      }
       await _svc.setPinnedEvents(widget.chat.id, pinned);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Закрепления обновлены')));
     } catch (e) {
@@ -284,7 +288,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             },
                             child: Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant, shape: BoxShape.circle),
+                              decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, shape: BoxShape.circle),
                               child: Text(e, style: const TextStyle(fontSize: 18)),
                             ),
                           ),
@@ -383,7 +387,7 @@ class _ChatScreenState extends State<ChatScreen> {
               return ListTile(
                 leading: avatar != null ? UserAvatar(avatarUrl: avatar, radius: 18) : CircleAvatar(radius: 18, child: Text(displayName.isNotEmpty ? displayName[0] : '?')),
                 title: Text(body, maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${displayName}${roomId.isNotEmpty ? ' • $roomId' : ''}${ts != null ? ' • ${ts.hour.toString().padLeft(2,'0')}:${ts.minute.toString().padLeft(2,'0')}' : ''}'),
+                subtitle: Text('$displayName${roomId.isNotEmpty ? ' • $roomId' : ''}${ts != null ? ' • ${ts.hour.toString().padLeft(2,'0')}:${ts.minute.toString().padLeft(2,'0')}' : ''}'),
                 onTap: () async {
                   if (roomId.isEmpty) return;
                   final infoRoom = await _svc.getRoomNameAndAvatar(roomId);
@@ -421,7 +425,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: FutureBuilder<String>(
                       future: _svc.downloadMediaToTempFile(m.mediaId!),
                       builder: (ctx, snap) {
-                        if (snap.connectionState != ConnectionState.done) return Container(width: 280, height: 180, color: Theme.of(context).colorScheme.surfaceVariant);
+                        if (snap.connectionState != ConnectionState.done) return Container(width: 280, height: 180, color: Theme.of(context).colorScheme.surfaceContainerHighest);
                         if (snap.hasError || snap.data == null) return Container(width: 120, height: 80, color: Theme.of(context).colorScheme.surface, child: const Center(child: Icon(Icons.broken_image)));
                         return Image.file(File(snap.data!), fit: BoxFit.cover, width: 280, height: 180);
                       },
@@ -457,7 +461,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceVariant, borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(entry.key, style: TextStyle(fontSize: 14, color: ((entry.value as Map)['myEventId'] != null) ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface)),
                           const SizedBox(width: 6),
@@ -469,7 +473,6 @@ class _ChatScreenState extends State<ChatScreen> {
               ]
             ]),
           );
-          ;
           return KeyedSubtree(
             key: key,
             child: Align(

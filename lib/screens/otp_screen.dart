@@ -12,7 +12,7 @@ class OtpScreen extends StatefulWidget {
 
 class _OtpScreenState extends State<OtpScreen> {
   final TextEditingController _controller = TextEditingController();
-  bool _loading = false;
+  final bool _loading = false;
   int _secondsLeft = 30;
   Timer? _timer;
 
@@ -28,7 +28,11 @@ class _OtpScreenState extends State<OtpScreen> {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       setState(() {
-        if (_secondsLeft > 0) _secondsLeft--; else _timer?.cancel();
+        if (_secondsLeft > 0) {
+          _secondsLeft--;
+        } else {
+          _timer?.cancel();
+        }
       });
     });
   }

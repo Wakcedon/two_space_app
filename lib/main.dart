@@ -3,7 +3,6 @@ import 'config/environment.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/account_settings_screen.dart';
 import 'screens/customization_screen.dart';
 import 'screens/privacy_screen.dart';
 import 'screens/chat_screen.dart';
@@ -188,7 +187,6 @@ class TwoSpaceApp extends StatelessWidget {
                 '/login': (context) => const LoginScreen(),
                 '/home': (context) => const HomeScreen(),
                 '/register': (context) => const RegisterScreen(),
-                '/settings': (context) => const AccountSettingsScreen(),
                 '/forgot': (context) => const ForgotPasswordScreen(),
                 '/customization': (context) => const CustomizationScreen(),
                 '/privacy': (context) => const PrivacyScreen(),
