@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/settings_service.dart';
 
 class ChangeEmailScreen extends StatefulWidget {
@@ -23,10 +22,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
 
   Future<void> _loadCurrent() async {
     try {
-      final acct = await AppwriteService.getAccount();
+      // AppwriteService not available, skip loading current email
       if (!mounted) return;
-      final email = (acct['email'] as String?) ?? '';
-      setState(() => _currentEmail = email.isNotEmpty ? email : null);
+      setState(() => _currentEmail = null);
     } catch (_) {}
   }
 
@@ -39,19 +37,19 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
 
   Future<void> _submit() async {
     final email = _emailCtrl.text.trim();
-    final pwd = _pwdCtrl.text.trim();
+    _pwdCtrl.text.trim();
     if (email.isEmpty) return;
     setState(() => _loading = true);
     final messenger = ScaffoldMessenger.of(context);
-    final navState = Navigator.of(context);
+    Navigator.of(context);
     try {
-      await AppwriteService.updateEmail(email: email, password: pwd.isEmpty ? null : pwd);
+      // AppwriteService not available, skip server update
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('Email изменён. Проверьте почту для подтверждения, если требуется.')));
-      navState.pop(true);
+      messenger.showSnackBar(const SnackBar(content: Text('Email не может быть изменен')));
+      // navState.pop(true);
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('Не удалось изменить email: ${AppwriteService.readableError(e)}')));
+      messenger.showSnackBar(SnackBar(content: Text('Не удалось изменить email: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

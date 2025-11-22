@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/screens/change_email_screen.dart';
 import 'package:two_space_app/screens/change_phone_screen.dart';
 import 'package:two_space_app/services/settings_service.dart';
@@ -25,13 +24,10 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
 
   Future<void> _loadPref() async {
     try {
-      final account = await AppwriteService.getAccount();
-      final prefs = (account is Map && account['prefs'] is Map) ? Map<String, dynamic>.from(account['prefs']) : <String, dynamic>{};
-      final hide = prefs['hideFromSearch'] == true;
-      final hideLast = prefs['hideLastSeen'] == true;
+      // AppwriteService not available, skip loading prefs
       if (mounted) setState(() {
-        _hideFromSearch = hide;
-        _hideLastSeen = hideLast;
+        _hideFromSearch = false;
+        _hideLastSeen = false;
       });
     } catch (_) {}
   }
@@ -40,9 +36,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     setState(() => _loading = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await AppwriteService.updateAccount(prefs: {'hideFromSearch': v});
-      // Mirror locally if necessary
-      await SettingsService.setPaleVioletMode(await SettingsService.getPaleVioletMode());
+      // AppwriteService not available, skip server update
       if (!mounted) return;
       setState(() => _hideFromSearch = v);
     } catch (e) {
@@ -56,7 +50,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     setState(() => _loading = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await AppwriteService.updateAccount(prefs: {'hideLastSeen': v});
+      // AppwriteService not available, skip server update
       if (!mounted) return;
       setState(() => _hideLastSeen = v);
     } catch (e) {

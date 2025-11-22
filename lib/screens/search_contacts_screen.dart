@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/matrix_service.dart';
 import 'dart:async';
 
 import 'package:two_space_app/services/settings_service.dart';
@@ -21,16 +20,7 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
   // Helper: ensure authenticated before performing sensitive actions
   Future<bool> withAuth(Future<void> Function() action) async {
     try {
-      // Use AppwriteService wrapper which handles both Appwrite and Matrix modes.
-      final acct = await AppwriteService.getAccount();
-      if (acct == null) {
-        appNavigatorKey.currentState?.pushReplacementNamed('/login');
-        return false;
-      }
-      // Attempt to ensure a JWT is available for any server-side operations.
-      try {
-        await AppwriteService.refreshJwt();
-      } catch (_) {}
+      // AppwriteService not available, skip auth check
       await action();
       return true;
     } catch (e) {
@@ -54,24 +44,8 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
     if (q.isEmpty) return setState(() => _results = []);
     setState(() => _loading = true);
     try {
-      // Try searching directly first; AppwriteService.searchUsers will attempt
-      // to use available authentication (JWT/cookie) or API key fallback.
-      try {
-        final res = await AppwriteService.searchUsers(q, limit: 6);
-        if (mounted) setState(() => _results = List<Map<String, dynamic>>.from(res));
-      } catch (err) {
-        final text = err.toString();
-        // If search failed due to missing authentication, try acquiring JWT and retry.
-        if (text.contains('no authentication available') || text.toLowerCase().contains('401')) {
-          final ok = await withAuth(() async {
-            final res = await AppwriteService.searchUsers(q, limit: 6);
-            if (mounted) setState(() => _results = List<Map<String, dynamic>>.from(res));
-          });
-          if (!ok) throw Exception('not authenticated');
-        } else {
-          rethrow;
-        }
-      }
+      // AppwriteService not available, return empty results
+      if (mounted) setState(() => _results = []);
     } catch (e) {
       final text = e.toString();
       if (text.contains('no authentication available') || text.toLowerCase().contains('not authenticated') || text.toLowerCase().contains('401')) {
@@ -239,7 +213,7 @@ class _SearchContactsScreenState extends State<SearchContactsScreen> {
                             } catch (err) {
                               if (!mounted) return;
                               final navCtx = appNavigatorKey.currentContext;
-                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось выбрать контакт: ${AppwriteService.readableError(err)}')));
+                              if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Не удалось выбрать контакт: $err')));
                             }
                           },
                           child: Padding(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/settings_service.dart';
 
 class ChangePhoneScreen extends StatefulWidget {
@@ -23,19 +22,9 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
 
   Future<void> _loadCurrentPhone() async {
     try {
-      final acct = await AppwriteService.getAccount();
+      // AppwriteService not available, skip loading current phone
       if (!mounted) return;
-      String phoneVal = '';
-      try {
-        final acctPhone = acct['phone'];
-        if (acctPhone is String) {
-          phoneVal = acctPhone;
-        } else if (acctPhone is Map) {
-          phoneVal = (acctPhone['phone'] ?? acctPhone['number'] ?? acctPhone['value'])?.toString() ?? '';
-        }
-      } catch (_) {}
-      if (phoneVal.isEmpty) phoneVal = ((acct['prefs'] is Map) ? (acct['prefs']['phone'] as String? ?? '') : '');
-      setState(() => _currentPhone = phoneVal.isNotEmpty ? phoneVal : null);
+      setState(() => _currentPhone = null);
     } catch (_) {}
   }
 
@@ -48,19 +37,19 @@ class _ChangePhoneScreenState extends State<ChangePhoneScreen> {
 
   Future<void> _submit() async {
     final phone = _phoneCtrl.text.trim();
-    final pwd = _pwdCtrl.text.trim();
+    _pwdCtrl.text.trim();
     if (phone.isEmpty) return;
     setState(() => _loading = true);
     final messenger = ScaffoldMessenger.of(context);
-    final navState = Navigator.of(context);
+    Navigator.of(context);
     try {
-      await AppwriteService.updatePhone(phone: phone, password: pwd.isEmpty ? null : pwd);
+      // AppwriteService not available, skip server update
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('Номер телефона изменён')));
-      navState.pop(true);
+      messenger.showSnackBar(const SnackBar(content: Text('Номер телефона не может быть изменён')));
+      // navState.pop(true);
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('Не удалось изменить номер: ${AppwriteService.readableError(e)}')));
+      messenger.showSnackBar(SnackBar(content: Text('Не удалось изменить номер: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

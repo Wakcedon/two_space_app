@@ -11,11 +11,6 @@ import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/utils/secure_store.dart';
-// Re-export Appwrite compatibility shim so files importing MatrixService
-// also get the legacy `AppwriteService` symbol. This avoids undefined
-// references in files that were partially updated to import
-// `matrix_service.dart` but still call `AppwriteService.*`.
-export 'package:two_space_app/services/appwrite_service.dart';
 
 /// Matrix-only compatibility facade that exposes the methods the app expects
 /// from the historical AppwriteService surface. The goal is to avoid touching

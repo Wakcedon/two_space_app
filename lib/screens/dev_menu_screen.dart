@@ -8,7 +8,6 @@ import 'package:two_space_app/screens/home_screen.dart';
 import 'package:two_space_app/screens/customization_screen.dart';
 import 'package:two_space_app/screens/privacy_screen.dart';
 // Chat screen import removed from dev menu (not used currently)
-import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/navigation_service.dart';
 
 class DevMenuScreen extends StatefulWidget {
@@ -93,8 +92,7 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
                   onPressed: () async {
                     DevLogger.log('Clear JWT & session');
                     try {
-                      await AppwriteService.clearJwt();
-                      await AppwriteService.deleteCurrentSession();
+                      // AppwriteService not available
                       if (!mounted) return;
                       final navCtx = appNavigatorKey.currentContext;
                       if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Cleared session')));

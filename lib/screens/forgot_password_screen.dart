@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/navigation_service.dart';
 // ui_tokens not needed here
 
@@ -23,15 +22,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
     setState(() => _loading = true);
     try {
-      await AppwriteService.createPasswordRecovery(email);
+      // AppwriteService not available
   if (!mounted) return;
   final navCtx = appNavigatorKey.currentContext;
-  if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Письмо с инструкциями отправлено. Проверьте почту.')));
-  appNavigatorKey.currentState?.pop();
+  if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Функция восстановления пароля недоступна')));
+  // appNavigatorKey.currentState?.pop();
     } catch (e) {
   if (!mounted) return;
   final navCtx = appNavigatorKey.currentContext;
-  if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка: ${AppwriteService.readableError(e)}')));
+  if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

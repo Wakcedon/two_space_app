@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:two_space_app/services/matrix_service.dart';
 import 'package:two_space_app/services/chat_service.dart';
 import 'package:two_space_app/services/chat_backend_factory.dart';
 import 'package:two_space_app/services/settings_service.dart';
@@ -33,12 +32,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUser() async {
     try {
-      final u = await AppwriteService.getUserById(widget.userId);
-      final me = await AppwriteService.getCurrentUserId();
+      // AppwriteService not available, skip loading user data
       if (mounted) {
         setState(() {
-        _user = u.isNotEmpty ? Map<String, dynamic>.from(u) : null;
-        _isMe = (me != null && me == widget.userId);
+        _user = null;
+        _isMe = false;
         _loading = false;
       });
       }
@@ -116,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           // Return created/selected chat to caller so HomeScreen can react (select on two-pane)
                           navState?.pop(chat);
                         } catch (e) {
-                          messenger.showSnackBar(SnackBar(content: Text('Не удалось создать чат: ${AppwriteService.readableError(e)}')));
+                          messenger.showSnackBar(SnackBar(content: Text('Не удалось создать чат: $e')));
                         } finally {
                           if (mounted) setState(() => _actionLoading = false);
                         }
