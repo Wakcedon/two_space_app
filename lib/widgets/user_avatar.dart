@@ -135,7 +135,16 @@ class _UserAvatarState extends State<UserAvatar> {
       return CircleAvatar(radius: r, backgroundColor: Colors.transparent, child: ClipOval(child: Image.memory(_bytes!, width: r * 2, height: r * 2, fit: BoxFit.cover)));
     }
     if (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty) {
-      return CircleAvatar(key: ValueKey(widget.avatarUrl), radius: r, backgroundImage: NetworkImage(widget.avatarUrl!), backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: widget.initials == null ? null : Text(widget.initials ?? ''));
+      return CircleAvatar(
+        key: ValueKey(widget.avatarUrl),
+        radius: r,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        backgroundImage: NetworkImage(widget.avatarUrl!),
+        onBackgroundImageError: (exception, stackTrace) {
+          // Fallback on network image load error
+        },
+        child: widget.initials == null ? null : Text(widget.initials ?? ''),
+      );
     }
 
     // Fallback: display local initials text (no Appwrite dependency)

@@ -37,6 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _loading = true;
   bool _sending = false;
   final Map<String, AudioPlayer> _audioPlayers = {};
+  final Map<String, Map<String, dynamic>> _userInfoCache = {}; // Кэш информации о пользователях
 
   List<_Msg> get _visibleMessages {
     final q = (widget.searchQuery ?? '').trim().toLowerCase();
@@ -128,17 +129,31 @@ class _ChatScreenState extends State<ChatScreen> {
       final msgs = await _svc.loadMessages(widget.chat.id, limit: 100);
       final auth = AuthService();
       final me = await auth.getCurrentUserId();
+      
+      // Собираем уникальные ID отправителей для параллельной загрузки
+      final senderIds = msgs.map((m) => m.senderId).toSet();
+      
+      // Параллельно загружаем информацию о всех отправителях
+      await Future.wait(
+        senderIds.map((id) async {
+          if (!_userInfoCache.containsKey(id)) {
+            try {
+              final info = await _svc.getUserInfo(id);
+              _userInfoCache[id] = info;
+            } catch (_) {
+              _userInfoCache[id] = {};
+            }
+          }
+        }),
+      );
+      
       final out = <_Msg>[];
-  for (final m in msgs) {
-        // fetch sender info lazily
-  String senderName = m.senderId;
-        String? senderAvatar;
-        try {
-          final info = await _svc.getUserInfo(m.senderId);
-          senderName = info['displayName'] ?? senderName;
-          senderAvatar = info['avatarUrl'];
-        } catch (_) {}
-        // Determine isOwn in a tolerant way: compare normalized localparts if full MXIDs are mismatched
+      for (final m in msgs) {
+        final cached = _userInfoCache[m.senderId] ?? {};
+        final senderName = cached['displayName'] ?? m.senderId;
+        final senderAvatar = cached['avatarUrl'];
+        
+        // Determine isOwn in a tolerant way
         bool isOwn = false;
         try {
           String normalize(String? mx) {
@@ -151,12 +166,18 @@ class _ChatScreenState extends State<ChatScreen> {
           final meNorm = normalize(me);
           final senderNorm = normalize(m.senderId);
           isOwn = meNorm.isNotEmpty && meNorm == senderNorm;
-        } catch (_) { isOwn = (me != null && me == m.senderId); }
+        } catch (_) { 
+          isOwn = (me != null && me == m.senderId); 
+        }
         out.add(_Msg(id: m.id, text: m.content, isOwn: isOwn, time: m.time, senderId: m.senderId, senderName: senderName, senderAvatar: senderAvatar, type: m.type, mediaId: m.mediaId));
       }
+      
+      if (!mounted) return;
       setState(() {
         _messages = out;
+        _loading = false;
       });
+      
       // If we have an initial scroll target, try to scroll to it
       if (_scrollToEventId != null && _scrollToEventId!.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -170,7 +191,7 @@ class _ChatScreenState extends State<ChatScreen> {
               // Fallback to index-based scroll
               final idx = _messages.indexWhere((m) => m.id == targetId);
               if (idx >= 0 && _listController.hasClients) {
-                final approxItemHeight = 84.0; // slightly increased default
+                final approxItemHeight = 84.0;
                 final N = _messages.length;
                 final revIdx = (N - 1 - idx);
                 final offset = revIdx * approxItemHeight;
@@ -249,6 +270,32 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _editEvent(String eventId, String currentText) async {
+    final newText = await showDialog<String>(context: context, builder: (c) {
+      final ctl = TextEditingController(text: currentText);
+      return AlertDialog(
+        title: const Text('Редактировать сообщение'),
+        content: TextField(
+          controller: ctl,
+          decoration: const InputDecoration(hintText: 'Новый текст'),
+          maxLines: null,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, null), child: const Text('Отмена')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, ctl.text.trim()), child: const Text('Сохранить')),
+        ],
+      );
+    });
+    if (newText == null || newText.isEmpty) return;
+    try {
+      await _svc.editMessage(widget.chat.id, eventId, newText, eventId);
+      await _loadMessages();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сообщение отредактировано')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка редактирования: $e')));
+    }
+  }
+
   Future<void> _showMessageActions(_Msg m, Offset globalPos) async {
   final overlay = Overlay.of(context);
     OverlayEntry? entry;
@@ -297,8 +344,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     const SizedBox(height: 6),
                     Row(mainAxisSize: MainAxisSize.min, children: [
                       TextButton.icon(onPressed: () { entry?.remove(); _sendReplyForEvent(m.id); }, icon: const Icon(Icons.reply), label: const Text('Ответ')), 
+                      if (m.isOwn) TextButton.icon(onPressed: () { entry?.remove(); _editEvent(m.id, m.text); }, icon: const Icon(Icons.edit), label: const Text('Редакт.')), 
                       TextButton.icon(onPressed: () { entry?.remove(); _pinUnpinEvent(m.id); }, icon: const Icon(Icons.push_pin), label: const Text('Закрепить')), 
-                      TextButton.icon(onPressed: () { entry?.remove(); _redactEvent(m.id); }, icon: const Icon(Icons.delete), label: const Text('Удалить')),
+                      if (m.isOwn) TextButton.icon(onPressed: () { entry?.remove(); _redactEvent(m.id); }, icon: const Icon(Icons.delete), label: const Text('Удалить')),
                       TextButton.icon(onPressed: () async { entry?.remove(); final picked = await _showEmojiPickerDialog(); if (picked != null) { try { await _svc.sendReaction(widget.chat.id, m.id, picked); await _loadMessages(); } catch (_) {} } }, icon: const Icon(Icons.emoji_emotions), label: const Text('Ещё')),
                     ])
                   ]),
@@ -475,9 +523,11 @@ class _ChatScreenState extends State<ChatScreen> {
           );
           return KeyedSubtree(
             key: key,
-            child: Align(
-              alignment: m.isOwn ? Alignment.centerRight : Alignment.centerLeft,
-              child: Row(mainAxisSize: MainAxisSize.max, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Row(
+              mainAxisAlignment: m.isOwn ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 if (!m.isOwn)
                   GestureDetector(
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: m.senderId ?? ''))),
@@ -504,8 +554,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 if (m.isOwn) const SizedBox(width: 8),
                 if (m.isOwn) CircleAvatar(radius: 16, child: Text('Y')),
-              ])
-            )
+              ],
+            ),
           );
         },
         separatorBuilder: (_, __) => const SizedBox(height: 2),

@@ -407,4 +407,24 @@ class AuthService {
     if (receivedCookie != null && receivedCookie.isNotEmpty) await MatrixService.saveSessionCookie(receivedCookie);
     await MatrixService.saveJwt(jwt);
   }
+
+  /// Attempt to restore previous session from stored Matrix token.
+  /// Returns true if session was successfully restored, false otherwise.
+  /// Call this on app startup to enable persistent login.
+  Future<bool> restoreSessionFromToken() async {
+    try {
+      // Try to get stored Matrix user id
+      final userId = await MatrixService.getCurrentUserId();
+      if (userId == null || userId.isEmpty) return false;
+
+      // Try to get stored token for this user
+      final token = await getMatrixTokenForUser(appUserId: userId);
+      if (token == null || token.isEmpty) return false;
+
+      // Token is valid - session restored
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

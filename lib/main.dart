@@ -12,6 +12,7 @@ import 'package:two_space_app/services/chat_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:two_space_app/widgets/dev_fab.dart';
 import 'package:two_space_app/services/matrix_service.dart';
+import 'package:two_space_app/services/auth_service.dart';
 import 'services/navigation_service.dart';
 import 'services/settings_service.dart';
 import 'services/update_service.dart';
@@ -237,6 +238,15 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         if ((jwt != null && jwt.isNotEmpty) || (cookie != null && cookie.isNotEmpty)) return true;
       } catch (_) {
         // ignore and fall through to network check
+      }
+
+      // Check for saved Matrix token (persistent login feature)
+      try {
+        final auth = AuthService();
+        final hasToken = await auth.restoreSessionFromToken();
+        if (hasToken) return true;
+      } catch (_) {
+        // ignore
       }
 
       // No local token found — attempt to validate remotely but with a short timeout

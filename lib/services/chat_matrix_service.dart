@@ -139,6 +139,29 @@ class ChatMatrixService {
     throw Exception('redactEvent failed ${res.statusCode}: ${res.body}');
   }
 
+  /// Edit (replace) an event's text content in a room.
+  /// Sends an m.replace relation to replace the text of the original event.
+  Future<void> editMessage(String roomId, String eventId, String newText, String originalEventId) async {
+    final txn = 't${DateTime.now().millisecondsSinceEpoch}';
+    final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/m.room.message/$txn');
+    final headers = await _authHeaders();
+    final content = {
+      'msgtype': 'm.text',
+      'body': '* $newText',
+      'm.new_content': {
+        'msgtype': 'm.text',
+        'body': newText,
+      },
+      'm.relates_to': {
+        'rel_type': 'm.replace',
+        'event_id': eventId,
+      },
+    };
+    final res = await http.put(uri, headers: {...headers, 'Content-Type': 'application/json'}, body: jsonEncode(content)).timeout(const Duration(seconds: 6));
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    throw Exception('editMessage failed ${res.statusCode}: ${res.body}');
+  }
+
   /// Send a reaction to an event
   Future<void> sendReaction(String roomId, String eventId, String emoji) async {
     final txn = 't${DateTime.now().millisecondsSinceEpoch}';

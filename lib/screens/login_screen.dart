@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   final _auth = AuthService();
+  bool _ssoLoading = false;
 
   @override
   void dispose() {
@@ -26,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_loading || _ssoLoading) return; // Защита от двойного клика
     setState(() => _loading = true);
     try {
       final identifier = _emailCtl.text.trim();
@@ -60,9 +62,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _ssoButtons() {
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      ElevatedButton.icon(onPressed: () async { final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google'))); if (ok == true) Navigator.pushReplacementNamed(context, '/home'); }, icon: const Icon(Icons.login), label: const Text('Google')),
+      ElevatedButton.icon(
+        onPressed: _loading || _ssoLoading ? null : () async {
+          if (_ssoLoading) return;
+          setState(() => _ssoLoading = true);
+          try {
+            final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'google')));
+            if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
+          } finally {
+            if (mounted) setState(() => _ssoLoading = false);
+          }
+        },
+        icon: const Icon(Icons.login),
+        label: const Text('Google'),
+      ),
       const SizedBox(width: 8),
-      ElevatedButton.icon(onPressed: () async { final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex'))); if (ok == true) Navigator.pushReplacementNamed(context, '/home'); }, icon: const Icon(Icons.person), label: const Text('Yandex')),
+      ElevatedButton.icon(
+        onPressed: _loading || _ssoLoading ? null : () async {
+          if (_ssoLoading) return;
+          setState(() => _ssoLoading = true);
+          try {
+            final ok = await Navigator.push<bool?>(context, MaterialPageRoute(builder: (_) => SsoWebviewScreen(idpId: 'yandex')));
+            if (ok == true && mounted) Navigator.pushReplacementNamed(context, '/home');
+          } finally {
+            if (mounted) setState(() => _ssoLoading = false);
+          }
+        },
+        icon: const Icon(Icons.person),
+        label: const Text('Yandex'),
+      ),
     ]);
   }
 
@@ -77,14 +105,48 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Вход'), elevation: 0, backgroundColor: Theme.of(context).colorScheme.surface),
+      appBar: AppBar(
+        title: const Text('Вход'),
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Form(
             key: _formKey,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+              // Header icon and text
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                ),
+                child: Icon(
+                  Icons.chat,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'TwoSpace',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Мессенджер нового поколения',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
               TextFormField(
                 controller: _emailCtl,
                 decoration: InputDecoration(
@@ -92,6 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   prefixIcon: const Icon(Icons.email),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
                 ),
                 validator: _validateEmail,
               ),
@@ -103,6 +167,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   prefixIcon: const Icon(Icons.lock),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
                 ),
                 obscureText: true,
                 validator: _validatePassword,
@@ -115,13 +181,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Text('Оставьте пароль пустым для одноразового кода', style: Theme.of(context).textTheme.bodySmall),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: _loading
                     ? const SizedBox(height: 50, child: Center(child: CircularProgressIndicator()))
                     : ElevatedButton(
-                        onPressed: _login,
+                        onPressed: _ssoLoading ? null : _login,
                         style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                         child: const Text('Войти', style: TextStyle(fontSize: 16)),
                       ),

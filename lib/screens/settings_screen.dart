@@ -131,6 +131,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
+            // Аккаунт
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+              child: Text(
+                'Аккаунт',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            GlassCard(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.person),
+                      title: const Text('Профиль'),
+                      subtitle: const Text('Изменить данные профиля'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.pushNamed(context, '/profile'),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.lock),
+                      title: const Text('Конфиденциальность'),
+                      subtitle: const Text('Управление приватностью'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.pushNamed(context, '/privacy'),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             // О приложении
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
