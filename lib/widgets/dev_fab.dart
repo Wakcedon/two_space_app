@@ -22,6 +22,23 @@ class _DevFabState extends State<DevFab> {
     DevLogger.log('DevFab initialized');
   }
 
+  void _openDevMenu() {
+    DevLogger.log('DevFab tapped');
+    // Use postFrameCallback to avoid navigator issues during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nav = appNavigatorKey.currentState;
+      if (nav != null && mounted) {
+        nav.push(MaterialPageRoute(builder: (_) => const _DevMenuHost()));
+      } else if (mounted) {
+        try {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _DevMenuHost()));
+        } catch (e) {
+          DevLogger.log('DevFab: navigation failed: $e');
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Only show when enabled via env or in debug
@@ -31,22 +48,7 @@ class _DevFabState extends State<DevFab> {
       left: _pos.dx,
       top: _pos.dy,
       child: GestureDetector(
-          onTap: () async {
-          DevLogger.log('DevFab tapped');
-          // Use the global navigator key because this widget is built outside the
-          // Navigator/Overlay subtree in some app configurations.
-          final nav = appNavigatorKey.currentState;
-          if (nav != null) {
-            await nav.push(MaterialPageRoute(builder: (_) => const _DevMenuHost()));
-          } else {
-            // Fallback: try to use the local context's Navigator (may still fail).
-            try {
-              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _DevMenuHost()));
-            } catch (_) {
-              DevLogger.log('DevFab: navigation failed (no navigator available)');
-            }
-          }
-        },
+          onTap: _openDevMenu,
         // Implement drag via pan gestures to avoid depending on an Overlay for Draggable.feedback
         onPanUpdate: (details) {
           final sz = MediaQuery.of(context).size;

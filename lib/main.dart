@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/customization_screen.dart';
 import 'screens/privacy_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/change_email_screen.dart';
 import 'screens/forgot_password_screen.dart';
@@ -191,6 +192,13 @@ class TwoSpaceApp extends StatelessWidget {
                 '/forgot': (context) => const ForgotPasswordScreen(),
                 '/customization': (context) => const CustomizationScreen(),
                 '/privacy': (context) => const PrivacyScreen(),
+                '/profile': (context) {
+                  final args = ModalRoute.of(context)!.settings.arguments;
+                  if (args is String) {
+                    return ProfileScreen(userId: args);
+                  }
+                  return const Scaffold(body: Center(child: Text('Неверные аргументы для профиля')));
+                },
                 '/change_email': (context) => const ChangeEmailScreen(),
                 '/chat': (context) {
                   final args = ModalRoute.of(context)!.settings.arguments;

@@ -6,8 +6,11 @@ import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/chat_settings_screen.dart';
 import 'package:two_space_app/screens/settings_screen.dart';
+import 'package:two_space_app/screens/create_group_screen.dart';
+import 'package:two_space_app/screens/group_settings_screen.dart';
 import 'package:two_space_app/widgets/app_logo.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
+import 'package:two_space_app/widgets/start_chat_bottom_sheet.dart';
 
 /// A simplified, responsive HomeScreen that provides:
 /// - Two-pane layout on wide screens (chat list + chat)
@@ -27,8 +30,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedRoomName = '';
   bool _loading = true;
   // layout state - адаптивная ширина
-  late double _leftWidth;
-  late double _rightWidth;
+  double _leftWidth = 300.0;
+  double _rightWidth = 350.0;
   bool _rightOpen = true;
 
   // search state
@@ -38,29 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Инициализируем ширину после построения
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateLayoutDimensions();
-    });
     _checkAuthAndLoadRooms();
-  }
-
-  void _updateLayoutDimensions() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 768;
-    
-    if (isSmallScreen) {
-      _leftWidth = screenWidth; // На мобиле - полный экран
-      _rightWidth = 0;
-      _rightOpen = false;
-    } else {
-      _leftWidth = math.min(320, screenWidth * 0.25); // 25% но не более 320
-      if (screenWidth > 1400) {
-        _rightWidth = 380; // На больших экранах 3-панель
-      } else {
-        _rightWidth = screenWidth > 1000 ? 300 : 0; // На средних - 2-панель
-      }
-    }
   }
 
   Future<void> _checkAuthAndLoadRooms() async {
@@ -225,6 +206,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ]),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Информация о группе',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => GroupSettingsScreen(roomId: _selectedRoomId!),
+                ),
+              );
+            },
+          ),
         ]),
       ),
       const Divider(height: 1),
@@ -311,7 +304,40 @@ class _HomeScreenState extends State<HomeScreen> {
         return _buildLeftColumn(maxW);
       }),
       // add user icon in the app bar actions
-      floatingActionButton: null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            builder: (context) => StartChatBottomSheet(
+              onCreateGroup: () async {
+                Navigator.pop(context);
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
+                );
+                if (result == true && mounted) {
+                  // Reload rooms if group was created
+                  await _loadRooms();
+                }
+              },
+              onInviteUser: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Функция приглашения будет добавлена')),
+                );
+              },
+              onJoinByAddress: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Функция присоединения по адресу будет добавлена')),
+                );
+              },
+            ),
+          );
+        },
+        tooltip: 'Начать чат',
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }

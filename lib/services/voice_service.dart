@@ -6,52 +6,68 @@ import 'package:path_provider/path_provider.dart';
 class VoiceService {
   static final VoiceService _instance = VoiceService._internal();
 
-  late FlutterSoundRecorder _recorder;
-  late FlutterSoundPlayer _player;
+  FlutterSoundRecorder? _recorder;
+  FlutterSoundPlayer? _player;
   bool _isRecording = false;
+  bool _isInitialized = false;
   String? _currentRecordingPath;
+  final bool _isSupported = Platform.isAndroid || Platform.isIOS;
 
-  VoiceService._internal() {
-    _recorder = FlutterSoundRecorder();
-    _player = FlutterSoundPlayer();
-  }
+  VoiceService._internal();
 
   factory VoiceService() {
     return _instance;
   }
 
   Future<void> init() async {
+    // Skip on Windows/Web/macOS/Linux where flutter_sound may not work
+    if (!_isSupported) {
+      _isInitialized = false;
+      return;
+    }
+    
     try {
-      await _recorder.openRecorder();
-      await _player.openPlayer();
+      _recorder = FlutterSoundRecorder();
+      _player = FlutterSoundPlayer();
+      await _recorder!.openRecorder();
+      await _player!.openPlayer();
+      _isInitialized = true;
     } catch (e) {
-      print('VoiceService init error: $e');
+      _isInitialized = false;
+      _recorder = null;
+      _player = null;
     }
   }
 
   Future<void> dispose() async {
+    if (!_isInitialized || _recorder == null || _player == null) return;
+    
     try {
-      if (_recorder.isRecording) {
-        await _recorder.stopRecorder();
+      if (_recorder!.isRecording) {
+        await _recorder!.stopRecorder();
       }
-      await _recorder.closeRecorder();
-      if (_player.isPlaying) {
-        await _player.stopPlayer();
+      await _recorder!.closeRecorder();
+      if (_player!.isPlaying) {
+        await _player!.stopPlayer();
       }
-      await _player.closePlayer();
+      await _player!.closePlayer();
     } catch (e) {
-      print('VoiceService dispose error: $e');
+      // Handle dispose errors silently
     }
   }
 
   bool get isRecording => _isRecording;
+  bool get isInitialized => _isInitialized;
 
   Future<bool> requestMicrophonePermission() async {
+    if (!_isSupported) return false;
     final status = await Permission.microphone.request();
     return status.isGranted;
   }
 
   Future<String?> startRecording() async {
+    if (!_isInitialized || _recorder == null) return null;
+    
     try {
       final hasPermission = await requestMicrophonePermission();
       if (!hasPermission) return null;
@@ -60,7 +76,7 @@ class VoiceService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       _currentRecordingPath = '${dir.path}/voice_$timestamp.m4a';
 
-      await _recorder.startRecorder(
+      await _recorder!.startRecorder(
         toFile: _currentRecordingPath,
         codec: Codec.aacADTS,
       );
@@ -68,17 +84,18 @@ class VoiceService {
       _isRecording = true;
       return _currentRecordingPath;
     } catch (e) {
-      print('Start recording error: $e');
       _isRecording = false;
       return null;
     }
   }
 
   Future<String?> stopRecording() async {
+    if (!_isInitialized || _recorder == null) return null;
+    
     try {
       if (!_isRecording) return null;
 
-      final path = await _recorder.stopRecorder();
+      final path = await _recorder!.stopRecorder();
       _isRecording = false;
 
       // Verify file exists and has content
@@ -90,35 +107,27 @@ class VoiceService {
       }
       return null;
     } catch (e) {
-      print('Stop recording error: $e');
       _isRecording = false;
       return null;
     }
   }
 
   Future<void> playAudio(String filePath) async {
+    if (!_isInitialized || _player == null) return;
+    
     try {
-      await _player.startPlayer(
+      await _player!.startPlayer(
         fromURI: filePath,
         codec: Codec.aacADTS,
         whenFinished: () {
-          print('Audio playback finished');
         },
       );
-    } catch (e) {
-      print('Play audio error: $e');
+    } catch (e, st) {
+      // Log error when failing to play audio
+      // English comment allowed inside code
+      print('VoiceService.playAudio error: $e\n$st');
     }
   }
 
-  Future<void> stopPlaying() async {
-    try {
-      if (_player.isPlaying) {
-        await _player.stopPlayer();
-      }
-    } catch (e) {
-      print('Stop playing error: $e');
-    }
-  }
-
-  bool get isPlaying => _player.isPlaying;
+  bool get isPlaying => _player?.isPlaying ?? false;
 }

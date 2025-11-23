@@ -171,7 +171,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('Профиль'),
                       subtitle: const Text('Изменить данные профиля'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.pushNamed(context, '/profile'),
+                      onTap: () async {
+                        final auth = AuthService();
+                        final userId = await auth.getCurrentUserId();
+                        if (userId != null && context.mounted) {
+                          Navigator.pushNamed(context, '/profile', arguments: userId);
+                        }
+                      },
                       contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                     const Divider(height: 1),

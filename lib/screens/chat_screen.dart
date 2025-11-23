@@ -6,8 +6,10 @@ import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/voice_service.dart';
+import 'package:two_space_app/services/group_matrix_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
+import 'package:two_space_app/widgets/group_background_widget.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:math' as math;
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -40,6 +42,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, AudioPlayer> _audioPlayers = {};
   final Map<String, Map<String, dynamic>> _userInfoCache = {};
   late final VoiceService _voiceService;
+  
+  // Group-related state
+  String? _groupBackgroundColor;
+  String? _groupBackgroundImageUrl;
 
   List<_Msg> get _visibleMessages {
     final q = (widget.searchQuery ?? '').trim().toLowerCase();
@@ -66,6 +72,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _voiceService = VoiceService();
     _voiceService.init();
     _loadMessages();
+    _loadGroupSettings();
     _scrollToEventId = widget.scrollToEventId;
     // start sync loop to receive new events
     _svc.startSync((js) {
@@ -224,6 +231,21 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _loadGroupSettings() async {
+    try {
+      final groupService = GroupMatrixService();
+      final groupRoom = await groupService.getGroupRoom(widget.chat.id);
+      if (mounted && groupRoom != null) {
+        setState(() {
+          _groupBackgroundColor = groupRoom.backgroundColor;
+          _groupBackgroundImageUrl = groupRoom.backgroundImageUrl;
+        });
+      }
+    } catch (_) {
+      // Not a group room or error loading settings
+    }
+  }
+
   Future<void> _sendReplyForEvent(String eventId) async {
     // prompt for reply text then send as a reply
     final text = await showDialog<String>(context: context, builder: (c) {
@@ -243,7 +265,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _svc.sendReply(widget.chat.id, eventId, text, formatted);
       await _loadMessages();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка ответа: $e')));
+      if (mounted) _showErrorMessage('Ошибка ответа: $e');
     }
   }
 
@@ -258,9 +280,9 @@ class _ChatScreenState extends State<ChatScreen> {
         pinned.insert(0, eventId);
       }
       await _svc.setPinnedEvents(widget.chat.id, pinned);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Закрепления обновлены')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Закрепления обновлены'), duration: Duration(seconds: 2)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка закрепа: $e')));
+      if (mounted) _showErrorMessage('Ошибка закрепа: $e');
     }
   }
 
@@ -271,7 +293,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _svc.redactEvent(widget.chat.id, eventId);
       await _loadMessages();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка удаления: $e')));
+      if (mounted) _showErrorMessage('Ошибка удаления: $e');
     }
   }
 
@@ -295,9 +317,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await _svc.editMessage(widget.chat.id, eventId, newText, eventId);
       await _loadMessages();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сообщение отредактировано')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сообщение отредактировано'), duration: Duration(seconds: 2)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка редактирования: $e')));
+      if (mounted) _showErrorMessage('Ошибка редактирования: $e');
     }
   }
 
@@ -386,27 +408,44 @@ class _ChatScreenState extends State<ChatScreen> {
         _controller.text = '';
       });
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Отправка не удалась: $e')));
+      if (mounted) _showErrorMessage('Отправка не удалась: $e');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
   Future<void> _recordVoiceMessage() async {
+    if (!_voiceService.isInitialized) {
+      if (mounted) {
+        _showErrorMessage('Запись голоса не поддерживается на этой платформе');
+      }
+      return;
+    }
+    
     final path = await _voiceService.startRecording();
     if (path == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Нужно разрешение микрофона')));
+        _showErrorMessage('Нужно разрешение микрофона');
       }
       return;
     }
     setState(() {});
   }
 
+  void _showErrorMessage(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.red.shade700,
+      ),
+    );
+  }
+
   Future<void> _stopVoiceAndSend() async {
     final path = await _voiceService.stopRecording();
     if (path == null || !File(path).existsSync()) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ошибка записи')));
+      if (mounted) _showErrorMessage('Ошибка записи');
       return;
     }
 
@@ -451,9 +490,9 @@ class _ChatScreenState extends State<ChatScreen> {
       final sender = await auth.getCurrentUserId();
       await _svc.sendMessage(widget.chat.id, sender ?? '', '', type: 'm.image', mediaFileId: mxc);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Файл отправлен')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Файл отправлен'), duration: Duration(seconds: 2)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка отправки вложения: $e')));
+      if (mounted) _showErrorMessage('Ошибка отправки вложения: $e');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -626,45 +665,53 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return Column(children: [
-      Expanded(child: bodyWidget),
-      const Divider(height: 1),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
-        child: Row(children: [
-          IconButton(icon: const Icon(Icons.attach_file), onPressed: _sending ? null : _sendAttachment),
-          if (!_voiceService.isRecording)
-            IconButton(
-              icon: Icon(Icons.mic, color: Theme.of(context).colorScheme.primary),
-              onPressed: _sending ? null : _recordVoiceMessage,
+    return Scaffold(
+      body: Material(
+        child: GroupBackgroundWidget(
+          backgroundColor: _groupBackgroundColor,
+          backgroundImageUrl: _groupBackgroundImageUrl,
+          child: Column(children: [
+            Expanded(child: bodyWidget),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
+              child: Row(children: [
+                IconButton(icon: const Icon(Icons.attach_file), onPressed: _sending ? null : _sendAttachment),
+                if (!_voiceService.isRecording)
+                  IconButton(
+                    icon: Icon(Icons.mic, color: Theme.of(context).colorScheme.primary),
+                    onPressed: _sending ? null : _recordVoiceMessage,
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.mic, color: Colors.red),
+                    onPressed: _voiceService.isRecording ? _stopVoiceAndSend : null,
+                  ),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: InputDecoration(
+                      hintText: 'Написать сообщение...',
+                      hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surface,
+                    ),
+                    enabled: !_voiceService.isRecording,
+                    maxLines: null,
+                  ),
+                ),
+                IconButton(
+                  icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.send, color: Theme.of(context).colorScheme.primary),
+                  onPressed: (_sending || _voiceService.isRecording) ? null : _sendText,
+                ),
+              ]),
             )
-          else
-            IconButton(
-              icon: const Icon(Icons.mic, color: Colors.red),
-              onPressed: _voiceService.isRecording ? _stopVoiceAndSend : null,
-            ),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: 'Написать сообщение...',
-                hintStyle: TextStyle(color: Theme.of(context).hintColor),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
-              ),
-              enabled: !_voiceService.isRecording,
-              maxLines: null,
-            ),
-          ),
-          IconButton(
-            icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.send, color: Theme.of(context).colorScheme.primary),
-            onPressed: (_sending || _voiceService.isRecording) ? null : _sendText,
-          ),
-        ]),
-      )
-    ]);
+          ]),
+        ),
+      ),
+    );
   }
 }
 
