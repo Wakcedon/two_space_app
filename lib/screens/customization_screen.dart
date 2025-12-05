@@ -78,7 +78,7 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Выберите основной цвет приложения', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            const Text('Выберите тему приложения', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             Column(
               children: _choices.map((item) {

@@ -149,7 +149,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           child: ListTile(
             leading: const Icon(Icons.security),
             title: const Text('Двухфакторная аутентификация (2FA)'),
-            subtitle: const Text('Включить/отключить 2FA через приложение аутентификатора'),
+            subtitle: const Text('Включить/отключить усиленную защиту'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
               // Navigate to TFA setup screen
