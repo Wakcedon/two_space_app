@@ -18,9 +18,18 @@ jobs:
     name: Code Analysis & Formatting
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Verify checkout
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files: $(ls -la | head -10)"
+          test -f pubspec.yaml && echo "✓ pubspec.yaml found" || echo "✗ pubspec.yaml NOT found"
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -45,6 +54,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 18
     needs: analyze
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,6 +88,9 @@ jobs:
     timeout-minutes: 25
     needs: analyze
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -114,6 +129,9 @@ jobs:
     timeout-minutes: 18
     needs: analyze
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -143,6 +161,9 @@ jobs:
     name: Security & Dependencies Audit
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
