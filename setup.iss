@@ -2,7 +2,7 @@
 ; НЕ ЗАБУДЬ ОБНОВИТЬ ВЕРСИЮ ПРИ СБОРКЕ!
 #define MyAppName "TwoSpace"
 #define MyAppExeName "two_space_app.exe"
-#define MyAppVersion "1.0.5-fix02"
+#define MyAppVersion "1.0.6"
 #define MyAppPublisher "Synapse Corp"
 #define MyAppURL "https://twospace.ru"
 

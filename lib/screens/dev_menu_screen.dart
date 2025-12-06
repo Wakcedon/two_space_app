@@ -19,12 +19,13 @@ class DevMenuScreen extends StatefulWidget {
 
 class _DevMenuScreenState extends State<DevMenuScreen> {
   late final Stream<List<String>> _logStream;
+  late final DevLogger _logger = DevLogger('DevMenu');
 
   @override
   void initState() {
     super.initState();
     _logStream = DevLogger.stream;
-    DevLogger.log('Opened Dev Menu');
+    _logger.info('Opened Dev Menu');
   }
 
   @override
@@ -38,76 +39,118 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Developer Menu'), actions: [IconButton(icon: const Icon(Icons.clear_all), onPressed: () { DevLogger.clear(); setState(() {}); })]),
+      appBar: AppBar(
+        title: const Text('Developer Menu'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.clear_all),
+            onPressed: () {
+              DevLogger.clear();
+              setState(() {});
+            },
+          )
+        ],
+      ),
       body: SafeArea(
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: routes.map((r) {
-                return ElevatedButton(child: Text(r['label'] ?? ''), onPressed: () { DevLogger.log('Navigate: ${r['label']}'); try { (r['action'] as void Function())(); } catch (e) { DevLogger.log('Navigation failed: $e'); } });
-              }).toList(),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: routes.map((r) {
+                  return ElevatedButton(
+                    onPressed: () {
+                      _logger.debug('Navigate: ${r['label']}');
+                      try {
+                        (r['action'] as void Function())();
+                      } catch (e) {
+                        _logger.error('Navigation failed: $e');
+                      }
+                    },
+                    child: Text(r['label'] ?? ''),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    DevLogger.log('Check for updates (dev menu)');
-                    try {
-                      final info = await UpdateService.checkForUpdate();
-                      DevLogger.log('Update check: ${info != null}');
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      _logger.info('Check for updates (dev menu)');
+                      try {
+                        final info = await UpdateService.checkForUpdate();
+                        _logger.info('Update check: ${info != null}');
+                        if (!mounted) return;
+                        final navCtx = appNavigatorKey.currentContext;
+                        if (navCtx != null) {
+                          ScaffoldMessenger.of(navCtx).showSnackBar(
+                            const SnackBar(content: Text('Update check finished (см. логи)')),
+                          );
+                        }
+                      } catch (e) {
+                        _logger.error('Update check failed: $e');
+                        if (!mounted) return;
+                        final navCtx = appNavigatorKey.currentContext;
+                        if (navCtx != null) {
+                          ScaffoldMessenger.of(navCtx).showSnackBar(
+                            SnackBar(content: Text('Ошибка проверки: $e')),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.system_update),
+                    label: const Text('Check updates'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      _logger.debug('Clear settings cache');
+                      await SettingsService.clearCachedProfile();
                       if (!mounted) return;
                       final navCtx = appNavigatorKey.currentContext;
-                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Update check finished (см. логи)')));
-                    } catch (e) {
-                      DevLogger.log('Update check failed: $e');
-                      if (!mounted) return;
-                      final navCtx = appNavigatorKey.currentContext;
-                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка проверки: $e')));
-                    }
-                  },
-                  icon: const Icon(Icons.system_update),
-                  label: const Text('Check updates'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    DevLogger.log('Clear settings cache');
-                    await SettingsService.clearCachedProfile();
-                    if (!mounted) return;
-                    final navCtx = appNavigatorKey.currentContext;
-                    if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Cached profile cleared')));
-                  },
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Clear profile cache'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    DevLogger.log('Clear JWT & session');
-                    try {
-                      // AppwriteService not available
-                      if (!mounted) return;
-                      final navCtx = appNavigatorKey.currentContext;
-                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(const SnackBar(content: Text('Cleared session')));
-                    } catch (e) {
-                      DevLogger.log('Clear session failed: $e');
-                      if (!mounted) return;
-                      final navCtx = appNavigatorKey.currentContext;
-                      if (navCtx != null) ScaffoldMessenger.of(navCtx).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
-                    }
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Clear session'),
-                ),
-              ],
-            ),
+                      if (navCtx != null) {
+                        ScaffoldMessenger.of(navCtx).showSnackBar(
+                          const SnackBar(content: Text('Cached profile cleared')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Clear profile cache'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      _logger.debug('Clear JWT & session');
+                      try {
+                        // AppwriteService not available
+                        if (!mounted) return;
+                        final navCtx = appNavigatorKey.currentContext;
+                        if (navCtx != null) {
+                          ScaffoldMessenger.of(navCtx).showSnackBar(
+                            const SnackBar(content: Text('Cleared session')),
+                          );
+                        }
+                      } catch (e) {
+                        _logger.error('Clear session failed: $e');
+                        if (!mounted) return;
+                        final navCtx = appNavigatorKey.currentContext;
+                        if (navCtx != null) {
+                          ScaffoldMessenger.of(navCtx).showSnackBar(
+                            SnackBar(content: Text('Ошибка: $e')),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Clear session'),
+                  ),
+                ],
+              ),
           ),
           const Divider(),
           Expanded(child: StreamBuilder<List<String>>(stream: _logStream, initialData: DevLogger.all, builder: (context, snap) {

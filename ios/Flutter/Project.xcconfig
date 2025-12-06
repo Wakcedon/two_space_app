@@ -1,0 +1,11 @@
+// TwoSpace iOS Project Settings
+// Deployment Target и Swift версия
+
+// Минимальный iOS deployment target
+IPHONEOS_DEPLOYMENT_TARGET = 14.0
+
+// Swift версия
+SWIFT_VERSION = 5.3
+
+// Остальные стандартные включения
+#include "Generated.xcconfig"

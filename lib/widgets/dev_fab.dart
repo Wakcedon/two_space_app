@@ -15,15 +15,16 @@ class DevFab extends StatefulWidget {
 
 class _DevFabState extends State<DevFab> {
   Offset _pos = const Offset(16, 120);
+  late final DevLogger _logger = DevLogger('DevFab');
 
   @override
   void initState() {
     super.initState();
-    DevLogger.log('DevFab initialized');
+    _logger.info('DevFab initialized');
   }
 
   void _openDevMenu() {
-    DevLogger.log('DevFab tapped');
+    _logger.debug('DevFab tapped');
     // Use postFrameCallback to avoid navigator issues during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final nav = appNavigatorKey.currentState;
@@ -33,7 +34,7 @@ class _DevFabState extends State<DevFab> {
         try {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _DevMenuHost()));
         } catch (e) {
-          DevLogger.log('DevFab: navigation failed: $e');
+          _logger.error('DevFab: navigation failed: $e');
         }
       }
     });

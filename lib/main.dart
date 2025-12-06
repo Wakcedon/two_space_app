@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'config/environment.dart';
+import 'config/environment_validator.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/register_screen.dart';
@@ -59,6 +60,19 @@ Future<void> main() async {
     // ignore: avoid_print
     print('Warning: .env load failed: $e');
   }
+  
+  // Validate environment variables
+  try {
+    final validationResult = await EnvironmentValidator.validateOnStartup().timeout(const Duration(seconds: 2));
+    if (!validationResult.isValid && kDebugMode) {
+      // ignore: avoid_print
+      print('⚠️ Environment validation failed: ${validationResult.errors.join(", ")}');
+    }
+  } catch (e) {
+    // ignore: avoid_print
+    print('Warning: Environment validation error: $e');
+  }
+  
   // Print debug info (only in debug mode)
   Environment.debugPrintEnv();
   // Try to restore any saved JWT so MatrixService can use it for auth checks

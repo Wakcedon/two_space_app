@@ -1,0 +1,39 @@
+# Podfile для TwoSpace iOS приложения
+# Обновлено для современной поддержки iOS 14.0+
+
+platform :ios, '14.0'
+
+# Определяем версии для pod зависимостей
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    
+    # Установить deployment target для всех pods
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+      config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+      config.build_settings['SWIFT_VERSION'] = '5.3'
+      
+      # Enable bitcode for production (optional but recommended)
+      config.build_settings['BITCODE_GENERATION_MODE'] = 'bitcode'
+    end
+  end
+end
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_root = File.expand_path(File.join(packages_path, '.flutter-plugins-dependencies'), __FILE__)
+end
+
+# Настройки для Hermes engine (опционально, для лучшей производительности)
+# post_install do |installer|
+#   installer.pods_project.targets.each do |target|
+#     if target.name == 'hermes-engine'
+#       target.build_configurations.each do |config|
+#         config.build_settings['GCC_OPTIMIZATION_LEVEL'] = '3'
+#       end
+#     end
+#   end
+# end
