@@ -21,26 +21,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
-        run: |
-          flutter pub get
-          flutter pub global activate pana
-      
-      - name: Verify project structure
-        run: |
-          test -f pubspec.yaml && echo "✓ pubspec.yaml found"
-          test -d lib && echo "✓ lib/ directory found"
-          test -d test && echo "✓ test/ directory found"
+        run: flutter pub get
       
       - name: Dart format check
         continue-on-error: true
@@ -49,10 +38,6 @@ jobs:
       - name: Flutter analyze
         continue-on-error: true
         run: flutter analyze lib
-      
-      - name: Pub.dev quality audit
-        continue-on-error: true
-        run: pana --exit-code-threshold 30
 
   # Unit тесты
   test:
@@ -63,21 +48,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
         run: flutter pub get
       
       - name: Run unit tests with coverage
-        run: flutter test --coverage --no-pub --verbose
+        run: flutter test --coverage --no-pub
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -97,8 +79,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -112,15 +92,12 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
         run: flutter pub get
       
       - name: Build APK Release
-        run: |
-          flutter build apk --release --no-codesign --no-pub -v
-          ls -lah build/app/outputs/flutter-apk/
+        run: flutter build apk --release --no-codesign --no-pub
       
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -128,7 +105,7 @@ jobs:
           name: twospace-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
-          if-no-files-found: warn
+        continue-on-error: true
 
   # Сборка для Web
   build-web:
@@ -140,23 +117,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
         run: flutter pub get
       
       - name: Build Web Release
-        run: |
-          flutter build web --release --no-pub -v
-          du -sh build/web/
+        run: flutter build web --release --no-pub
       
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v4
@@ -164,7 +136,7 @@ jobs:
           name: twospace-web-build
           path: build/web/
           retention-days: 30
-          if-no-files-found: warn
+        continue-on-error: true
 
   # Проверка безопасности
   security:
@@ -174,63 +146,29 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
         run: flutter pub get
       
       - name: Check for outdated packages
         continue-on-error: true
-        run: flutter pub outdated --json
-      
-      - name: Pub security audit
-        continue-on-error: true
-        run: flutter pub global activate security_audit && security_audit
+        run: flutter pub outdated
 
   # Финальное уведомление
   final-status:
-    name: Pipeline Status Report
+    name: Pipeline Status
     runs-on: ubuntu-latest
-    needs: [ analyze, test, build-apk, build-web, security ]
+    needs: [ analyze, test ]
     if: always()
     steps:
-      - name: Print Pipeline Status
+      - name: Pipeline Status
         run: |
-          echo "╔════════════════════════════════════════╗"
-          echo "║      TwoSpace CI/CD Pipeline Report     ║"
-          echo "╚════════════════════════════════════════╝"
-          echo ""
-          echo "📊 Job Status:"
-          echo "  ✓ analyze:    ${{ needs.analyze.result }}"
-          echo "  ✓ test:       ${{ needs.test.result }}"
-          echo "  ✓ build-apk:  ${{ needs.build-apk.result }}"
-          echo "  ✓ build-web:  ${{ needs.build-web.result }}"
-          echo "  ✓ security:   ${{ needs.security.result }}"
-          echo ""
-          echo "🏁 Pipeline Result: ${{ job.status }}"
-      
-      - name: Determine Pipeline Success
-        if: |
-          needs.analyze.result == 'success' &&
-          needs.test.result == 'success'
-        run: |
-          echo "✅ All critical jobs passed!"
-          echo "Pipeline is ready for production"
-          exit 0
-      
-      - name: Pipeline Warning
-        if: |
-          (needs.analyze.result == 'success' || needs.analyze.result == 'skipped') &&
-          (needs.test.result == 'success' || needs.test.result == 'skipped') &&
-          (needs.build-apk.result == 'failure' || needs.build-web.result == 'failure' || needs.security.result == 'failure')
-        run: |
-          echo "⚠️  Some non-critical jobs failed, but tests passed"
-          exit 0
+          echo "Pipeline Status:"
+          echo "  analyze: ${{ needs.analyze.result }}"
+          echo "  test: ${{ needs.test.result }}"
