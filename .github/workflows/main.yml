@@ -38,7 +38,10 @@ jobs:
           cache: true
       
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          cd ${{ github.workspace }}
+          test -f pubspec.yaml || (echo "pubspec.yaml not found" && exit 1)
+          flutter pub get
       
       - name: Dart format check
         continue-on-error: true
@@ -68,7 +71,10 @@ jobs:
           cache: true
       
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          cd ${{ github.workspace }}
+          test -f pubspec.yaml || (echo "pubspec.yaml not found" && exit 1)
+          flutter pub get
       
       - name: Run unit tests with coverage
         run: flutter test --coverage --no-pub
