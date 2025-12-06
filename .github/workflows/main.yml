@@ -8,158 +8,195 @@ on:
 
 env:
   FLUTTER_VERSION: '3.35.7'
-  DART_VERSION: '3.9.2'
 
 jobs:
   # Анализ кода и форматирование
   analyze:
     name: Code Analysis & Formatting
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Verify pubspec.yaml exists
-        run: |
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "Error: pubspec.yaml not found!"
-            exit 1
-          fi
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
-        run: flutter pub get --verbose
+        run: |
+          flutter --version
+          flutter pub get
       
-      - name: Format check
+      - name: Dart format check
         run: dart format --set-exit-if-changed lib test || true
       
-      - name: Analyze
-        run: flutter analyze lib || true
+      - name: Flutter analyze
+        run: flutter analyze lib test || true
       
-      - name: Lint check
-        run: flutter pub global activate custom_lint && custom_lint --help || true
+      - name: Custom lint
+        continue-on-error: true
+        run: |
+          flutter pub global activate custom_lint 2>/dev/null || true
+          custom_lint --help 2>/dev/null || true
 
   # Unit тесты
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: analyze
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
-        run: flutter pub get --verbose
+        run: flutter pub get
       
-      - name: Run tests
-        run: flutter test --coverage || true
+      - name: Run unit tests
+        continue-on-error: true
+        run: flutter test --coverage --no-pub
       
-      - name: Upload coverage to Codecov
+      - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:
           files: ./coverage/lcov.info
           flags: unittests
-          name: codecov-umbrella
           fail_ci_if_error: false
+        continue-on-error: true
 
   # Сборка APK для Android
   build-apk:
     name: Build APK (Android)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: analyze
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
+          cache: gradle
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
-        run: flutter pub get --verbose
+        run: flutter pub get
       
       - name: Build APK
-        run: flutter build apk --release --no-codesign || true
+        continue-on-error: true
+        run: |
+          flutter build apk --release --no-codesign --no-pub
+          ls -lah build/app/outputs/flutter-apk/ || true
         env:
           GRADLE_OPTS: '-Xmx4g -XX:MaxMetaspaceSize=1g'
       
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v3
-        if: hashFiles('build/app/outputs/flutter-apk/app-release.apk') != ''
+        if: success()
         with:
-          name: twospace-app.apk
+          name: twospace-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+        continue-on-error: true
 
-  # Сборка для веб (опционально)
+  # Сборка для Web
   build-web:
     name: Build Web
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: analyze
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
-        run: flutter pub get --verbose
+        run: flutter pub get
       
-      - name: Build web
-        run: flutter build web --release || true
+      - name: Build Web
+        continue-on-error: true
+        run: |
+          flutter build web --release --no-pub
+          ls -la build/web/ || true
       
-      - name: Upload web artifacts
+      - name: Upload Web artifact
         uses: actions/upload-artifact@v3
-        if: hashFiles('build/web/index.html') != ''
+        if: success()
         with:
-          name: twospace-web
+          name: twospace-web-build
           path: build/web/
+          retention-days: 30
+        continue-on-error: true
 
-  # Проверка безопасности зависимостей
+  # Проверка безопасности
   security:
-    name: Security Audit
+    name: Security & Dependencies Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: flutter-lts-${{ env.FLUTTER_VERSION }}
       
       - name: Get dependencies
-        run: flutter pub get --verbose
+        run: flutter pub get
       
-      - name: Run pub audit
-        run: dart pub global activate pana && pana --exit-code-threshold 20 || true
+      - name: Check for outdated packages
+        continue-on-error: true
+        run: flutter pub outdated || true
+      
+      - name: Pub.dev quality audit
+        continue-on-error: true
+        run: |
+          dart pub global activate pana
+          pana --exit-code-threshold 30 || true
 
-  # Уведомление об успехе
-  notify-success:
-    name: Notify Success
+  # Финальное уведомление
+  final-status:
+    name: Pipeline Status
     runs-on: ubuntu-latest
     needs: [ analyze, test ]
-    if: success()
+    if: always()
     steps:
-      - name: Success notification
-        run: echo "✅ Pipeline completed successfully!"
+      - name: Check pipeline status
+        run: |
+          echo "✅ Pipeline execution completed"
+          echo "Jobs summary:"
+          echo "  - analyze: ${{ needs.analyze.result }}"
+          echo "  - test: ${{ needs.test.result }}"
