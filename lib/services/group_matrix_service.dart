@@ -1,6 +1,8 @@
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../models/group.dart';
+import '../config/environment.dart';
 import 'auth_service.dart';
 import 'chat_matrix_service.dart';
 
@@ -137,7 +139,19 @@ class GroupMatrixService {
   /// Разбанить пользователя
   Future<void> unbanUser(String roomId, String userId) async {
     try {
-      await Future.delayed(const Duration(milliseconds: 100));
+      // Invite the user back to the room (removes ban)
+      final auth = AuthService();
+      final token = await auth.getMatrixTokenForUser();
+      if (token == null || token.isEmpty) throw Exception('Not authenticated');
+      
+      final uri = Uri.parse('${Environment.matrixHomeserverUrl}/_matrix/client/r0/rooms/$roomId/invite');
+      final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
+      final body = jsonEncode({'user_id': userId});
+      
+      final res = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 10));
+      if (res.statusCode >= 400) {
+        throw Exception('Failed to unban: ${res.statusCode}');
+      }
     } catch (e) {
       throw Exception('Ошибка разбанивания пользователя: $e');
     }
@@ -258,6 +272,91 @@ class GroupMatrixService {
       await Future.delayed(const Duration(milliseconds: 100));
     } catch (e) {
       throw Exception('Ошибка удаления группы: $e');
+    }
+  }
+
+  /// Закрепить сообщение в группе
+  Future<void> pinMessage(String roomId, String messageId) async {
+    try {
+      final auth = AuthService();
+      final token = await auth.getMatrixTokenForUser();
+      if (token == null || token.isEmpty) throw Exception('Not authenticated');
+      
+      // Get current pinned messages event
+      final uri = Uri.parse('${Environment.matrixHomeserverUrl}/_matrix/client/r0/rooms/$roomId/state/m.room.pinned_events');
+      final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
+      
+      List<String> pinnedEvents = [];
+      try {
+        final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 10));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body) as Map<String, dynamic>;
+          pinnedEvents = List<String>.from(data['pinned'] ?? []);
+        }
+      } catch (_) {}
+      
+      // Add new message if not already pinned
+      if (!pinnedEvents.contains(messageId)) {
+        pinnedEvents.add(messageId);
+        final body = jsonEncode({'pinned': pinnedEvents});
+        final putRes = await http.put(uri, headers: headers, body: body).timeout(const Duration(seconds: 10));
+        if (putRes.statusCode >= 400) {
+          throw Exception('Failed to pin message: ${putRes.statusCode}');
+        }
+      }
+    } catch (e) {
+      throw Exception('Ошибка закрепления сообщения: $e');
+    }
+  }
+
+  /// Открепить сообщение
+  Future<void> unpinMessage(String roomId, String messageId) async {
+    try {
+      final auth = AuthService();
+      final token = await auth.getMatrixTokenForUser();
+      if (token == null || token.isEmpty) throw Exception('Not authenticated');
+      
+      final uri = Uri.parse('${Environment.matrixHomeserverUrl}/_matrix/client/r0/rooms/$roomId/state/m.room.pinned_events');
+      final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
+      
+      // Get current pinned messages
+      final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        List<String> pinnedEvents = List<String>.from(data['pinned'] ?? []);
+        
+        // Remove message
+        pinnedEvents.removeWhere((id) => id == messageId);
+        
+        final body = jsonEncode({'pinned': pinnedEvents});
+        final putRes = await http.put(uri, headers: headers, body: body).timeout(const Duration(seconds: 10));
+        if (putRes.statusCode >= 400) {
+          throw Exception('Failed to unpin message: ${putRes.statusCode}');
+        }
+      }
+    } catch (e) {
+      throw Exception('Ошибка открепления сообщения: $e');
+    }
+  }
+
+  /// Получить закреплённые сообщения группы
+  Future<List<String>> getPinnedMessages(String roomId) async {
+    try {
+      final auth = AuthService();
+      final token = await auth.getMatrixTokenForUser();
+      if (token == null || token.isEmpty) return [];
+      
+      final uri = Uri.parse('${Environment.matrixHomeserverUrl}/_matrix/client/r0/rooms/$roomId/state/m.room.pinned_events');
+      final headers = {'Authorization': 'Bearer $token'};
+      
+      final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return List<String>.from(data['pinned'] ?? []);
+      }
+      return [];
+    } catch (_) {
+      return [];
     }
   }
 

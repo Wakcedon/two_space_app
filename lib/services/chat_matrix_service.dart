@@ -517,6 +517,39 @@ class ChatMatrixService {
     return;
   }
 
+  /// Forward a message to multiple chats
+  Future<void> forwardMessage(
+    String sourceRoomId,
+    String messageId,
+    String messageContent,
+    String senderName,
+    List<String> targetRoomIds,
+  ) async {
+    final forwardedBody = '''$messageContent\n\n--- Переслано от $senderName''';
+    
+    for (final roomId in targetRoomIds) {
+      try {
+        final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/m.room.message');
+        final headers = await _authHeaders();
+        headers['Content-Type'] = 'application/json';
+        
+        final body = jsonEncode({
+          'msgtype': 'm.text',
+          'body': forwardedBody,
+          'format': 'org.matrix.custom.html',
+          'formatted_body': '<blockquote>$messageContent</blockquote><p>Переслано от $senderName</p>',
+        });
+        
+        final res = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 10));
+        if (res.statusCode >= 400) {
+          throw Exception('Forward failed: ${res.statusCode}');
+        }
+      } catch (e) {
+        throw Exception('Ошибка при отправке в чат: $e');
+      }
+    }
+  }
+
   Future<Map<String, String>> _authHeaders() async {
     final as = AuthService();
     String? token;

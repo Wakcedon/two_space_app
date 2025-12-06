@@ -135,6 +135,50 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // Advanced search with filters (date, author, etc.)
+  void _performAdvancedSearch({
+    String? query,
+    String? author,
+    DateTime? dateFrom,
+    DateTime? dateTo,
+    String type = 'all',
+  }) {
+    setState(() { _searching = true; _searchResults = []; });
+    try {
+      var filtered = _messages;
+      
+      // Filter by query
+      if (query != null && query.isNotEmpty) {
+        final q = query.toLowerCase();
+        filtered = filtered.where((m) {
+          if (type == 'messages') return m.text.toLowerCase().contains(q);
+          if (type == 'media') return m.text.contains('mxc://') || m.text.contains('http');
+          if (type == 'users') return m.text.contains('@');
+          return m.text.toLowerCase().contains(q);
+        }).toList();
+      }
+      
+      // Filter by author
+      if (author != null && author.isNotEmpty) {
+        filtered = filtered.where((m) => (m.senderName ?? '').toLowerCase().contains(author.toLowerCase())).toList();
+      }
+      
+      // Filter by date
+      if (dateFrom != null) {
+        filtered = filtered.where((m) => m.time.isAfter(dateFrom)).toList();
+      }
+      if (dateTo != null) {
+        filtered = filtered.where((m) => m.time.isBefore(dateTo)).toList();
+      }
+      
+      setState(() { _searchResults = filtered.asMap().entries.map((e) => {'index': e.key, 'msg': e.value}).toList(); });
+    } catch (_) {
+      setState(() { _searchResults = []; });
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
   Future<void> _loadMessages() async {
     setState(() => _loading = true);
     try {

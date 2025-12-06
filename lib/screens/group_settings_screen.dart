@@ -517,10 +517,13 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 icon: const Icon(Icons.close, color: Colors.red),
                 onPressed: () async {
                   try {
-                    // TODO: Implement unban functionality
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Функция разбана еще не реализована')),
-                    );
+                    await _groupService.unbanUser(widget.roomId, member.userId);
+                    await _loadGroupData();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Пользователь разбанен')),
+                      );
+                    }
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Ошибка: $e')),

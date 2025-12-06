@@ -6,8 +6,18 @@ class Chat {
   final String lastMessage;
   final String? roomType;
   final DateTime? lastMessageTime;
+  final int unreadCount;
 
-  Chat({required this.id, required this.name, this.avatarUrl, required this.members, this.lastMessage = '', this.roomType, this.lastMessageTime});
+  Chat({
+    required this.id,
+    required this.name,
+    this.avatarUrl,
+    required this.members,
+    this.lastMessage = '',
+    this.roomType,
+    this.lastMessageTime,
+    this.unreadCount = 0,
+  });
 
   factory Chat.fromMap(Map<String, dynamic> m) {
     return Chat(
@@ -26,6 +36,7 @@ class Chat {
         } catch (_) {}
         return null;
       })(),
+      unreadCount: (m['unreadCount'] ?? m['unread_count'] ?? 0) as int,
     );
   }
 
