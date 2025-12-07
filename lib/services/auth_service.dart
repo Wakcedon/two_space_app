@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/services/matrix_service.dart';
+import 'package:two_space_app/services/dev_logger.dart';
 import 'package:two_space_app/config/environment.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -12,6 +13,7 @@ const _kMatrixDeviceIdPrefix = 'matrix_device_';
 
 class AuthService {
   final /*Appwrite Account client if present*/ dynamic accountClient;
+  final DevLogger _logger = DevLogger('AuthService');
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
@@ -86,28 +88,40 @@ class AuthService {
 
   /// Sign out current user: delete session on server and clear stored JWT/cookie
   Future<void> signOut() async {
+    _logger.info('🚪 Выход из аккаунта...');
     try {
       await MatrixService.deleteCurrentSession();
-    } catch (_) {}
+      _logger.info('✓ Сессия удалена');
+    } catch (e) {
+      _logger.debug('❌ Ошибка удаления сессии: $e');
+    }
     try {
       await MatrixService.saveSessionCookie(null);
     } catch (_) {}
     try {
       await MatrixService.clearJwt();
-    } catch (_) {}
+      _logger.info('✓ Токены очищены');
+    } catch (e) {
+      _logger.debug('❌ Ошибка очистки: $e');
+    }
   }
 
   // Backwards compatible wrappers used by existing screens
   Future<void> loginUser(String identifier, String password) async {
+    _logger.info('🔐 Попытка входа: $identifier');
     // identifier may be pseudo-email created from phone; call signInWithEmail
     final res = await signInWithEmail(identifier, password);
+    _logger.info('✓ Вход в приложение успешен');
     // If Matrix integration enabled, attempt to sign in the same user on Matrix
     try {
       if (Environment.useMatrix) {
+        _logger.info('🌐 Попытка входа в Matrix...');
         // Try matrix login using identifier as username (app can adjust mapping)
         await signInMatrix(identifier, password);
+        _logger.info('✓ Matrix вход успешен');
       }
-    } catch (_) {
+    } catch (e) {
+      _logger.warn('⚠️ Matrix вход не удался: $e');
       // Non-fatal: keep app login even if Matrix login fails
     }
     return res;

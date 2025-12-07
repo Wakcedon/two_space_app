@@ -4,10 +4,13 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
+import 'package:two_space_app/services/dev_logger.dart';
 import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
 
 class ChatMatrixService {
   ChatMatrixService();
+  
+  final DevLogger _logger = DevLogger('ChatMatrix');
 
   // simple in-memory cache for generated waveforms keyed by media id or local path
   final Map<String, List<double>> _waveformCache = {};
@@ -348,6 +351,7 @@ class ChatMatrixService {
   }
 
   Future<dynamic> sendMessage(String roomId, String senderId, String text, {String type = 'text', String? mediaFileId}) async {
+    _logger.info('📤 Отправка сообщения в $roomId (тип: $type)');
     final txn = 't${DateTime.now().millisecondsSinceEpoch}';
     final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/send/m.room.message/$txn');
     final headers = await _authHeaders();
@@ -357,16 +361,27 @@ class ChatMatrixService {
       content['body'] = text.isNotEmpty ? text : 'Image';
       content['url'] = mediaFileId;
     }
+    _logger.debug('🌐 [HTTP] PUT /send/m.room.message - Body: ${content['body']}');
     final res = await http.put(uri, headers: headers, body: jsonEncode({'msgtype': content['msgtype'], 'body': content['body'], 'url': content['url']})).timeout(const Duration(seconds: 8));
-    if (res.statusCode >= 200 && res.statusCode < 300) return jsonDecode(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      _logger.info('✓ Сообщение отправлено: ${res.statusCode}');
+      return jsonDecode(res.body);
+    }
+    _logger.error('❌ sendMessage failed ${res.statusCode}: ${res.body}');
     throw Exception('sendMessage failed ${res.statusCode}: ${res.body}');
   }
 
   Future<List<_MatrixMessage>> loadMessages(String roomId, {int limit = 50}) async {
+    _logger.info('📥 Загрузка сообщений из $roomId (лимит: $limit)');
     final headers = await _authHeaders();
     final uri = Uri.parse('$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/messages?dir=b&limit=$limit');
+    _logger.debug('🌐 [HTTP] GET /messages?dir=b&limit=$limit');
     final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
-    if (res.statusCode != 200) return <_MatrixMessage>[];
+    if (res.statusCode != 200) {
+      _logger.warn('⚠️ Не удалось загрузить сообщения: ${res.statusCode}');
+      return <_MatrixMessage>[];
+    }
+    _logger.info('✓ Получено сообщений: Response 200');
     final js = jsonDecode(res.body) as Map<String, dynamic>;
     final chunk = (js['chunk'] as List? ?? []);
     final out = <_MatrixMessage>[];
@@ -426,7 +441,9 @@ class ChatMatrixService {
 
   /// Return list of room IDs the current user has joined.
   Future<List<String>> getJoinedRooms() async {
+    _logger.info('📋 Загрузка присоединённых комнат');
     final uri = Uri.parse('$homeserver/_matrix/client/v3/joined_rooms');
+    _logger.debug('🌐 [HTTP] GET /joined_rooms');
     var headers = await _authHeaders();
     var res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
     // If token expired or unauthorized, try refreshing silently and retry once

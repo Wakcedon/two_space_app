@@ -64,5 +64,7 @@ class DevLogger {
       _ctrl.add(List<String>.from(_logs));
     } catch (_) {}
   }
+
+  void warn(String s) {}
 }
 

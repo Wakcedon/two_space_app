@@ -15,6 +15,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundEnabled = true;
   String _selectedTheme = 'system';
   bool _loggingOut = false;
+  bool _devMenuEnabled = false;
   String _appVersion = 'загрузка...';
 
   @override
@@ -190,6 +191,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                   ],
+                ),
+              ),
+            ),
+
+            // Параметры разработчика
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+              child: Text(
+                'Разработка',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            GlassCard(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: ListTile(
+                  leading: const Icon(Icons.bug_report),
+                  title: const Text('Developer Menu'),
+                  subtitle: const Text('Плавающая кнопка отладки'),
+                  trailing: Switch(
+                    value: _devMenuEnabled,
+                    onChanged: (value) {
+                      setState(() => _devMenuEnabled = value);
+                    },
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
               ),
             ),

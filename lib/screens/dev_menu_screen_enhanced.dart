@@ -234,7 +234,7 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
                         onPressed: () {
                           _logger.debug('📋 Тест логирования');
                           _logger.info('ℹ️ Информационное сообщение');
-                          _logger.warn('⚠️ Предупреждение');
+                          _logger.warning('⚠️ Предупреждение');
                           _logger.error('❌ Ошибка');
                           _logger.debug('🔍 Отладочная информация');
                           _logger.info('🌐 [HTTP] GET /api/v1/user - Response: 200');
@@ -317,84 +317,84 @@ class _DevMenuScreenState extends State<DevMenuScreen> {
                             final isError = log.contains('[ERROR]');
                             final isWarn = log.contains('[WARN]');
 
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  child: GestureDetector(
-                                    onLongPress: () {
-                                      showModalBottomSheet(
-                                        context: context,
-                                        builder: (ctx) => Container(
-                                          color: Theme.of(context).colorScheme.surface,
-                                          padding: const EdgeInsets.all(16),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                'Опции логи',
-                                                style: Theme.of(context).textTheme.titleMedium,
-                                              ),
-                                              const SizedBox(height: 16),
-                                              ListTile(
-                                                leading: const Icon(Icons.copy),
-                                                title: const Text('Копировать'),
-                                                onTap: () {
-                                                  _copyLog(log);
-                                                  Navigator.pop(ctx);
-                                                },
-                                              ),
-                                              ListTile(
-                                                leading: const Icon(Icons.search),
-                                                title: const Text('Найти похожие'),
-                                                onTap: () {
-                                                  final keyword = log.split(':').first;
-                                                  _logger.info('Поиск: $keyword');
-                                                  Navigator.pop(ctx);
-                                                },
-                                              ),
-                                              ListTile(
-                                                leading: const Icon(Icons.delete),
-                                                title: const Text('Удалить эту строку'),
-                                                onTap: () {
-                                                  DevLogger.all.remove(log);
-                                                  setState(() {});
-                                                  Navigator.pop(ctx);
-                                                },
-                                              ),
-                                            ],
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              child: GestureDetector(
+                                onLongPress: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    builder: (ctx) => Container(
+                                      color: Theme.of(context).colorScheme.surface,
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Опции логи',
+                                            style: Theme.of(context).textTheme.titleMedium,
                                           ),
-                                        ),
-                                      );
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: isError
-                                            ? Colors.red.withOpacity(0.1)
-                                            : isWarn
-                                                ? Colors.orange.withOpacity(0.1)
-                                                : null,
-                                        border: Border(
-                                          left: BorderSide(
-                                            color: _getLogColor(log),
-                                            width: 3,
+                                          const SizedBox(height: 16),
+                                          ListTile(
+                                            leading: const Icon(Icons.copy),
+                                            title: const Text('Копировать'),
+                                            onTap: () {
+                                              _copyLog(log);
+                                              Navigator.pop(ctx);
+                                            },
                                           ),
-                                        ),
+                                          ListTile(
+                                            leading: const Icon(Icons.search),
+                                            title: const Text('Найти похожие'),
+                                            onTap: () {
+                                              final keyword = log.split(':').first;
+                                              _logger.info('Поиск: $keyword');
+                                              Navigator.pop(ctx);
+                                            },
+                                          ),
+                                          ListTile(
+                                            leading: const Icon(Icons.delete),
+                                            title: const Text('Удалить эту строку'),
+                                            onTap: () {
+                                              DevLogger.all.remove(log);
+                                              setState(() {});
+                                              Navigator.pop(ctx);
+                                            },
+                                          ),
+                                        ],
                                       ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      child: SelectableText(
-                                        _truncateLog(log),
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontSize: 11,
-                                          color: _getLogColor(log),
-                                          height: 1.5,
-                                        ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isError
+                                        ? Colors.red.withValues(alpha: 0.1)
+                                        : isWarn
+                                            ? Colors.orange.withValues(alpha: 0.1)
+                                            : null,
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: _getLogColor(log),
+                                        width: 3,
                                       ),
                                     ),
                                   ),
-                                );
-                              },
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  child: SelectableText(
+                                    _truncateLog(log),
+                                    style: TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 11,
+                                      color: _getLogColor(log),
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             );
+                          },
+                        );
                 },
               ),
             ),

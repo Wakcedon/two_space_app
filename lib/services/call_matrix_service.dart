@@ -296,12 +296,12 @@ class CallMatrixService {
             }
           : false,
     };
-    final localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+    final localStream = await navigator?.mediaDevices.getUserMedia(mediaConstraints);
     // notify UI about local preview stream
     try {
-      onLocalStream?.call(callId, localStream);
+      onLocalStream?.call(callId, localStream!);
     } catch (_) {}
-    _localStreams[callId] = localStream;
+    _localStreams[callId] = localStream!;
 
     final iceServers = Environment.turnServers.isNotEmpty ? Environment.turnServers : [ {'urls': 'stun:stun.l.google.com:19302'} ];
     final pc = await createPeerConnection({ 'iceServers': iceServers });
@@ -309,10 +309,9 @@ class CallMatrixService {
     _pcs[callId] = pc;
 
     // Add tracks
-    localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+    localStream.getTracks().forEach((t) => pc.addTrack(t, localStream as List<MediaStream>?));
 
     pc.onIceCandidate = (e) async {
-      if (e.candidate == null) return;
       final candidate = {
         'candidate': e.candidate,
         'sdpMid': e.sdpMid,
@@ -392,12 +391,11 @@ class CallMatrixService {
     final pc = await createPeerConnection({ 'iceServers': iceServers });
     _pcs[callId] = pc;
 
-    final localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': video});
-    _localStreams[callId] = localStream;
-    localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+    final localStream = await navigator?.mediaDevices.getUserMedia({'audio': true, 'video': video});
+    _localStreams[callId] = localStream!;
+    localStream.getTracks().forEach((t) => pc.addTrack(t, localStream as List<MediaStream>?));
 
     pc.onIceCandidate = (e) async {
-      if (e.candidate == null) return;
       final candidate = {
         'candidate': e.candidate,
         'sdpMid': e.sdpMid,
