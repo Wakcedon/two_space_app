@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-// import 'dart:async';
-// import 'package:webview_flutter/webview_flutter.dart';
-// import '../config/environment.dart';
-// import '../services/auth_service.dart';
 
 class SsoWebviewScreen extends StatefulWidget {
   final String idpId; // e.g. 'google' or 'yandex'
@@ -13,8 +9,6 @@ class SsoWebviewScreen extends StatefulWidget {
 }
 
 class _SsoWebviewScreenState extends State<SsoWebviewScreen> {
-  // WebViewController not available, using placeholder
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -29,7 +23,7 @@ class _SsoWebviewScreenState extends State<SsoWebviewScreen> {
             const SizedBox(height: 24),
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            const Text('Функция требует конфигурации webview_flutter'),
+            const Text('Функция WebView требует расширенной конфигурации'),
           ],
         ),
       ),

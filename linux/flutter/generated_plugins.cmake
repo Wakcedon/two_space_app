@@ -7,7 +7,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   emoji_picker_flutter
   file_selector_linux
   flutter_secure_storage_linux
-  flutter_webrtc
   url_launcher_linux
   window_size
 )

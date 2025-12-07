@@ -4,9 +4,76 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+// import 'package:flutter_webrtc/flutter_webrtc.dart'; // Not configured
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
+
+// Placeholder classes for flutter_webrtc (not configured)
+class RTCPeerConnection {
+  Function(RTCIceCandidate)? onIceCandidate;
+  Function(int?)? onIceConnectionState;
+  Function(dynamic)? onTrack;
+  
+  Future<void> addTrack(dynamic track, [List<MediaStream>? streams]) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  Future<RTCSessionDescription> createOffer(Map<String, dynamic> offerOptions) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  Future<RTCSessionDescription> createAnswer(Map<String, dynamic> answerOptions) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  Future<void> setLocalDescription(RTCSessionDescription description) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  Future<void> setRemoteDescription(RTCSessionDescription description) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  Future<void> addCandidate(RTCIceCandidate candidate) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  List<dynamic> getSenders() {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+  
+  Future<void> close() async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+}
+class MediaStream {
+  List<dynamic> getTracks() => [];
+}
+class RTCSessionDescription {
+  final String sdp;
+  final String type;
+  RTCSessionDescription(this.sdp, this.type);
+}
+class RTCIceCandidate {
+  final String candidate;
+  final String? sdpMid;
+  final int? sdpMLineIndex;
+  RTCIceCandidate(this.candidate, this.sdpMid, this.sdpMLineIndex);
+}
+NavigatorUserMedia? navigator = NavigatorUserMedia();
+
+class NavigatorUserMedia {
+  late final MediaDevices mediaDevices;
+  NavigatorUserMedia() {
+    mediaDevices = MediaDevices();
+  }
+}
+
+class MediaDevices {
+  Future<MediaStream> getUserMedia(Map<String, dynamic> constraints) async {
+    throw UnimplementedError('flutter_webrtc not configured');
+  }
+}
 
 /// Простая реализация signalling поверх Matrix: отправляем/принимаем
 /// события типа `io.twospace.call.signal` в комнате. Контент имеет форму:
@@ -208,6 +275,11 @@ class CallMatrixService {
     final msg = 'sendRoomEvent failed ${res.statusCode}: ${res.body}';
     if (kDebugMode) debugPrint(msg);
     throw Exception(msg);
+  }
+
+  // Placeholder method for createPeerConnection
+  Future<RTCPeerConnection> createPeerConnection(Map<String, dynamic> config) async {
+    throw UnimplementedError('flutter_webrtc not configured for WebRTC calls');
   }
 
   Future<String> createCallId() async => 'call-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(1<<32).toRadixString(36)}';

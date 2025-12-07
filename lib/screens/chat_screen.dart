@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart' as share;
 import 'package:two_space_app/services/chat_matrix_service.dart';
 import 'package:two_space_app/widgets/user_avatar.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/voice_service.dart';
 import 'package:two_space_app/services/group_matrix_service.dart';
+import 'package:two_space_app/services/draft_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/profile_screen.dart';
 import 'package:two_space_app/widgets/group_background_widget.dart';
@@ -29,6 +31,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final ChatMatrixService _svc = ChatMatrixService();
   final TextEditingController _controller = TextEditingController();
+  final DraftService _draftService = DraftService();
   List<Map<String, dynamic>> _searchResults = [];
   bool _searching = false;
   List<_Msg> _messages = [];
@@ -74,6 +77,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadMessages();
     _loadGroupSettings();
     _scrollToEventId = widget.scrollToEventId;
+    // Load draft if exists
+    _loadDraft();
     // start sync loop to receive new events
     _svc.startSync((js) {
       _handleSync(js);
@@ -135,49 +140,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Advanced search with filters (date, author, etc.)
-  void _performAdvancedSearch({
-    String? query,
-    String? author,
-    DateTime? dateFrom,
-    DateTime? dateTo,
-    String type = 'all',
-  }) {
-    setState(() { _searching = true; _searchResults = []; });
-    try {
-      var filtered = _messages;
-      
-      // Filter by query
-      if (query != null && query.isNotEmpty) {
-        final q = query.toLowerCase();
-        filtered = filtered.where((m) {
-          if (type == 'messages') return m.text.toLowerCase().contains(q);
-          if (type == 'media') return m.text.contains('mxc://') || m.text.contains('http');
-          if (type == 'users') return m.text.contains('@');
-          return m.text.toLowerCase().contains(q);
-        }).toList();
-      }
-      
-      // Filter by author
-      if (author != null && author.isNotEmpty) {
-        filtered = filtered.where((m) => (m.senderName ?? '').toLowerCase().contains(author.toLowerCase())).toList();
-      }
-      
-      // Filter by date
-      if (dateFrom != null) {
-        filtered = filtered.where((m) => m.time.isAfter(dateFrom)).toList();
-      }
-      if (dateTo != null) {
-        filtered = filtered.where((m) => m.time.isBefore(dateTo)).toList();
-      }
-      
-      setState(() { _searchResults = filtered.asMap().entries.map((e) => {'index': e.key, 'msg': e.value}).toList(); });
-    } catch (_) {
-      setState(() { _searchResults = []; });
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
-  }
 
   Future<void> _loadMessages() async {
     setState(() => _loading = true);
@@ -287,6 +249,20 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } catch (_) {
       // Not a group room or error loading settings
+    }
+  }
+
+  /// Load draft message for this chat
+  Future<void> _loadDraft() async {
+    try {
+      final draft = await _draftService.getDraft(widget.chat.id);
+      if (draft != null && mounted) {
+        setState(() {
+          _controller.text = draft.content;
+        });
+      }
+    } catch (_) {
+      // Draft loading failed, ignore
     }
   }
 
@@ -418,6 +394,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       if (m.isOwn) TextButton.icon(onPressed: () { entry?.remove(); _editEvent(m.id, m.text); }, icon: const Icon(Icons.edit), label: const Text('Редакт.')), 
                       TextButton.icon(onPressed: () { entry?.remove(); _pinUnpinEvent(m.id); }, icon: const Icon(Icons.push_pin), label: const Text('Закрепить')), 
                       if (m.isOwn) TextButton.icon(onPressed: () { entry?.remove(); _redactEvent(m.id); }, icon: const Icon(Icons.delete), label: const Text('Удалить')),
+                      TextButton.icon(onPressed: () { entry?.remove(); _shareMessage(m); }, icon: const Icon(Icons.share), label: const Text('Поделиться')),
                       TextButton.icon(onPressed: () async { entry?.remove(); final picked = await _showEmojiPickerDialog(); if (picked != null) { try { await _svc.sendReaction(widget.chat.id, m.id, picked); await _loadMessages(); } catch (_) {} } }, icon: const Icon(Icons.emoji_emotions), label: const Text('Ещё')),
                     ])
                   ]),
@@ -439,6 +416,17 @@ class _ChatScreenState extends State<ChatScreen> {
     return chosen;
   }
 
+  /// Share a message with system share sheet
+  Future<void> _shareMessage(_Msg message) async {
+    try {
+      await share.Share.share(message.text);
+    } catch (e) {
+      if (mounted) {
+        _showErrorMessage('Не удалось поделиться: $e');
+      }
+    }
+  }
+
   Future<void> _sendText() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
@@ -451,6 +439,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.insert(0, _Msg(id: DateTime.now().millisecondsSinceEpoch.toString(), text: text, isOwn: true, time: DateTime.now(), senderId: '', senderName: 'You', senderAvatar: null, type: 'm.text'));
         _controller.text = '';
       });
+      // Clear draft after successful send
+      await _draftService.deleteDraft(widget.chat.id);
     } catch (e) {
       if (mounted) _showErrorMessage('Отправка не удалась: $e');
     } finally {

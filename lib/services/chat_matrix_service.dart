@@ -388,6 +388,42 @@ class ChatMatrixService {
     return out;
   }
 
+  /// Load older messages with pagination (cursor-based)
+  Future<Map<String, dynamic>> loadOlderMessages(String roomId, String fromToken, {int limit = 50}) async {
+    final headers = await _authHeaders();
+    final uri = Uri.parse(
+      '$homeserver/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/messages?dir=b&from=$fromToken&limit=$limit',
+    );
+    final res = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    if (res.statusCode != 200) return {'messages': <_MatrixMessage>[], 'nextToken': null};
+    
+    final js = jsonDecode(res.body) as Map<String, dynamic>;
+    final chunk = (js['chunk'] as List? ?? []);
+    final out = <_MatrixMessage>[];
+    
+    for (final ev in chunk) {
+      try {
+        final m = ev as Map<String, dynamic>;
+        final type = m['type']?.toString() ?? '';
+        if (type != 'm.room.message') continue;
+        final content = m['content'] as Map<String, dynamic>? ?? {};
+        final msgtype = content['msgtype']?.toString() ?? 'm.text';
+        final body = content['body']?.toString() ?? '';
+        String? mediaId;
+        if (msgtype == 'm.image' || msgtype == 'm.video' || content['url'] != null) mediaId = content['url']?.toString();
+        final sender = m['sender']?.toString() ?? '';
+        final ts = m['origin_server_ts'] != null ? DateTime.fromMillisecondsSinceEpoch((m['origin_server_ts'] as num).toInt()) : DateTime.now();
+        out.add(_MatrixMessage(id: m['event_id']?.toString() ?? '', senderId: sender, content: body, time: ts, type: msgtype, mediaId: mediaId));
+      } catch (_) {}
+    }
+    
+    return {
+      'messages': out,
+      'nextToken': js['end'],
+      'prevToken': js['start'],
+    };
+  }
+
   /// Return list of room IDs the current user has joined.
   Future<List<String>> getJoinedRooms() async {
     final uri = Uri.parse('$homeserver/_matrix/client/v3/joined_rooms');

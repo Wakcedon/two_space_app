@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-// import 'dart:async';
-// import 'package:webview_flutter/webview_flutter.dart';
-// import '../config/environment.dart';
-// import '../services/auth_service.dart';
 
 class SsoWebviewScreen extends StatefulWidget {
   final String idpId; // e.g. 'google' or 'yandex'
@@ -13,23 +9,21 @@ class SsoWebviewScreen extends StatefulWidget {
 }
 
 class _SsoWebviewScreenState extends State<SsoWebviewScreen> {
-  // WebViewController not available, using placeholder
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('SSO — ${widget.idpId}')),
+      appBar: AppBar(title: const Text('SSO Вход')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.web, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            Text('SSO вход через ${widget.idpId}'),
+            Text('SSO Вход через ${widget.idpId}'),
             const SizedBox(height: 24),
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            const Text('Функция требует конфигурации webview_flutter'),
+            const Text('Функция WebView требует расширенной конфигурации'),
           ],
         ),
       ),

@@ -4,14 +4,14 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
+  connectivity_plus
   emoji_picker_flutter
   file_selector_windows
   flutter_secure_storage_windows
-  flutter_webrtc
+  local_auth_windows
   permission_handler_windows
   share_plus
   url_launcher_windows
-  webview_windows
   window_size
 )
 
