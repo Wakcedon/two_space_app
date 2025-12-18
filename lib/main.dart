@@ -14,63 +14,49 @@ import 'package:two_space_app/services/chat_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:two_space_app/widgets/dev_fab.dart';
 import 'package:two_space_app/services/matrix_service.dart';
-import 'package:two_space_app/services/auth_service.dart';
 import 'services/navigation_service.dart';
 import 'services/settings_service.dart';
 import 'services/update_service.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'providers/auth_notifier.dart';
+import 'widgets/auth_listener.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   try {
-    // Guard environment init with a short timeout so startup isn't blocked by misconfigured .env loader
     await Environment.init().timeout(const Duration(seconds: 3));
   } catch (e) {
-    // If .env is missing on device or not packaged, don't crash the app.
-    // Log the error in debug so developers can notice and fix their setup.
-    // ignore: avoid_print
-    print('Warning: .env load failed: $e');
+    if (kDebugMode) print('Warning: .env load failed: $e');
   }
   
-  // Validate environment variables
   try {
-    final validationResult = await EnvironmentValidator.validateOnStartup().timeout(const Duration(seconds: 2));
+    final validationResult = await EnvironmentValidator.validateOnStartup()
+        .timeout(const Duration(seconds: 2));
     if (!validationResult.isValid && kDebugMode) {
-      // ignore: avoid_print
       print('⚠️ Environment validation failed: ${validationResult.errors.join(", ")}');
     }
   } catch (e) {
-    // ignore: avoid_print
-    print('Warning: Environment validation error: $e');
+    if (kDebugMode) print('Warning: Environment validation error: $e');
   }
   
-  // Print debug info (only in debug mode)
   Environment.debugPrintEnv();
-  // Try to restore any saved JWT so MatrixService can use it for auth checks
-  // Load persisted UI settings first so session timeout preferences are available
-  // Use short timeouts and fail fast to avoid blocking the UI on startup.
+  
   try {
     await SettingsService.load().timeout(const Duration(seconds: 3));
   } catch (e) {
-    // ignore and continue — we'll default theme/settings
-    // ignore: avoid_print
-    print('Warning: SettingsService.load failed or timed out: $e');
+    if (kDebugMode) print('Warning: SettingsService.load failed: $e');
   }
-  // Then try to restore any saved JWT so MatrixService can use it for auth checks
+  
   try {
     await MatrixService.restoreJwt().timeout(const Duration(seconds: 3));
   } catch (e) {
-    // ignore: avoid_print
-    print('Warning: MatrixService.restoreJwt failed or timed out: $e');
+    if (kDebugMode) print('Warning: MatrixService.restoreJwt failed: $e');
   }
 
-  // Set a global ErrorWidget to surface any uncaught build errors as visible UI
-  // This helps avoid a silent black screen by showing the exception text on screen.
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    // Keep the message concise for release but visible for debugging.
     final msg = details.exceptionAsString();
     return MaterialApp(
       home: Scaffold(
@@ -89,8 +75,9 @@ Future<void> main() async {
       ),
     );
   };
+  
   runApp(
-    ProviderScope(  
+    ProviderScope(
       child: const TwoSpaceApp(),
     ),
   );
@@ -107,14 +94,13 @@ class TwoSpaceApp extends StatelessWidget {
         return ValueListenableBuilder<bool>(
           valueListenable: SettingsService.paleVioletNotifier,
           builder: (context, paleVioletEnabled, __) {
-            // Compute dynamic onPrimary (text color on primary background) using luminance
             final primaryColor = Color(settings.primaryColorValue);
-            // Theme choice
             final baseTheme = paleVioletEnabled ? ThemeData.light() : ThemeData.dark();
             final onPrimary = primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-            final bodyColor = paleVioletEnabled ? Colors.black87 : (primaryColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white70);
+            final bodyColor = paleVioletEnabled 
+                ? Colors.black87 
+                : (primaryColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white70);
 
-            // Resolve numeric weight (400/500/700 etc) to a FontWeight
             FontWeight resolveFontWeight(int w) {
               if (w >= 900) return FontWeight.w900;
               if (w >= 800) return FontWeight.w800;
@@ -151,19 +137,23 @@ class TwoSpaceApp extends StatelessWidget {
               title: 'TwoSpace',
               debugShowCheckedModeBanner: false,
               theme: baseTheme.copyWith(
-                // Apply selected font family and colorized text theme
                 textTheme: appliedTextTheme,
-                // Dynamic primary seed color from settings
-                colorScheme: ColorScheme.fromSeed(seedColor: primaryColor, brightness: paleVioletEnabled ? Brightness.light : Brightness.dark).copyWith(primary: primaryColor, onPrimary: onPrimary),
-                scaffoldBackgroundColor: paleVioletEnabled ? const Color(0xFFF7F4FF) : const Color(0xFF0B0320),
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: primaryColor,
+                  brightness: paleVioletEnabled ? Brightness.light : Brightness.dark,
+                ).copyWith(primary: primaryColor, onPrimary: onPrimary),
+                scaffoldBackgroundColor: paleVioletEnabled 
+                    ? const Color(0xFFF7F4FF) 
+                    : const Color(0xFF0B0320),
                 appBarTheme: AppBarTheme(
                   backgroundColor: primaryColor,
                   foregroundColor: onPrimary,
                 ),
                 inputDecorationTheme: InputDecorationTheme(
                   filled: true,
-                  // Use a light fill for paleViolet (light) theme, otherwise keep the dark fill
-                  fillColor: paleVioletEnabled ? const Color(0xFFF7F4FF) : const Color(0xFF221233),
+                  fillColor: paleVioletEnabled 
+                      ? const Color(0xFFF7F4FF) 
+                      : const Color(0xFF221233),
                 ),
                 elevatedButtonTheme: ElevatedButtonThemeData(
                   style: ElevatedButton.styleFrom(
@@ -174,9 +164,9 @@ class TwoSpaceApp extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
-                // TabBar styling is applied locally where needed to avoid SDK type mismatches
               ),
-              home: const AuthGate(),
+              // Wrap AuthGate with AuthListener for automatic navigation
+              home: const AuthListener(child: AuthGate()),
               routes: {
                 '/login': (context) => const LoginScreen(),
                 '/home': (context) => const HomeScreen(),
@@ -189,7 +179,9 @@ class TwoSpaceApp extends StatelessWidget {
                   if (args is String) {
                     return ProfileScreen(userId: args);
                   }
-                  return const Scaffold(body: Center(child: Text('Неверные аргументы для профиля')));
+                  return const Scaffold(
+                    body: Center(child: Text('Неверные аргументы для профиля')),
+                  );
                 },
                 '/change_email': (context) => const ChangeEmailScreen(),
                 '/chat': (context) {
@@ -197,14 +189,14 @@ class TwoSpaceApp extends StatelessWidget {
                   if (args is Chat) {
                     return ChatScreen(chat: args);
                   }
-                  return const Scaffold(body: Center(child: Text('Неверные аргументы для чата')));
+                  return const Scaffold(
+                    body: Center(child: Text('Неверные аргументы для чата')),
+                  );
                 },
               },
             );
-            // Overlay dev FAB in debug or when enabled via env
+            
             if (kDebugMode || Environment.enableDevTools) {
-              // Stack sits above MaterialApp, so it may not have a Directionality yet.
-              // Provide an explicit Directionality to avoid startup errors on some platforms.
               return Directionality(
                 textDirection: TextDirection.ltr,
                 child: Stack(children: [app, const DevFab()]),
@@ -218,113 +210,77 @@ class TwoSpaceApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatefulWidget {
+/// Simplified AuthGate using Riverpod
+/// Automatically shows Login or Home based on auth state
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
 
-class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
-  Timer? _presenceTimer;
-  Future<bool> _hasSession() async {
-    try {
-      if (!MatrixService.isConfigured) return false;
-      // First, perform a fast local check: if we have a saved JWT or session cookie,
-      // consider the user logged in immediately (optimistic/offline-friendly).
-      try {
-        final jwt = await MatrixService.getJwt();
-        final cookie = await MatrixService.getSessionCookie();
-        if ((jwt != null && jwt.isNotEmpty) || (cookie != null && cookie.isNotEmpty)) return true;
-      } catch (_) {
-        // ignore and fall through to network check
-      }
-
-      // Check for saved Matrix token (persistent login feature)
-      try {
-        final auth = AuthService();
-        final hasToken = await auth.restoreSessionFromToken();
-        if (hasToken) return true;
-      } catch (_) {
-        // ignore
-      }
-
-      // No local token found — attempt to validate remotely but with a short timeout
-      // to avoid blocking the UI (which caused a black screen for some users).
-      try {
-        final account = await MatrixService.getAccount().timeout(const Duration(seconds: 5));
-        return account != null;
-      } catch (_) {
-        return false;
-      }
-    } catch (_) {
-      return false;
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Run update check on every app launch (post-frame so context is available).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (Platform.isAndroid || Platform.isIOS) {
-        UpdateDialog.showIfAvailable(context);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _presenceTimer?.cancel();
-    _presenceTimer = null;
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      // When app resumes from background, mark user online and trigger update check again (mobile only).
-      MatrixService.setOnlinePresence(true);
-      // Start periodic heartbeat while app is foregrounded
-      _presenceTimer?.cancel();
-      _presenceTimer = Timer.periodic(const Duration(seconds: 45), (_) {
-        MatrixService.setOnlinePresence(true);
-      });
-      if (!mounted) return;
-      if (Platform.isAndroid || Platform.isIOS) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          UpdateDialog.showIfAvailable(context);
-        });
-      }
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached || state == AppLifecycleState.inactive) {
-      // Stop heartbeat and mark offline
-      _presenceTimer?.cancel();
-      _presenceTimer = null;
-      MatrixService.setOnlinePresence(false);
-    }
-  }
-
-  
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _hasSession(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF0B0C10),
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final loggedIn = snapshot.data == true;
-        return loggedIn ? const HomeScreen() : const LoginScreen();
+    return authState.when(
+      data: (state) {
+        // Show home if authenticated, login otherwise
+        return state.isAuthenticated ? const HomeScreen() : const LoginScreen();
       },
+      loading: () => const Scaffold(
+        backgroundColor: Color(0xFF0B0C10),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Загрузка...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      ),
+      error: (error, stack) => Scaffold(
+        backgroundColor: const Color(0xFF0B0C10),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.red,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Ошибка инициализации',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  style: const TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    // Retry by invalidating the provider
+                    ref.invalidate(authNotifierProvider);
+                  },
+                  child: const Text('Повторить'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
