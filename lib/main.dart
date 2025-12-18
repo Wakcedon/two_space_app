@@ -17,6 +17,7 @@ import 'package:two_space_app/services/matrix_service.dart';
 import 'services/navigation_service.dart';
 import 'services/settings_service.dart';
 import 'services/update_service.dart';
+import 'services/sentry_service.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,12 +27,21 @@ import 'widgets/auth_listener.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize environment first
   try {
     await Environment.init().timeout(const Duration(seconds: 3));
   } catch (e) {
     if (kDebugMode) print('Warning: .env load failed: $e');
   }
   
+  // Initialize Sentry for error tracking
+  try {
+    await SentryService.init();
+  } catch (e) {
+    if (kDebugMode) print('Warning: Sentry initialization failed: $e');
+  }
+  
+  // Validate environment
   try {
     final validationResult = await EnvironmentValidator.validateOnStartup()
         .timeout(const Duration(seconds: 2));
@@ -40,22 +50,48 @@ Future<void> main() async {
     }
   } catch (e) {
     if (kDebugMode) print('Warning: Environment validation error: $e');
+    SentryService.captureException(e, hint: {'context': 'environment_validation'});
   }
   
   Environment.debugPrintEnv();
   
+  // Load settings
   try {
     await SettingsService.load().timeout(const Duration(seconds: 3));
   } catch (e) {
     if (kDebugMode) print('Warning: SettingsService.load failed: $e');
+    SentryService.captureException(e, hint: {'context': 'settings_load'});
   }
   
+  // Restore JWT
   try {
     await MatrixService.restoreJwt().timeout(const Duration(seconds: 3));
   } catch (e) {
     if (kDebugMode) print('Warning: MatrixService.restoreJwt failed: $e');
+    // Don't send to Sentry - this is expected on first launch
   }
 
+  // Set up global error handlers
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    SentryService.captureException(
+      details.exception,
+      stackTrace: details.stack,
+      hint: {'flutter_error': true},
+    );
+  };
+
+  // Catch errors outside Flutter framework
+  PlatformDispatcher.instance.onError = (error, stack) {
+    SentryService.captureException(
+      error,
+      stackTrace: stack,
+      hint: {'platform_error': true},
+    );
+    return true;
+  };
+
+  // Custom error widget
   ErrorWidget.builder = (FlutterErrorDetails details) {
     final msg = details.exceptionAsString();
     return MaterialApp(
@@ -65,9 +101,30 @@ Future<void> main() async {
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: SingleChildScrollView(
-              child: Text(
-                'Ошибка при инициализации:\n\n$msg',
-                style: const TextStyle(color: Colors.white),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Ошибка при инициализации',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    msg,
+                    style: const TextStyle(color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
           ),
@@ -165,7 +222,6 @@ class TwoSpaceApp extends StatelessWidget {
                   ),
                 ),
               ),
-              // Wrap AuthGate with AuthListener for automatic navigation
               home: const AuthListener(child: AuthGate()),
               routes: {
                 '/login': (context) => const LoginScreen(),
@@ -211,7 +267,6 @@ class TwoSpaceApp extends StatelessWidget {
 }
 
 /// Simplified AuthGate using Riverpod
-/// Automatically shows Login or Home based on auth state
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
@@ -221,7 +276,6 @@ class AuthGate extends ConsumerWidget {
 
     return authState.when(
       data: (state) {
-        // Show home if authenticated, login otherwise
         return state.isAuthenticated ? const HomeScreen() : const LoginScreen();
       },
       loading: () => const Scaffold(
@@ -240,47 +294,55 @@ class AuthGate extends ConsumerWidget {
           ),
         ),
       ),
-      error: (error, stack) => Scaffold(
-        backgroundColor: const Color(0xFF0B0C10),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: Colors.red,
-                  size: 48,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Ошибка инициализации',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+      error: (error, stack) {
+        // Report error to Sentry
+        SentryService.captureException(
+          error,
+          stackTrace: stack,
+          hint: {'screen': 'auth_gate'},
+        );
+        
+        return Scaffold(
+          backgroundColor: const Color(0xFF0B0C10),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 48,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  error.toString(),
-                  style: const TextStyle(color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    // Retry by invalidating the provider
-                    ref.invalidate(authNotifierProvider);
-                  },
-                  child: const Text('Повторить'),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Ошибка инициализации',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error.toString(),
+                    style: const TextStyle(color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      ref.invalidate(authNotifierProvider);
+                    },
+                    child: const Text('Повторить'),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
