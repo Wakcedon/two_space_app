@@ -1,0 +1,138 @@
+name: two_space_app
+description: |
+  TwoSpace - Кроссплатформенный мессенджер на Flutter.
+  Децентрализованный, безопасный и удобный инструмент для общения.
+
+publish_to: 'none' # Не публикуем в pub.dev
+
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.9.2 <4.0.0'
+  flutter: '>=3.35.0'
+
+# ============================================================================
+# PRODUCTION DEPENDENCIES
+# ============================================================================
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ===== State Management =====
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # ===== Monitoring & Error Tracking =====
+  sentry_flutter: ^9.9.0
+  logger: ^2.4.0
+
+  # ===== Security =====
+  flutter_secure_storage: ^9.2.2
+  encrypt: ^5.0.3
+
+  # ===== Networking =====
+  http: ^1.2.2
+  dio: ^5.7.0
+
+  # ===== Matrix Protocol =====
+  # matrix: ^0.32.0  # Uncomment and adjust version if using
+
+  # ===== UI Components =====
+  cupertino_icons: ^1.0.8
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.0.10+1
+  shimmer: ^3.0.0
+  lottie: ^3.2.0
+
+  # ===== Utilities =====
+  intl: ^0.19.0
+  path_provider: ^2.1.4
+  shared_preferences: ^2.3.2
+  flutter_dotenv: ^5.2.1
+  uuid: ^4.5.1
+
+  # ===== Platform Specific =====
+  window_size:
+    git:
+      url: https://github.com/google/flutter-desktop-embedding.git
+      path: plugins/window_size
+
+  # ===== Biometric & Auth =====
+  local_auth: ^2.3.0
+  local_auth_android: ^1.0.48
+  local_auth_darwin: ^1.4.1
+  local_auth_windows: ^1.0.12
+
+  # ===== Media =====
+  image_picker: ^1.1.2
+  file_picker: ^8.1.4
+  video_player: ^2.9.2
+  audioplayers: ^6.1.0
+
+  # ===== Connectivity =====
+  connectivity_plus: ^6.1.0
+  url_launcher: ^6.3.1
+
+# ============================================================================
+# DEV DEPENDENCIES (testing, code generation, linting)
+# ============================================================================
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # ===== Code Generation =====
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.4.3
+  json_serializable: ^6.8.0
+
+  # ===== Testing =====
+  mockito: ^5.4.4
+  flutter_lints: ^5.0.0
+  very_good_analysis: ^6.0.0
+
+  # ===== Tools =====
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.1
+
+# ============================================================================
+# FLUTTER CONFIGURATION
+# ============================================================================
+flutter:
+  uses-material-design: true
+
+  # Assets (images, fonts, etc)
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/animations/
+    - .env
+
+  # Custom fonts
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: assets/fonts/Roboto-Regular.ttf
+  #       - asset: assets/fonts/Roboto-Bold.ttf
+  #         weight: 700
+
+# ============================================================================
+# FLUTTER LAUNCHER ICONS
+# Run: flutter pub run flutter_launcher_icons
+# ============================================================================
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#0B0320"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+
+# ============================================================================
+# FLUTTER NATIVE SPLASH
+# Run: flutter pub run flutter_native_splash:create
+# ============================================================================
+flutter_native_splash:
+  color: "#0B0320"
+  image: assets/images/splash_logo.png
+  android: true
+  ios: true
+  web: false
