@@ -52,8 +52,9 @@ app.*.map.json
 # Copilot Instructions
 /.github/instructions/messenger_base.instructions.md
 
-# Something
-pubspec.yaml
+# NOTE: For Flutter APPS (not packages), pubspec.lock SHOULD be committed
+# to ensure deterministic builds. Only ignore it for library packages.
+# pubspec.yaml must ALWAYS be tracked - it defines your dependencies!
 pubspec.lock
 TABLES_MIGRATION.md
 TwoSpace_setup_*.exe

@@ -20,37 +20,11 @@ import 'services/settings_service.dart';
 import 'services/update_service.dart';
 import 'dart:io' show Platform;
 import 'dart:async';
-import 'dart:ui' as ui show Size, Rect;
-import 'package:window_size/window_size.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // On Windows desktop, set sensible minimum/maximum window sizes and center the window.
-      if (Platform.isWindows) {
-    try {
-      setWindowTitle('TwoSpace');
-      // Allow arbitrary window sizes while enforcing a sensible minimum.
-      // Previously we set a hard max size which prevented users from
-      // resizing freely; remove that to allow any size and make the UI
-      // responsive to available space.
-  setWindowMinSize(const ui.Size(480, 800));
-      // Center a reasonable default frame after first frame is available
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          final screen = await getCurrentScreen();
-          if (screen != null) {
-            final frame = screen.visibleFrame;
-            final width = 480.0;
-            final height = 800.0;
-            final left = frame.left + (frame.width - width) / 2;
-            final top = frame.top + (frame.height - height) / 2;
-            setWindowFrame(ui.Rect.fromLTWH(left, top, width, height));
-          }
-        } catch (_) {}
-      });
-    } catch (_) {}
-  }
   try {
     // Guard environment init with a short timeout so startup isn't blocked by misconfigured .env loader
     await Environment.init().timeout(const Duration(seconds: 3));
@@ -115,7 +89,11 @@ Future<void> main() async {
       ),
     );
   };
-  runApp(const TwoSpaceApp());
+  runApp(
+    ProviderScope(  
+      child: const TwoSpaceApp(),
+    ),
+  );
 }
 
 class TwoSpaceApp extends StatelessWidget {
