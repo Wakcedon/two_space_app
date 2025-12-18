@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'config/environment.dart';
-import 'config/environment_validator.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
+
+import 'constants/app_colors.dart';
+import 'constants/app_strings.dart';
+import 'config/theme_builder.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/register_screen.dart';
@@ -10,68 +15,37 @@ import 'screens/profile_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/change_email_screen.dart';
 import 'screens/forgot_password_screen.dart';
-import 'package:two_space_app/services/chat_service.dart';
-import 'package:flutter/foundation.dart';
-import 'package:two_space_app/widgets/dev_fab.dart';
-import 'package:two_space_app/services/matrix_service.dart';
-import 'services/navigation_service.dart';
-import 'services/settings_service.dart';
-import 'services/update_service.dart';
+import 'services/chat_service.dart';
+import 'services/initialization_service.dart';
 import 'services/sentry_service.dart';
-import 'dart:io' show Platform;
-import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'services/settings_service.dart';
+import 'services/navigation_service.dart';
+import 'config/environment.dart';
+import 'widgets/dev_fab.dart';
 import 'providers/auth_notifier.dart';
 import 'widgets/auth_listener.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize environment first
-  try {
-    await Environment.init().timeout(const Duration(seconds: 3));
-  } catch (e) {
-    if (kDebugMode) print('Warning: .env load failed: $e');
-  }
-  
-  // Initialize Sentry for error tracking
-  try {
-    await SentryService.init();
-  } catch (e) {
-    if (kDebugMode) print('Warning: Sentry initialization failed: $e');
-  }
-  
-  // Validate environment
-  try {
-    final validationResult = await EnvironmentValidator.validateOnStartup()
-        .timeout(const Duration(seconds: 2));
-    if (!validationResult.isValid && kDebugMode) {
-      print('⚠️ Environment validation failed: ${validationResult.errors.join(", ")}');
-    }
-  } catch (e) {
-    if (kDebugMode) print('Warning: Environment validation error: $e');
-    SentryService.captureException(e, hint: {'context': 'environment_validation'});
-  }
-  
-  Environment.debugPrintEnv();
-  
-  // Load settings
-  try {
-    await SettingsService.load().timeout(const Duration(seconds: 3));
-  } catch (e) {
-    if (kDebugMode) print('Warning: SettingsService.load failed: $e');
-    SentryService.captureException(e, hint: {'context': 'settings_load'});
-  }
-  
-  // Restore JWT
-  try {
-    await MatrixService.restoreJwt().timeout(const Duration(seconds: 3));
-  } catch (e) {
-    if (kDebugMode) print('Warning: MatrixService.restoreJwt failed: $e');
-    // Don't send to Sentry - this is expected on first launch
-  }
+
+  // Initialize app with structured error handling
+  final initResult = await InitializationService.initialize();
 
   // Set up global error handlers
+  _setupErrorHandlers();
+
+  // Custom error widget
+  ErrorWidget.builder = _buildErrorWidget;
+
+  runApp(
+    ProviderScope(
+      child: TwoSpaceApp(initializationResult: initResult),
+    ),
+  );
+}
+
+/// Setup global error handlers
+void _setupErrorHandlers() {
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     SentryService.captureException(
@@ -90,168 +64,90 @@ Future<void> main() async {
     );
     return true;
   };
+}
 
-  // Custom error widget
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    final msg = details.exceptionAsString();
-    return MaterialApp(
-      home: Scaffold(
-        backgroundColor: const Color(0xFF0B0C10),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.red,
-                    size: 48,
+/// Build custom error widget
+Widget _buildErrorWidget(FlutterErrorDetails details) {
+  final msg = details.exceptionAsString();
+  return MaterialApp(
+    home: Scaffold(
+      backgroundColor: AppColors.backgroundError,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.error,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  AppStrings.errorInitialization,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Ошибка при инициализации',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    msg,
-                    style: const TextStyle(color: Colors.white70),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  msg,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
         ),
       ),
-    );
-  };
-  
-  runApp(
-    ProviderScope(
-      child: const TwoSpaceApp(),
     ),
   );
 }
 
 class TwoSpaceApp extends StatelessWidget {
-  const TwoSpaceApp({super.key});
+  final InitializationResult initializationResult;
+
+  const TwoSpaceApp({
+    super.key,
+    required this.initializationResult,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Show critical initialization errors
+    if (initializationResult.hasFailures) {
+      final criticalFailures = initializationResult.failures
+          .where((f) => f.stepName.contains('Critical'))
+          .toList();
+      
+      if (criticalFailures.isNotEmpty && !kDebugMode) {
+        return _buildInitializationErrorApp(criticalFailures);
+      }
+    }
+
     return ValueListenableBuilder<ThemeSettings>(
       valueListenable: SettingsService.themeNotifier,
       builder: (context, settings, _) {
         return ValueListenableBuilder<bool>(
           valueListenable: SettingsService.paleVioletNotifier,
           builder: (context, paleVioletEnabled, __) {
-            final primaryColor = Color(settings.primaryColorValue);
-            final baseTheme = paleVioletEnabled ? ThemeData.light() : ThemeData.dark();
-            final onPrimary = primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-            final bodyColor = paleVioletEnabled 
-                ? Colors.black87 
-                : (primaryColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white70);
-
-            FontWeight resolveFontWeight(int w) {
-              if (w >= 900) return FontWeight.w900;
-              if (w >= 800) return FontWeight.w800;
-              if (w >= 700) return FontWeight.w700;
-              if (w >= 600) return FontWeight.w600;
-              if (w >= 500) return FontWeight.w500;
-              if (w >= 400) return FontWeight.w400;
-              if (w >= 300) return FontWeight.w300;
-              return FontWeight.w400;
-            }
-            final resolvedWeight = resolveFontWeight(settings.fontWeight);
-
-            final tf = baseTheme.textTheme.apply(fontFamily: settings.fontFamily);
-            final appliedTextTheme = tf.copyWith(
-              displayLarge: tf.displayLarge?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              displayMedium: tf.displayMedium?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              displaySmall: tf.displaySmall?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              headlineLarge: tf.headlineLarge?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              headlineMedium: tf.headlineMedium?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              headlineSmall: tf.headlineSmall?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              titleLarge: tf.titleLarge?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              titleMedium: tf.titleMedium?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              titleSmall: tf.titleSmall?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              bodyLarge: tf.bodyLarge?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              bodyMedium: tf.bodyMedium?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              bodySmall: tf.bodySmall?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              labelLarge: tf.labelLarge?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              labelMedium: tf.labelMedium?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-              labelSmall: tf.labelSmall?.copyWith(color: bodyColor, fontWeight: resolvedWeight),
-            );
+            // Build theme using extracted builder
+            final theme = AppThemeBuilder.build(settings, paleVioletEnabled);
 
             final app = MaterialApp(
               navigatorKey: appNavigatorKey,
-              title: 'TwoSpace',
+              title: AppStrings.appTitle,
               debugShowCheckedModeBanner: false,
-              theme: baseTheme.copyWith(
-                textTheme: appliedTextTheme,
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: primaryColor,
-                  brightness: paleVioletEnabled ? Brightness.light : Brightness.dark,
-                ).copyWith(primary: primaryColor, onPrimary: onPrimary),
-                scaffoldBackgroundColor: paleVioletEnabled 
-                    ? const Color(0xFFF7F4FF) 
-                    : const Color(0xFF0B0320),
-                appBarTheme: AppBarTheme(
-                  backgroundColor: primaryColor,
-                  foregroundColor: onPrimary,
-                ),
-                inputDecorationTheme: InputDecorationTheme(
-                  filled: true,
-                  fillColor: paleVioletEnabled 
-                      ? const Color(0xFFF7F4FF) 
-                      : const Color(0xFF221233),
-                ),
-                elevatedButtonTheme: ElevatedButtonThemeData(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(settings.primaryColorValue),
-                    foregroundColor: onPrimary,
-                    minimumSize: const Size(88, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
+              theme: theme,
               home: const AuthListener(child: AuthGate()),
-              routes: {
-                '/login': (context) => const LoginScreen(),
-                '/home': (context) => const HomeScreen(),
-                '/register': (context) => const RegisterScreen(),
-                '/forgot': (context) => const ForgotPasswordScreen(),
-                '/customization': (context) => const CustomizationScreen(),
-                '/privacy': (context) => const PrivacyScreen(),
-                '/profile': (context) {
-                  final args = ModalRoute.of(context)!.settings.arguments;
-                  if (args is String) {
-                    return ProfileScreen(userId: args);
-                  }
-                  return const Scaffold(
-                    body: Center(child: Text('Неверные аргументы для профиля')),
-                  );
-                },
-                '/change_email': (context) => const ChangeEmailScreen(),
-                '/chat': (context) {
-                  final args = ModalRoute.of(context)!.settings.arguments;
-                  if (args is Chat) {
-                    return ChatScreen(chat: args);
-                  }
-                  return const Scaffold(
-                    body: Center(child: Text('Неверные аргументы для чата')),
-                  );
-                },
-              },
+              routes: _buildRoutes(),
             );
-            
+
+            // Add dev tools in debug mode
             if (kDebugMode || Environment.enableDevTools) {
               return Directionality(
                 textDirection: TextDirection.ltr,
@@ -262,6 +158,88 @@ class TwoSpaceApp extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  /// Build app routes
+  Map<String, WidgetBuilder> _buildRoutes() {
+    return {
+      AppStrings.routeLogin: (context) => const LoginScreen(),
+      AppStrings.routeHome: (context) => const HomeScreen(),
+      AppStrings.routeRegister: (context) => const RegisterScreen(),
+      AppStrings.routeForgot: (context) => const ForgotPasswordScreen(),
+      AppStrings.routeCustomization: (context) => const CustomizationScreen(),
+      AppStrings.routePrivacy: (context) => const PrivacyScreen(),
+      AppStrings.routeProfile: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments;
+        if (args is String) {
+          return ProfileScreen(userId: args);
+        }
+        return _buildInvalidArgsScreen(AppStrings.errorInvalidArgumentsProfile);
+      },
+      AppStrings.routeChangeEmail: (context) => const ChangeEmailScreen(),
+      AppStrings.routeChat: (context) {
+        final args = ModalRoute.of(context)!.settings.arguments;
+        if (args is Chat) {
+          return ChatScreen(chat: args);
+        }
+        return _buildInvalidArgsScreen(AppStrings.errorInvalidArgumentsChat);
+      },
+    };
+  }
+
+  /// Build screen for invalid route arguments
+  Widget _buildInvalidArgsScreen(String message) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundError,
+      body: Center(
+        child: Text(
+          message,
+          style: const TextStyle(color: AppColors.textPrimary),
+        ),
+      ),
+    );
+  }
+
+  /// Build app for critical initialization errors
+  Widget _buildInitializationErrorApp(List<InitStepResult> failures) {
+    return MaterialApp(
+      home: Scaffold(
+        backgroundColor: AppColors.backgroundError,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.error,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  AppStrings.errorInitializationFull,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ...failures.map((f) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Text(
+                    '${f.stepName}: ${f.error}',
+                    style: const TextStyle(color: AppColors.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -278,17 +256,17 @@ class AuthGate extends ConsumerWidget {
       data: (state) {
         return state.isAuthenticated ? const HomeScreen() : const LoginScreen();
       },
-      loading: () => const Scaffold(
-        backgroundColor: Color(0xFF0B0C10),
+      loading: () => Scaffold(
+        backgroundColor: AppColors.backgroundError,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+            children: const [
               CircularProgressIndicator(),
               SizedBox(height: 16),
               Text(
-                'Загрузка...',
-                style: TextStyle(color: Colors.white70),
+                AppStrings.loading,
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -301,9 +279,9 @@ class AuthGate extends ConsumerWidget {
           stackTrace: stack,
           hint: {'screen': 'auth_gate'},
         );
-        
+
         return Scaffold(
-          backgroundColor: const Color(0xFF0B0C10),
+          backgroundColor: AppColors.backgroundError,
           body: Center(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -312,14 +290,14 @@ class AuthGate extends ConsumerWidget {
                 children: [
                   const Icon(
                     Icons.error_outline,
-                    color: Colors.red,
+                    color: AppColors.error,
                     size: 48,
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Ошибка инициализации',
+                    AppStrings.errorInitializationFull,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -327,7 +305,7 @@ class AuthGate extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     error.toString(),
-                    style: const TextStyle(color: Colors.white70),
+                    style: const TextStyle(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -335,7 +313,7 @@ class AuthGate extends ConsumerWidget {
                     onPressed: () {
                       ref.invalidate(authNotifierProvider);
                     },
-                    child: const Text('Повторить'),
+                    child: const Text(AppStrings.retry),
                   ),
                 ],
               ),
