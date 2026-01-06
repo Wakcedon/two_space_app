@@ -1,5 +1,3 @@
-import 'package:sembast/sembast_io.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 
 // Offline message model
@@ -41,64 +39,60 @@ class OfflineMessage {
   );
 }
 
+/// Stub implementation of OfflineQueueService using in-memory storage.
+/// Sembast/database plugin is optional; for now we cache messages in RAM.
 class OfflineQueueService {
   static final OfflineQueueService _instance = OfflineQueueService._internal();
-  static late Database _db;
-  static final _store = intMapStoreFactory.store('offline_queue');
+  static final Map<int, Map<String, dynamic>> _queueCache = {};
+  static int _nextId = 1;
 
   factory OfflineQueueService() => _instance;
 
   OfflineQueueService._internal();
 
-  /// Initialize the offline queue database
+  /// Initialize the offline queue database (stub: no-op)
   static Future<void> initialize() async {
-    final dir = await getApplicationDocumentsDirectory();
-    _db = await databaseFactoryIo.openDatabase('${dir.path}/offline_queue.db');
+    // Stub: in-memory cache only
   }
 
   /// Add message to offline queue
   Future<void> queueMessage(OfflineMessage message) async {
-    await _store.add(_db, message.toMap());
+    _queueCache[_nextId++] = message.toMap();
   }
 
   /// Get all queued messages
   Future<List<OfflineMessage>> getQueuedMessages() async {
-    final records = await _store.find(_db);
-    return records.map((rec) {
-      final msg = OfflineMessage.fromMap(rec.value as Map<String, dynamic>);
-      return msg.copyWith(id: rec.key);
+    return _queueCache.entries.map((e) {
+      final msg = OfflineMessage.fromMap(e.value);
+      return msg.copyWith(id: e.key);
     }).toList();
   }
 
   /// Get queued messages for specific chat
   Future<List<OfflineMessage>> getQueuedMessagesForChat(String chatId) async {
-    final finder = Finder(filter: Filter.equals('chatId', chatId));
-    final records = await _store.find(_db, finder: finder);
-    return records.map((rec) {
-      final msg = OfflineMessage.fromMap(rec.value as Map<String, dynamic>);
-      return msg.copyWith(id: rec.key);
-    }).toList();
+    return _queueCache.entries
+        .where((e) => (e.value['chatId'] as String?) == chatId)
+        .map((e) {
+          final msg = OfflineMessage.fromMap(e.value);
+          return msg.copyWith(id: e.key);
+        }).toList();
   }
 
   /// Mark message as sent
   Future<void> markAsSent(int recordId) async {
-    final rec = await _store.record(recordId).get(_db);
-    if (rec != null) {
-      final data = rec as Map<String, dynamic>;
-      data['sent'] = true;
-      await _store.record(recordId).put(_db, data);
+    if (_queueCache.containsKey(recordId)) {
+      _queueCache[recordId]!['sent'] = true;
     }
   }
 
   /// Remove message from queue
   Future<void> removeMessage(int recordId) async {
-    await _store.record(recordId).delete(_db);
+    _queueCache.remove(recordId);
   }
 
   /// Clear all sent messages from queue
   Future<void> clearSentMessages() async {
-    final finder = Finder(filter: Filter.equals('sent', true));
-    await _store.delete(_db, finder: finder);
+    _queueCache.removeWhere((k, v) => v['sent'] == true);
   }
 }
 

@@ -157,9 +157,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               SizedBox(height: 24 * Responsive.scaleHeight(context)),
-              Theme(
+                Theme(
                 data: Theme.of(context).copyWith(
-                  useMaterial3: true,
+                  // Use ThemeData constructor instead of useMaterial3 field
                 ),
                 child: Stepper(
                   currentStep: _step,

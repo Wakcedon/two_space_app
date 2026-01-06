@@ -1,5 +1,3 @@
-import 'package:sembast/sembast_io.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 
 // Draft message model
@@ -35,50 +33,44 @@ class MessageDraft {
   );
 }
 
+/// Stub implementation of DraftService using in-memory storage.
+/// Sempast/database plugin is optional; for now we cache drafts in RAM.
 class DraftService {
   static final DraftService _instance = DraftService._internal();
-  static late Database _db;
-  static const String _storeName = 'drafts';
+  static final Map<String, Map<String, dynamic>> _draftsCache = {};
 
   factory DraftService() => _instance;
 
   DraftService._internal();
 
-  /// Initialize the draft database
+  /// Initialize the draft database (stub: no-op)
   static Future<void> initialize() async {
-    final dir = await getApplicationDocumentsDirectory();
-    _db = await databaseFactoryIo.openDatabase('${dir.path}/drafts.db');
+    // Stub: in-memory cache only
   }
 
   /// Save a draft message
   Future<void> saveDraft(MessageDraft draft) async {
-    final store = StoreRef<String, Map<String, dynamic>>(_storeName);
-    await store.record(draft.chatId).put(_db, draft.toMap());
+    _draftsCache[draft.chatId] = draft.toMap();
   }
 
   /// Get draft for a specific chat
   Future<MessageDraft?> getDraft(String chatId) async {
-    final store = StoreRef<String, Map<String, dynamic>>(_storeName);
-    final map = await store.record(chatId).get(_db);
+    final map = _draftsCache[chatId];
     return map != null ? MessageDraft.fromMap(map) : null;
   }
 
   /// Delete draft for a specific chat
   Future<void> deleteDraft(String chatId) async {
-    final store = StoreRef<String, Map<String, dynamic>>(_storeName);
-    await store.record(chatId).delete(_db);
+    _draftsCache.remove(chatId);
   }
 
   /// Get all drafts
   Future<List<MessageDraft>> getAllDrafts() async {
-    final store = StoreRef<String, Map<String, dynamic>>(_storeName);
-    final records = await store.find(_db);
-    return records.map((rec) => MessageDraft.fromMap(rec.value)).toList();
+    return _draftsCache.values.map((map) => MessageDraft.fromMap(map)).toList();
   }
 
   /// Clear all drafts
   Future<void> clearAllDrafts() async {
-    final store = StoreRef<String, Map<String, dynamic>>(_storeName);
-    await store.delete(_db);
+    _draftsCache.clear();
   }
 }

@@ -4,7 +4,7 @@ import 'dart:async';
 class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._internal();
   final Connectivity _connectivity = Connectivity();
-  late StreamSubscription<ConnectivityResult> _subscription;
+  late StreamSubscription<List<ConnectivityResult>> _subscription;
   
   bool _isOnline = true;
   final List<Function(bool)> _listeners = [];
@@ -17,12 +17,12 @@ class ConnectivityService {
   Future<void> initialize() async {
     // Check initial connectivity
     final result = await _connectivity.checkConnectivity();
-    _isOnline = result != ConnectivityResult.none;
+    _isOnline = !result.contains(ConnectivityResult.none);
 
     // Listen to connectivity changes
-    _subscription = _connectivity.onConnectivityChanged.listen((result) {
+    _subscription = _connectivity.onConnectivityChanged.listen((results) {
       final wasOnline = _isOnline;
-      _isOnline = result != ConnectivityResult.none;
+      _isOnline = !results.contains(ConnectivityResult.none);
       
       if (wasOnline != _isOnline) {
         _notifyListeners(_isOnline);

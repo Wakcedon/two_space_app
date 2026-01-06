@@ -441,4 +441,13 @@ class AuthService {
       return false;
     }
   }
+
+  // Backwards-compatible method names for Riverpod providers
+  Future<void> login(String identifier, String password) async {
+    return await loginUser(identifier, password);
+  }
+
+  Future<void> logout() async {
+    return await signOut();
+  }
 }

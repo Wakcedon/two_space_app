@@ -61,7 +61,7 @@ dependencies:
   local_auth: ^2.3.0
   local_auth_android: ^1.0.48
   local_auth_darwin: ^1.4.1
-  local_auth_windows: ^1.0.12
+  local_auth_windows: ^1.0.11
 
   # ===== Media =====
   image_picker: ^1.1.2
@@ -72,6 +72,11 @@ dependencies:
   # ===== Connectivity =====
   connectivity_plus: ^6.1.0
   url_launcher: ^6.3.1
+
+  # ===== Optional Features (UI components, sharing, QR codes) =====
+  emoji_picker_flutter: ^1.6.0
+  qr_flutter: ^4.1.0
+  share_plus: ^7.2.0
 
 # ============================================================================
 # DEV DEPENDENCIES (testing, code generation, linting)
