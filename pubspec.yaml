@@ -52,10 +52,9 @@ dependencies:
   uuid: ^4.5.1
 
   # ===== Platform Specific =====
-  window_size:
-    git:
-      url: https://github.com/google/flutter-desktop-embedding.git
-      path: plugins/window_size
+  # Use the published `window_size` package instead of an archived git submodule.
+  # This improves dependency resolution for CI and local builds on Windows.
+  window_size: ^0.3.0
 
   # ===== Biometric & Auth =====
   local_auth: ^2.3.0
