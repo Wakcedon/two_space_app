@@ -156,48 +156,89 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   ),
                 ),
-                SizedBox(height: 24 * Responsive.scaleHeight(context)),
-                
-                // Step content
-                if (_step == 0) _buildAccountStep(),
-                if (_step == 1) _buildProfileStep(),
-                if (_step == 2) _buildAvatarStep(),
-                
-                SizedBox(height: 24 * Responsive.scaleHeight(context)),
-                
-                // Navigation buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (_step > 0)
-                      TextButton(
-                        onPressed: authState.isLoading
-                            ? null
-                            : () => setState(() => _step--),
-                        child: const Text('Назад'),
-                      )
-                    else
-                      const SizedBox.shrink(),
-                    
-                    ElevatedButton(
-                      onPressed: authState.isLoading
-                          ? null
-                          : () async {
-                              if (_step < 2) {
-                                if (_formKey.currentState!.validate()) {
-                                  setState(() => _step++);
-                                }
-                              } else {
-                                await _handleRegistration();
-                              }
-                            },
-                      child: authState.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(_step < 2 ? 'Далее' : 'Зарегистрироваться'),
+              ),
+              SizedBox(height: 24 * Responsive.scaleHeight(context)),
+                Theme(
+                data: Theme.of(context).copyWith(
+                  // Use ThemeData constructor instead of useMaterial3 field
+                ),
+                child: Stepper(
+                  currentStep: _step,
+                  type: isSmallScreen ? StepperType.vertical : StepperType.horizontal,
+                  onStepContinue: _loading ? null : () async {
+                    if (_step == 0) {
+                      await _register();
+                    } else if (_step == 1) {
+                      setState(() => _step = 2);
+                    } else {
+                      await _finishRegistration();
+                    }
+                  },
+                  onStepCancel: _loading ? null : () {
+                    if (_step > 0) setState(() => _step -= 1);
+                  },
+                  steps: [
+                    Step(
+                      title: const Text('Аккаунт'),
+                      content: Column(
+                        children: [
+                          TextFormField(
+                            controller: _emailCtl,
+                            decoration: InputDecoration(
+                              hintText: 'Email',
+                              prefixIcon: const Icon(Icons.email),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _passCtl,
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Пароль (опционально)',
+                              prefixIcon: const Icon(Icons.lock),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                            obscureText: true,
+                          ),
+                          if (_passCtl.text.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _getPasswordStrengthLabel(_getPasswordStrength(_passCtl.text)),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: _getPasswordStrength(_passCtl.text) / 5,
+                                      minHeight: 6,
+                                      backgroundColor: Colors.grey[300],
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Минимум 6 символов',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

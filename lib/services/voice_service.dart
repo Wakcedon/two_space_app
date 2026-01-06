@@ -1,13 +1,13 @@
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+
+// Optional audio recording/playback service.
+// flutter_sound and permission_handler may not be installed for web/desktop builds.
+// This is a stub implementation that gracefully handles missing plugins.
 
 class VoiceService {
   static final VoiceService _instance = VoiceService._internal();
 
-  FlutterSoundRecorder? _recorder;
-  FlutterSoundPlayer? _player;
   bool _isRecording = false;
   bool _isInitialized = false;
   String? _currentRecordingPath;
@@ -20,40 +20,12 @@ class VoiceService {
   }
 
   Future<void> init() async {
-    // Skip on Windows/Web/macOS/Linux where flutter_sound may not work
-    if (!_isSupported) {
-      _isInitialized = false;
-      return;
-    }
-    
-    try {
-      _recorder = FlutterSoundRecorder();
-      _player = FlutterSoundPlayer();
-      await _recorder!.openRecorder();
-      await _player!.openPlayer();
-      _isInitialized = true;
-    } catch (e) {
-      _isInitialized = false;
-      _recorder = null;
-      _player = null;
-    }
+    // Stub: flutter_sound not available in this build
+    _isInitialized = false;
   }
 
   Future<void> dispose() async {
-    if (!_isInitialized || _recorder == null || _player == null) return;
-    
-    try {
-      if (_recorder!.isRecording) {
-        await _recorder!.stopRecorder();
-      }
-      await _recorder!.closeRecorder();
-      if (_player!.isPlaying) {
-        await _player!.stopPlayer();
-      }
-      await _player!.closePlayer();
-    } catch (e) {
-      // Handle dispose errors silently
-    }
+    // Stub: nothing to dispose
   }
 
   bool get isRecording => _isRecording;
@@ -61,12 +33,12 @@ class VoiceService {
 
   Future<bool> requestMicrophonePermission() async {
     if (!_isSupported) return false;
-    final status = await Permission.microphone.request();
-    return status.isGranted;
+    // Stub: permission_handler not available
+    return false;
   }
 
   Future<String?> startRecording() async {
-    if (!_isInitialized || _recorder == null) return null;
+    if (!_isInitialized) return null;
     
     try {
       final hasPermission = await requestMicrophonePermission();
@@ -76,11 +48,7 @@ class VoiceService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       _currentRecordingPath = '${dir.path}/voice_$timestamp.m4a';
 
-      await _recorder!.startRecorder(
-        toFile: _currentRecordingPath,
-        codec: Codec.aacADTS,
-      );
-
+      // Stub: no actual recording without flutter_sound
       _isRecording = true;
       return _currentRecordingPath;
     } catch (e) {
@@ -90,12 +58,12 @@ class VoiceService {
   }
 
   Future<String?> stopRecording() async {
-    if (!_isInitialized || _recorder == null) return null;
+    if (!_isInitialized) return null;
     
     try {
       if (!_isRecording) return null;
 
-      final path = await _recorder!.stopRecorder();
+      final path = _currentRecordingPath;
       _isRecording = false;
 
       // Verify file exists and has content
@@ -113,21 +81,15 @@ class VoiceService {
   }
 
   Future<void> playAudio(String filePath) async {
-    if (!_isInitialized || _player == null) return;
+    if (!_isInitialized) return;
     
     try {
-      await _player!.startPlayer(
-        fromURI: filePath,
-        codec: Codec.aacADTS,
-        whenFinished: () {
-        },
-      );
+      // Stub: no actual playback without flutter_sound
     } catch (e, st) {
       // Log error when failing to play audio
-      // English comment allowed inside code
       print('VoiceService.playAudio error: $e\n$st');
     }
   }
 
-  bool get isPlaying => _player?.isPlaying ?? false;
+  bool get isPlaying => false;
 }

@@ -411,7 +411,18 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<String?> _showEmojiPickerDialog() async {
     String? chosen;
     await showDialog(context: context, builder: (c) {
-      return Dialog(child: SizedBox(width: 360, height: 420, child: EmojiPicker(onEmojiSelected: (cat, em) { chosen = em.emoji; Navigator.of(c).pop(); }, onBackspacePressed: () {}, config: const Config(emojiSizeMax: 32))));
+      return Dialog(child: SizedBox(width: 360, height: 420, child: EmojiPicker(
+        onEmojiSelected: (category, emoji) { 
+          chosen = emoji.emoji; 
+          Navigator.of(c).pop(); 
+        }, 
+        config: Config(
+          emojiSizeMax: 32,
+          bgColor: const Color(0xFF0B0320),
+          indicatorColor: const Color(0xFF1F5FFF),
+          iconColorSelected: const Color(0xFF1F5FFF),
+        )
+      )));
     });
     return chosen;
   }

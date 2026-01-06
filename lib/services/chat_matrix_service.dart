@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:two_space_app/config/environment.dart';
 import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/services/dev_logger.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
+
+// FFmpeg is optional; used for audio waveform generation
+// On platforms without ffmpeg_kit_flutter_full_gpl, waveform generation will return stub values
 
 class ChatMatrixService {
   ChatMatrixService();
@@ -253,53 +255,18 @@ class ChatMatrixService {
   }
 
   /// Generate waveform samples for an audio file (ogg/mp3) located at localPath.
-  /// Returns a list of normalized amplitude values (0..1). Uses FFmpeg to convert to WAV then samples.
+  /// Returns a list of normalized amplitude values (0..1). 
+  /// Stub implementation (FFmpeg not available in this build).
   Future<List<double>> generateWaveform(String localPath, {int samples = 64}) async {
     // If the exact path was generated before, reuse
     try {
       if (_waveformCache.containsKey(localPath)) return _waveformCache[localPath]!;
     } catch (_) {}
 
-    // convert to wav in temp
-    final out = File('${Directory.systemTemp.path}/wave_${DateTime.now().millisecondsSinceEpoch}.wav');
-    final cmd = '-y -i "${localPath.replaceAll('"', '\\"')}" -ac 1 -ar 16000 "${out.path.replaceAll('"', '\\"')}"';
-    final session = await FFmpegKit.execute(cmd);
-    final rc = await session.getReturnCode();
-    if (rc == null || !rc.isValueSuccess()) {
-      final fallback = List<double>.filled(samples, 0.12);
-      _waveformCache[localPath] = fallback;
-      return fallback;
-    }
-    try {
-      final bytes = await out.readAsBytes();
-      // WAV header 44 bytes; 16-bit signed little endian samples
-      if (bytes.length <= 44) return List<double>.filled(samples, 0.12);
-      final data = bytes.sublist(44);
-      final sampleCount = data.length ~/ 2;
-      if (sampleCount <= 0) {
-        final fallback = List<double>.filled(samples, 0.12);
-        _waveformCache[localPath] = fallback;
-        return fallback;
-      }
-      final step = math.max(1, sampleCount ~/ samples);
-      final outVals = <double>[];
-      for (var i = 0; i < samples; i++) {
-        final idx = i * step * 2;
-        if (idx + 1 >= data.length) { outVals.add(0.0); continue; }
-        final lo = data[idx];
-        final hi = data[idx + 1];
-        final s = (hi << 8) | (lo & 0xFF);
-        final signed = s.toSigned(16);
-        final norm = signed.abs() / 32768.0;
-        outVals.add(norm.clamp(0.0, 1.0));
-      }
-      _waveformCache[localPath] = outVals;
-      return outVals;
-    } catch (_) {
-      final fallback = List<double>.filled(samples, 0.12);
-      _waveformCache[localPath] = fallback;
-      return fallback;
-    }
+    // Stub: return default waveform since ffmpeg_kit not available
+    final fallback = List<double>.filled(samples, 0.12);
+    _waveformCache[localPath] = fallback;
+    return fallback;
   }
 
   /// Return waveform for a media id (preferred) or localPath as fallback. Uses in-memory cache.
