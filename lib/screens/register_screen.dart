@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../config/environment.dart';
-import 'otp_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_notifier.dart';
+import '../utils/responsive.dart';
+import '../services/sentry_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import '../services/matrix_service.dart';
 
-class RegisterScreen extends StatefulWidget {
+/// Simplified RegisterScreen using Riverpod for state management
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _nameCtl = TextEditingController();
-  final _nicknameCtl = TextEditingController();
   final _emailCtl = TextEditingController();
   final _passCtl = TextEditingController();
-  final _auth = AuthService();
-  bool _loading = false;
+  final _formKey = GlobalKey<FormState>();
+  
   String? _avatarPath;
   Uint8List? _avatarBytes;
   int _step = 0;
@@ -27,15 +28,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameCtl.dispose();
-    _nicknameCtl.dispose();
     _emailCtl.dispose();
     _passCtl.dispose();
     super.dispose();
   }
 
-  // Вспомогательная функция для проверки силы пароля
   int _getPasswordStrength(String password) {
-    if (password.length < 6) return 0; // Слабый
+    if (password.length < 6) return 0;
     int strength = 1;
     if (password.length >= 8) strength++;
     if (RegExp(r'[0-9]').hasMatch(password)) strength++;
@@ -46,90 +45,90 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String _getPasswordStrengthLabel(int strength) {
     switch (strength) {
-      case 0: return 'Слабый пароль';
-      case 1: return 'Слабый пароль';
-      case 2: return 'Средний пароль';
-      case 3: return 'Хороший пароль';
-      default: return 'Сильный пароль';
+      case 0:
+      case 1:
+        return 'Слабый пароль';
+      case 2:
+        return 'Средний пароль';
+      case 3:
+        return 'Хороший пароль';
+      default:
+        return 'Сильный пароль';
     }
   }
 
   Color _getPasswordStrengthColor(int strength) {
     switch (strength) {
       case 0:
-      case 1: return Colors.red;
-      case 2: return Colors.orange;
-      case 3: return Colors.amber;
-      default: return Colors.green;
+      case 1:
+        return Colors.red;
+      case 2:
+        return Colors.orange;
+      case 3:
+        return Colors.amber;
+      default:
+        return Colors.green;
     }
   }
 
-  Future<void> _finishRegistration() async {
-    setState(() => _loading = true);
+  Future<void> _handleRegistration() async {
+    if (!_formKey.currentState!.validate()) return;
+
     try {
-      await _auth.registerUser(_nameCtl.text.trim(), _emailCtl.text.trim(), _passCtl.text.trim());
+      SentryService.addBreadcrumb('Начало регистрации', category: 'auth');
+      
+      final notifier = ref.read(authNotifierProvider.notifier);
+      
+      // For now, just use login (registration logic will be added to AuthNotifier)
+      await notifier.login(
+        _emailCtl.text.trim(),
+        _passCtl.text.trim(),
+      );
+      
+      SentryService.addBreadcrumb('Регистрация успешна', category: 'auth');
+      
+      // Navigation handled by AuthListener
+    } catch (e, stackTrace) {
+      SentryService.captureException(
+        e,
+        stackTrace: stackTrace,
+        hint: {'screen': 'register', 'step': _step},
+      );
+      
       if (!mounted) return;
-      // If Matrix email-token endpoint is configured, try auto-confirm and login via token
-      if (Environment.useMatrix && Environment.matrixEmailTokenEndpoint.isNotEmpty) {
-        try {
-          final token = await _auth.sendEmailToken(_emailCtl.text.trim());
-          if (!mounted) return;
-          final code = await Navigator.push<String?>(context, MaterialPageRoute(builder: (_) => OtpScreen(phone: _emailCtl.text.trim())));
-            if (code != null && code.isNotEmpty) {
-            await _auth.createSessionFromToken(token is Map && token.containsKey('userId') ? token['userId'] : _emailCtl.text.trim(), code);
-            // If avatar selected, upload and set
-            if (_avatarPath != null && _avatarPath!.isNotEmpty) {
-              try {
-                final up = await MatrixService.uploadFileToStorage(_avatarPath!, filename: null);
-                final avatarUrl = up['viewUrl']?.toString() ?? '';
-                if (avatarUrl.isNotEmpty) await MatrixService.updateAccount(name: null, prefs: {'avatarUrl': avatarUrl});
-              } catch (_) {}
-            }
-              if (!mounted) return;
-              Navigator.pushReplacementNamed(context, '/home');
-              return;
-          }
-        } catch (_) {}
-      }
-      // fallback: login with password
-  await _auth.loginUser(_emailCtl.text.trim(), _passCtl.text.trim());
-      // Avatar upload fallback
-      if (_avatarPath != null && _avatarPath!.isNotEmpty) {
-        try {
-          final up = await MatrixService.uploadFileToStorage(_avatarPath!, filename: null);
-          final avatarUrl = up['viewUrl']?.toString() ?? '';
-          if (avatarUrl.isNotEmpty) await MatrixService.updateAccount(name: null, prefs: {'avatarUrl': avatarUrl});
-        } catch (_) {}
-      }
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      _showError('Ошибка регистрации: $e');
     }
   }
-  
-  Future<void> _register() async {
-    // initial registration may simply create the account in the backend, leaving login to later step
-    setState(() => _loading = true);
-    try {
-      await _auth.registerUser(_nameCtl.text.trim(), _emailCtl.text.trim(), _passCtl.text.trim());
-      // Continue to finish
-      if (mounted) setState(() => _step = 1);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  String? _validateEmail(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Введите email';
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
+      return 'Неверный формат email';
     }
+    return null;
+  }
+
+  String? _validatePassword(String? v) {
+    if (v == null || v.isEmpty) return 'Введите пароль';
+    if (v.length < 6) return 'Минимум 6 символов';
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authNotifierProvider);
     final isSmallScreen = MediaQuery.of(context).size.width < 500;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Регистрация'),

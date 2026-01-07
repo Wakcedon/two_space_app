@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:two_space_app/services/chat_matrix_service.dart';
-import 'package:two_space_app/services/auth_service.dart';
 import 'package:two_space_app/models/chat.dart';
 import 'package:two_space_app/screens/chat_screen.dart';
 import 'package:two_space_app/screens/group_settings_screen.dart';
@@ -11,10 +10,10 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ChatMatrixService _chat = ChatMatrixService();
   List<Map<String, dynamic>> _rooms = [];
   String? _selectedRoomId;
@@ -28,10 +27,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthAndLoadRooms();
+    _loadRooms();
+    
+    // Set user context in Sentry
+    _setUserContext();
   }
 
-  Future<void> _checkAuthAndLoadRooms() async {
+  Future<void> _setUserContext() async {
     try {
       final auth = AuthService();
       final token = await auth.getMatrixTokenForUser();
@@ -40,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
         return;
       }
-      await _loadRooms();
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
@@ -49,13 +50,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadRooms() async {
     setState(() => _loading = true);
+    
     try {
+      SentryService.addBreadcrumb('Загрузка списка комнат', category: 'chat');
+      
       final ids = await _chat.getJoinedRooms();
       final out = <Map<String, dynamic>>[];
+      
       for (final id in ids) {
         final meta = await _chat.getRoomNameAndAvatar(id);
-        out.add({'roomId': id, 'name': meta['name'] ?? id, 'avatar': meta['avatar']});
+        out.add({
+          'roomId': id,
+          'name': meta['name'] ?? id,
+          'avatar': meta['avatar'],
+        });
       }
+      
       setState(() {
         _rooms = out;
         if (_rooms.isNotEmpty) {
@@ -83,36 +93,46 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildLeftColumn(double width) {
     return Container(
       color: Theme.of(context).colorScheme.surface,
-      child: Column(children: [
-        const SizedBox(height: 12),
-        // Search field (moved here from center). Keep the app title in the AppBar only.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: TextField(
-            onChanged: (v) => setState(() => _searchQuery = v),
-            decoration: InputDecoration(
-              hintText: 'Поиск',
-              isDense: true,
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          
+          // Search field
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: TextField(
+              onChanged: (v) => setState(() => _searchQuery = v),
+              decoration: InputDecoration(
+                hintText: 'Поиск',
+                isDense: true,
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Row(children: [
-            PopupMenuButton<String>(
-              tooltip: 'Тип поиска',
-              icon: const Icon(Icons.filter_list),
-              onSelected: (v) => setState(() => _searchType = v),
-              itemBuilder: (_) => [
-                PopupMenuItem(value: 'all', child: Row(children: [Expanded(child: Text('Все')), if (_searchType == 'all') const Icon(Icons.check, size: 16)])),
-                PopupMenuItem(value: 'messages', child: Row(children: [Expanded(child: Text('Сообщения')), if (_searchType == 'messages') const Icon(Icons.check, size: 16)])),
-                PopupMenuItem(value: 'media', child: Row(children: [Expanded(child: Text('Медиа')), if (_searchType == 'media') const Icon(Icons.check, size: 16)])),
-                PopupMenuItem(value: 'users', child: Row(children: [Expanded(child: Text('Пользователи')), if (_searchType == 'users') const Icon(Icons.check, size: 16)])),
+          const SizedBox(height: 8),
+          
+          // Search type filter
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Row(
+              children: [
+                PopupMenuButton<String>(
+                  tooltip: 'Тип поиска',
+                  icon: const Icon(Icons.filter_list),
+                  onSelected: (v) => setState(() => _searchType = v),
+                  itemBuilder: (_) => [
+                    _buildFilterMenuItem('Все', 'all'),
+                    _buildFilterMenuItem('Сообщения', 'messages'),
+                    _buildFilterMenuItem('Медиа', 'media'),
+                    _buildFilterMenuItem('Пользователи', 'users'),
+                  ],
+                ),
               ],
             ),
           ]),
@@ -231,36 +251,49 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedRoomId == null) {
       return const Center(child: Text('Выберите комнату'));
     }
-  final chat = Chat(id: _selectedRoomId!, name: _selectedRoomName, members: []);
-  return Column(children: [
-        // header with title
-      Container(
-        color: Theme.of(context).colorScheme.surface,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _rightOpen = !_rightOpen);
-              },
-              child: Row(children: [
-                Text(_selectedRoomName, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(width: 8),
-                const Icon(Icons.open_in_new, size: 18),
-              ]),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Информация о группе',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => GroupSettingsScreen(roomId: _selectedRoomId!),
+    
+    final chat = Chat(
+      id: _selectedRoomId!,
+      name: _selectedRoomName,
+      members: [],
+    );
+    
+    return Column(
+      children: [
+        // Header
+        Container(
+          color: Theme.of(context).colorScheme.surface,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _rightOpen = !_rightOpen),
+                  child: Row(
+                    children: [
+                      Text(
+                        _selectedRoomName,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.open_in_new, size: 18),
+                    ],
+                  ),
                 ),
-              );
-            },
+              ),
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Информация о группе',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GroupSettingsScreen(roomId: _selectedRoomId!),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ]),
       ),
