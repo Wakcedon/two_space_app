@@ -198,7 +198,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     _currentGroup?.visibility == GroupVisibility.public ? 'Публичная' : 'Приватная',
                   ),
                   backgroundColor: _currentGroup?.visibility == GroupVisibility.public
-                      ? theme.colorScheme.primary.withOpacity(0.2)
+                      ? theme.colorScheme.primary.withOpacity(0.08)
                       : theme.colorScheme.tertiary.withOpacity(0.2),
                   avatar: Icon(
                     _currentGroup?.visibility == GroupVisibility.public ? Icons.public : Icons.lock,
@@ -299,7 +299,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.08),
               backgroundImage: member.avatarUrl != null
                   ? NetworkImage(member.avatarUrl!)
                   : null,
@@ -596,8 +596,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 ),
               ],
             ),
+            ),
           ),
-        ),
         ],
       ),
     );
@@ -674,19 +674,19 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final entry in [
-              ('1 час', Duration(hours: 1)),
-              ('1 день', Duration(days: 1)),
-              ('7 дней', Duration(days: 7)),
+              MapEntry('1 час', Duration(hours: 1)),
+              MapEntry('1 день', Duration(days: 1)),
+              MapEntry('7 дней', Duration(days: 7)),
             ])
               ListTile(
-                title: Text(entry.$1),
+                title: Text(entry.key),
                 onTap: () async {
                   Navigator.pop(context);
                   try {
                     await _groupService.freezeUser(
                       widget.roomId,
                       member.userId,
-                      duration: entry.$2,
+                      duration: entry.value,
                     );
                     await _loadGroupData();
                   } catch (e) {
