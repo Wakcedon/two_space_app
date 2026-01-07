@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'otp_screen.dart';
 import 'sso_webview_screen.dart';
-import '../utils/responsive.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -143,126 +142,47 @@ class _LoginScreenState extends State<LoginScreen> {
     ]);
   }
 
-  String? _validateEmail(String? v) => (v == null || v.trim().isEmpty) ? 'Введите email' : null;
-  // Password may be empty to trigger magic link flow. If provided, it must be non-empty.
-  String? _validatePassword(String? v) {
-    if (v == null || v.isEmpty) return null;
-    if (v.length < 6) return 'Пароль должен быть не менее 6 символов';
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 500;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Вход'),
-        elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: const Text('Login'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: 20.0 * Responsive.scaleWidth(context),
-            vertical: 16.0,
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              SizedBox(height: 24 * Responsive.scaleHeight(context)),
-              // Header icon and text - масштабируемый
-              Container(
-                padding: EdgeInsets.all(20 * Responsive.scaleWidth(context)),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                ),
-                child: Icon(
-                  Icons.chat,
-                  size: 48 * Responsive.scaleWidth(context),
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextFormField(
+              controller: _emailCtl,
+              decoration: InputDecoration(
+                hintText: 'Email',
+                prefixIcon: const Icon(Icons.email),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              SizedBox(height: 16 * Responsive.scaleHeight(context)),
-              Text(
-                'TwoSpace',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: (Theme.of(context).textTheme.headlineMedium?.fontSize ?? 32) * Responsive.scaleFor(context),
-                ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _passCtl,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: 'Password',
+                prefixIcon: const Icon(Icons.lock),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              SizedBox(height: 8 * Responsive.scaleHeight(context)),
-              Text(
-                'Мессенджер нового поколения',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 32 * Responsive.scaleHeight(context)),
-              TextFormField(
-                controller: _emailCtl,
-                decoration: InputDecoration(
-                  hintText: 'Email или номер',
-                  prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14 * Responsive.scaleHeight(context)),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                ),
-                validator: _validateEmail,
-              ),
-              SizedBox(height: 14 * Responsive.scaleHeight(context)),
-              TextFormField(
-                controller: _passCtl,
-                decoration: InputDecoration(
-                  hintText: 'Пароль',
-                  prefixIcon: const Icon(Icons.lock),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14 * Responsive.scaleHeight(context)),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                ),
-                obscureText: true,
-                validator: _validatePassword,
-              ),
-              SizedBox(height: 8 * Responsive.scaleHeight(context)),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text('Оставьте пароль пустым для одноразового кода', style: Theme.of(context).textTheme.bodySmall),
-                ),
-              ),
-              SizedBox(height: 24 * Responsive.scaleHeight(context)),
-              SizedBox(
-                width: double.infinity,
-                child: _loading
-                    ? const SizedBox(height: 50, child: Center(child: CircularProgressIndicator()))
-                    : ElevatedButton(
-                        onPressed: _ssoLoading ? null : _login,
-                        style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 14 * Responsive.scaleHeight(context))),
-                        child: Text('Войти', style: TextStyle(fontSize: 16 * Responsive.scaleFor(context))),
-                      ),
-              ),
-              SizedBox(height: 12 * Responsive.scaleHeight(context)),
-              Row(children: [
-                Expanded(child: Divider(color: Theme.of(context).dividerColor)),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12 * Responsive.scaleWidth(context)),
-                  child: Text('или', style: Theme.of(context).textTheme.bodySmall),
-                ),
-                Expanded(child: Divider(color: Theme.of(context).dividerColor)),
-              ]),
-              SizedBox(height: 12 * Responsive.scaleHeight(context)),
-              _ssoButtons(),
-              SizedBox(height: 20 * Responsive.scaleHeight(context)),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text("Нет аккаунта? ", style: Theme.of(context).textTheme.bodyMedium),
-                TextButton(onPressed: () => Navigator.pushNamed(context, '/register'), child: const Text('Создать')),
-              ]),
-            ]),
-          ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loading ? null : _login,
+              child: _loading
+                  ? const CircularProgressIndicator()
+                  : const Text('Login'),
+            ),
+            const SizedBox(height: 12),
+            if (isSmallScreen) _ssoButtons(),
+          ],
         ),
       ),
     );

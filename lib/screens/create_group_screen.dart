@@ -123,9 +123,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         decoration: BoxDecoration(
           border: Border.all(
             color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline.withOpacity(0.3),
-            width: isSelected ? 2 : 1,
+            width: isSelected ? 2 * Responsive.scaleWidth(context) : 1 * Responsive.scaleWidth(context),
           ),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context)),
           color: isSelected ? theme.colorScheme.primary.withOpacity(0.08) : null,
         ),
         child: Row(
@@ -133,9 +133,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           children: [
             Icon(
               icon,
+              size: 24 * Responsive.scaleFor(context),
               color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
             ),
-            SizedBox(width: 16),
+            SizedBox(width: 16 * Responsive.scaleWidth(context)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,14 +144,16 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   Text(
                     title,
                     style: theme.textTheme.titleSmall?.copyWith(
+                      fontSize: 14 * Responsive.scaleFor(context),
                       color: isSelected ? theme.colorScheme.primary : null,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  SizedBox(height: 4 * Responsive.scaleHeight(context)),
                   Text(
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 12 * Responsive.scaleFor(context),
                       color: theme.colorScheme.outline,
                     ),
                   ),

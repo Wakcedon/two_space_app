@@ -125,18 +125,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.surfaceContainerHighest),
-                          const SizedBox(height: 16),
-                          Text('Нет чатов', style: Theme.of(context).textTheme.titleLarge),
-                          const SizedBox(height: 8),
-                          Text('Присоединитесь к комнате или создайте новую', style: Theme.of(context).textTheme.bodyMedium),
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 64 * Responsive.scaleFor(context),
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          ),
+                          SizedBox(height: 16 * Responsive.scaleHeight(context)),
+                          Text(
+                            'Нет чатов',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontSize: 20 * Responsive.scaleFor(context),
+                            ),
+                          ),
+                          SizedBox(height: 8 * Responsive.scaleHeight(context)),
+                          Text(
+                            'Присоединитесь к комнате или создайте новую',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 14 * Responsive.scaleFor(context),
+                            ),
+                          ),
                         ],
                       ),
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(8 * Responsive.scaleWidth(context)),
                       itemCount: _rooms.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      separatorBuilder: (_, __) => SizedBox(height: 6 * Responsive.scaleHeight(context)),
                       itemBuilder: (context, index) {
                         final r = _rooms[index];
                         final id = r['roomId'] as String? ?? '';
@@ -146,11 +160,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           key: ValueKey(id),
                           selected: selected,
                           selectedTileColor: Theme.of(context).colorScheme.surface.withOpacity(0.06),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          title: Text(name),
-              leading: r['avatar'] != null
-                ? UserAvatar(avatarUrl: r['avatar'] as String?, radius: 20)
-                : CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context)),
+                          ),
+                          title: Text(
+                            name,
+                            style: TextStyle(fontSize: 16 * Responsive.scaleFor(context)),
+                          ),
+                          leading: r['avatar'] != null
+                              ? UserAvatar(avatarUrl: r['avatar'] as String?, radius: 20 * Responsive.scaleFor(context))
+                              : CircleAvatar(
+                                radius: 20 * Responsive.scaleFor(context),
+                                child: Text(name.isEmpty ? '?' : name[0].toUpperCase()),
+                              ),
                           onTap: () {
                             setState(() {
                               _selectedRoomId = id;

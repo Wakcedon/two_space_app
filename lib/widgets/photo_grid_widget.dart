@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../config/ui_tokens.dart';
 import '../utils/responsive.dart';
 
@@ -35,23 +36,17 @@ class PhotoGridWidget extends StatelessWidget {
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () => onMediaTap?.call(index),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(UITokens.corner * scale),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4 * scale,
-                    offset: Offset(0, 2 * scale),
+            child: CachedNetworkImage(
+              imageUrl: displayItems[index],
+              placeholder: (context, url) => const CircularProgressIndicator(),
+              errorWidget: (context, url, error) => const Icon(Icons.error),
+              imageBuilder: (context, imageProvider) => Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(UITokens.corner * scale),
+                  image: DecorationImage(
+                    image: imageProvider,
+                    fit: BoxFit.cover,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(UITokens.corner * scale),
-                child: Image.network(
-                  displayItems[index],
-                  fit: BoxFit.cover,
                 ),
               ),
             ),
