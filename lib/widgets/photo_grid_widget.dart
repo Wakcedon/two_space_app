@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../config/ui_tokens.dart';
+import '../utils/responsive.dart';
 
 class PhotoGridWidget extends StatelessWidget {
   final List<String> mediaUrls;
@@ -16,57 +19,35 @@ class PhotoGridWidget extends StatelessWidget {
     if (mediaUrls.isEmpty) return const SizedBox.shrink();
 
     final displayItems = mediaUrls.take(maxItems).toList();
+    final scale = Responsive.scaleWidth(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: UITokens.spaceSm * scale),
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: (scale > 1.5) ? 3 : 2,
           childAspectRatio: 1,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
+          crossAxisSpacing: UITokens.spaceSm * scale,
+          mainAxisSpacing: UITokens.spaceSm * scale,
         ),
         itemCount: displayItems.length,
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () => onMediaTap?.call(index),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              ),
-              child: Stack(
-                children: [
-                  Image.network(
-                    displayItems[index],
+            child: CachedNetworkImage(
+              imageUrl: displayItems[index],
+              placeholder: (context, url) => const CircularProgressIndicator(),
+              errorWidget: (context, url, error) => const Icon(Icons.error),
+              imageBuilder: (context, imageProvider) => Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(UITokens.corner * scale),
+                  image: DecorationImage(
+                    image: imageProvider,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Center(
-                      child: Icon(
-                        Icons.image_not_supported,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                    ),
                   ),
-                  // Show count badge for last item if there are more items
-                  if (index == maxItems - 1 && mediaUrls.length > maxItems)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '+${mediaUrls.length - maxItems}',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
           );

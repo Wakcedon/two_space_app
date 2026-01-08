@@ -53,57 +53,112 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWideScreen = constraints.maxWidth > 800;
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(_currentGroup?.name ?? 'Информация о группе'),
+            centerTitle: !isWideScreen,
+            elevation: 2,
+          ),
+          body: _isLoading || _currentGroup == null
+              ? const Center(child: CircularProgressIndicator())
+              : Row(
+                  children: [
+                    if (isWideScreen) _buildSidebar(),
+                    Expanded(child: _buildSettingsContent()),
+                  ],
+                ),
+        );
+      },
+    );
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentGroup?.name ?? 'Информация о группе'),
-        centerTitle: !isWideScreen,
-        elevation: 2,
-      ),
-      body: _isLoading || _currentGroup == null
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+  Widget _buildSidebar() {
+    final theme = Theme.of(context);
+    return Container(
+      width: 250,
+      color: theme.colorScheme.surface,
+      child: Column(
+        children: [
+          // Tabs с лучшей поддержкой темы
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: theme.colorScheme.outline.withOpacity(0.2),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  _buildTab(0, 'Информация', Icons.info),
+                  _buildTab(1, 'Участники', Icons.people),
+                  _buildTab(2, 'Роли', Icons.admin_panel_settings),
+                  if (_canManageMembers) _buildTab(3, 'Запреты', Icons.block),
+                  if (_canDeleteGroup) _buildTab(4, 'Удалить', Icons.delete),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          // Content
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTabIndex,
               children: [
-                // Tabs с лучшей поддержкой темы
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: theme.colorScheme.outline.withOpacity(0.2),
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        _buildTab(0, 'Информация', Icons.info),
-                        _buildTab(1, 'Участники', Icons.people),
-                        _buildTab(2, 'Роли', Icons.admin_panel_settings),
-                        if (_canManageMembers) _buildTab(3, 'Запреты', Icons.block),
-                        if (_canDeleteGroup) _buildTab(4, 'Удалить', Icons.delete),
-                      ],
-                    ),
-                  ),
-                ),
-                // Content
-                Expanded(
-                  child: IndexedStack(
-                    index: _selectedTabIndex,
-                    children: [
-                      _buildInfoTab(),
-                      _buildMembersTab(),
-                      _buildRolesTab(),
-                      if (_canManageMembers) _buildBanListTab(),
-                      if (_canDeleteGroup) _buildDeleteTab(),
-                    ],
-                  ),
-                ),
+                _buildInfoTab(),
+                _buildMembersTab(),
+                _buildRolesTab(),
+                if (_canManageMembers) _buildBanListTab(),
+                if (_canDeleteGroup) _buildDeleteTab(),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsContent() {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tabs с лучшей поддержкой темы (встраиваемые в контент)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildTab(0, 'Информация', Icons.info),
+                _buildTab(1, 'Участники', Icons.people),
+                _buildTab(2, 'Роли', Icons.admin_panel_settings),
+                if (_canManageMembers) _buildTab(3, 'Запреты', Icons.block),
+                if (_canDeleteGroup) _buildTab(4, 'Удалить', Icons.delete),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Content
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTabIndex,
+              children: [
+                _buildInfoTab(),
+                _buildMembersTab(),
+                _buildRolesTab(),
+                if (_canManageMembers) _buildBanListTab(),
+                if (_canDeleteGroup) _buildDeleteTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -198,7 +253,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     _currentGroup?.visibility == GroupVisibility.public ? 'Публичная' : 'Приватная',
                   ),
                   backgroundColor: _currentGroup?.visibility == GroupVisibility.public
-                      ? theme.colorScheme.primary.withOpacity(0.2)
+                      ? theme.colorScheme.primary.withOpacity(0.08)
                       : theme.colorScheme.tertiary.withOpacity(0.2),
                   avatar: Icon(
                     _currentGroup?.visibility == GroupVisibility.public ? Icons.public : Icons.lock,
@@ -299,7 +354,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.08),
               backgroundImage: member.avatarUrl != null
                   ? NetworkImage(member.avatarUrl!)
                   : null,
@@ -596,8 +651,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 ),
               ],
             ),
+            ),
           ),
-        ),
         ],
       ),
     );
@@ -674,19 +729,19 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final entry in [
-              ('1 час', Duration(hours: 1)),
-              ('1 день', Duration(days: 1)),
-              ('7 дней', Duration(days: 7)),
+              MapEntry('1 час', Duration(hours: 1)),
+              MapEntry('1 день', Duration(days: 1)),
+              MapEntry('7 дней', Duration(days: 7)),
             ])
               ListTile(
-                title: Text(entry.$1),
+                title: Text(entry.key),
                 onTap: () async {
                   Navigator.pop(context);
                   try {
                     await _groupService.freezeUser(
                       widget.roomId,
                       member.userId,
-                      duration: entry.$2,
+                      duration: entry.value,
                     );
                     await _loadGroupData();
                   } catch (e) {

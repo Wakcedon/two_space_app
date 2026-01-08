@@ -1,132 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../screens/sso_webview_screen.dart';
 
-/// Reusable SSO buttons widget for Google and Yandex authentication
-/// 
-/// Usage:
-/// ```dart
-/// SsoButtons(
-///   onSuccess: () => Navigator.pushReplacementNamed(context, '/home'),
-///   disabled: isLoading,
-/// )
-/// ```
-class SsoButtons extends ConsumerStatefulWidget {
-  final VoidCallback? onSuccess;
-  final bool disabled;
+class SsoButtons extends StatelessWidget {
+  const SsoButtons({Key? key}) : super(key: key);
 
-  const SsoButtons({
-    super.key,
-    this.onSuccess,
-    this.disabled = false,
-  });
-
-  @override
-  ConsumerState<SsoButtons> createState() => _SsoButtonsState();
-}
-
-class _SsoButtonsState extends ConsumerState<SsoButtons> {
-  bool _loading = false;
-
-  Future<void> _handleSsoLogin(String provider) async {
-    if (_loading || widget.disabled) return;
-
-    setState(() => _loading = true);
-    try {
-      final success = await Navigator.push<bool?>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SsoWebviewScreen(idpId: provider),
-        ),
-      );
-
-      if (success == true && mounted) {
-        widget.onSuccess?.call();
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка SSO: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isSmallScreen = MediaQuery.of(context).size.width < 500;
-    final isDisabled = _loading || widget.disabled;
-
-    if (isSmallScreen) {
-      return Column(
-        children: [
-          _buildSsoButton(
-            icon: Icons.login,
-            label: 'Войти через Google',
-            onPressed: isDisabled ? null : () => _handleSsoLogin('google'),
-          ),
-          const SizedBox(height: 10),
-          _buildSsoButton(
-            icon: Icons.person,
-            label: 'Войти через Yandex',
-            onPressed: isDisabled ? null : () => _handleSsoLogin('yandex'),
-          ),
-        ],
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Expanded(
-          child: _buildSsoButton(
-            icon: Icons.login,
-            label: 'Google',
-            onPressed: isDisabled ? null : () => _handleSsoLogin('google'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildSsoButton(
-            icon: Icons.person,
-            label: 'Yandex',
-            onPressed: isDisabled ? null : () => _handleSsoLogin('yandex'),
-          ),
-        ),
-      ],
-    );
+  void _handleSsoLogin(String provider) {
+    // Handle SSO login for the given provider
   }
 
   Widget _buildSsoButton({
     required IconData icon,
     required String label,
-    required VoidCallback? onPressed,
+    required VoidCallback onPressed,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      child: _loading
-          ? const SizedBox(
-              height: 50,
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        minimumSize: Size(double.infinity, 50), // Make button full width
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 500;
+    return isSmallScreen
+        ? Column(
+            children: [
+              _buildSsoButton(
+                icon: Icons.login,
+                label: 'Login with Google',
+                onPressed: () => _handleSsoLogin('google'),
+              ),
+              const SizedBox(height: 12),
+              _buildSsoButton(
+                icon: Icons.person,
+                label: 'Login with Yandex',
+                onPressed: () => _handleSsoLogin('yandex'),
+              ),
+            ],
+          )
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: _buildSsoButton(
+                  icon: Icons.login,
+                  label: 'Google',
+                  onPressed: () => _handleSsoLogin('google'),
                 ),
               ),
-            )
-          : ElevatedButton.icon(
-              onPressed: onPressed,
-              icon: Icon(icon),
-              label: Text(label),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSsoButton(
+                  icon: Icons.person,
+                  label: 'Yandex',
+                  onPressed: () => _handleSsoLogin('yandex'),
+                ),
               ),
-            ),
-    );
+            ],
+          );
   }
 }

@@ -5,6 +5,7 @@ import '../utils/responsive.dart';
 import '../services/sentry_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
+import '../services/matrix_service.dart';
 
 /// Simplified RegisterScreen using Riverpod for state management
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -135,288 +136,154 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.all(16.0 * Responsive.scaleWidth(context)),
-          child: Form(
-            key: _formKey,
-            child: Column(
+      body: Stepper(
+        currentStep: _step,
+        type: isSmallScreen ? StepperType.vertical : StepperType.horizontal,
+        onStepContinue: _loading ? null : () async {
+          if (_step == 0) {
+            await _register();
+          } else if (_step == 1) {
+            setState(() => _step = 2);
+          } else {
+            await _finishRegistration();
+          }
+        },
+        onStepCancel: _loading ? null : () {
+          if (_step > 0) setState(() => _step -= 1);
+        },
+        steps: [
+          Step(
+            title: const Text('Аккаунт'),
+            content: Column(
               children: [
-                SizedBox(height: 16 * Responsive.scaleHeight(context)),
-                
-                // Progress indicator
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: (_step + 1) / 3,
-                    minHeight: 4,
-                    backgroundColor: Theme.of(context).colorScheme.surface,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context).colorScheme.primary,
-                    ),
+                TextFormField(
+                  controller: _emailCtl,
+                  decoration: InputDecoration(
+                    hintText: 'Email',
+                    prefixIcon: const Icon(Icons.email),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                 ),
-              ),
-              SizedBox(height: 24 * Responsive.scaleHeight(context)),
-                Theme(
-                data: Theme.of(context).copyWith(
-                  // Use ThemeData constructor instead of useMaterial3 field
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _passCtl,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Пароль (опционально)',
+                    prefixIcon: const Icon(Icons.lock),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                  obscureText: true,
                 ),
-                child: Stepper(
-                  currentStep: _step,
-                  type: isSmallScreen ? StepperType.vertical : StepperType.horizontal,
-                  onStepContinue: _loading ? null : () async {
-                    if (_step == 0) {
-                      await _register();
-                    } else if (_step == 1) {
-                      setState(() => _step = 2);
-                    } else {
-                      await _finishRegistration();
-                    }
-                  },
-                  onStepCancel: _loading ? null : () {
-                    if (_step > 0) setState(() => _step -= 1);
-                  },
-                  steps: [
-                    Step(
-                      title: const Text('Аккаунт'),
-                      content: Column(
-                        children: [
-                          TextFormField(
-                            controller: _emailCtl,
-                            decoration: InputDecoration(
-                              hintText: 'Email',
-                              prefixIcon: const Icon(Icons.email),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                if (_passCtl.text.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getPasswordStrengthLabel(_getPasswordStrength(_passCtl.text)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: _getPasswordStrength(_passCtl.text) / 5,
+                            minHeight: 6,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _passCtl,
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              hintText: 'Пароль (опционально)',
-                              prefixIcon: const Icon(Icons.lock),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            ),
-                            obscureText: true,
-                          ),
-                          if (_passCtl.text.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _getPasswordStrengthLabel(_getPasswordStrength(_passCtl.text)),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: _getPasswordStrength(_passCtl.text) / 5,
-                                      minHeight: 6,
-                                      backgroundColor: Colors.grey[300],
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Минимум 6 символов',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Минимум 6 символов',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Step(
+            title: const Text('Профиль'),
+            content: Column(
+              children: [
+                TextFormField(
+                  controller: _nameCtl,
+                  decoration: InputDecoration(
+                    hintText: 'Имя',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _nicknameCtl,
+                  decoration: InputDecoration(
+                    hintText: 'Никнейм',
+                    prefixIcon: const Icon(Icons.badge),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Step(
+            title: const Text('Аватар'),
+            content: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: const Text(
+                        'Аватар (опционально)',
+                        style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
-                  ],
-                ),
-                
-                SizedBox(height: 20 * Responsive.scaleHeight(context)),
-                
-                // Login link
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Уже есть аккаунт? ',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Войти'),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final res = await FilePicker.platform.pickFiles(type: FileType.image);
+                        if (res != null && res.files.isNotEmpty) {
+                          setState(() {
+                            _avatarPath = res.files.single.path;
+                            _avatarBytes = res.files.single.bytes;
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.add_a_photo),
+                      label: const Text('Загрузить'),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                if (_avatarBytes != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      _avatarBytes!,
+                      width: 120,
+                      height: 120,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
-        ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildAccountStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Шаг 1: Аккаунт',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 24),
-        
-        TextFormField(
-          controller: _emailCtl,
-          decoration: InputDecoration(
-            hintText: 'Email',
-            prefixIcon: const Icon(Icons.email),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          keyboardType: TextInputType.emailAddress,
-          validator: _validateEmail,
-        ),
-        const SizedBox(height: 16),
-        
-        TextFormField(
-          controller: _passCtl,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: 'Пароль',
-            prefixIcon: const Icon(Icons.lock),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          obscureText: true,
-          validator: _validatePassword,
-        ),
-        
-        if (_passCtl.text.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _getPasswordStrengthLabel(_getPasswordStrength(_passCtl.text)),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: _getPasswordStrength(_passCtl.text) / 5,
-                    minHeight: 6,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      _getPasswordStrengthColor(_getPasswordStrength(_passCtl.text)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildProfileStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Шаг 2: Профиль',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 24),
-        
-        TextFormField(
-          controller: _nameCtl,
-          decoration: InputDecoration(
-            hintText: 'Имя',
-            prefixIcon: const Icon(Icons.person),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите имя' : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAvatarStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Шаг 3: Аватар (опционально)',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 24),
-        
-        Center(
-          child: Column(
-            children: [
-              if (_avatarBytes != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(60),
-                  child: Image.memory(
-                    _avatarBytes!,
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              else
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  ),
-                  child: Icon(
-                    Icons.person,
-                    size: 60,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              
-              const SizedBox(height: 16),
-              
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final res = await FilePicker.platform.pickFiles(type: FileType.image);
-                  if (res != null && res.files.isNotEmpty) {
-                    setState(() {
-                      _avatarPath = res.files.single.path;
-                      _avatarBytes = res.files.single.bytes;
-                    });
-                  }
-                },
-                icon: const Icon(Icons.add_a_photo),
-                label: const Text('Загрузить фото'),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

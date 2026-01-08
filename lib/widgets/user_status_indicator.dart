@@ -91,7 +91,7 @@ class __TypingDotsState extends State<_TypingDots> with TickerProviderStateMixin
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     )..repeat();
   }
@@ -112,8 +112,9 @@ class __TypingDotsState extends State<_TypingDots> with TickerProviderStateMixin
           mainAxisSize: MainAxisSize.min,
           children: [
             for (int i = 0; i < 3; i++)
-              _DotWidget(
+              Opacity(
                 opacity: (value * 3 - i).clamp(0.0, 1.0),
+                child: const DotWidget(),
               ),
           ],
         );
@@ -122,25 +123,18 @@ class __TypingDotsState extends State<_TypingDots> with TickerProviderStateMixin
   }
 }
 
-class _DotWidget extends StatelessWidget {
-  final double opacity;
-
-  const _DotWidget({required this.opacity});
+class DotWidget extends StatelessWidget {
+  const DotWidget();
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: opacity,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 1.5),
-        child: Container(
-          width: 4,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            shape: BoxShape.circle,
-          ),
-        ),
+    return Container(
+      width: 8,
+      height: 8,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        shape: BoxShape.circle,
       ),
     );
   }

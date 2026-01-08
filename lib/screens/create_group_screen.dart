@@ -5,6 +5,7 @@ import '../services/group_matrix_service.dart';
 import '../models/group.dart';
 import '../models/chat.dart';
 import 'chat_screen.dart';
+import '../utils/responsive.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({Key? key}) : super(key: key);
@@ -104,6 +105,65 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Widget _buildVisibilityOption({
+    required String title,
+    required String subtitle,
+    required GroupVisibility value,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    final isSelected = _visibility == value;
+
+    return GestureDetector(
+      onTap: () => setState(() => _visibility = value),
+      child: Container(
+        padding: EdgeInsets.all(16 * Responsive.scaleFor(context)),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline.withOpacity(0.3),
+            width: isSelected ? 2 * Responsive.scaleWidth(context) : 1 * Responsive.scaleWidth(context),
+          ),
+          borderRadius: BorderRadius.circular(12 * Responsive.scaleWidth(context)),
+          color: isSelected ? theme.colorScheme.primary.withOpacity(0.08) : null,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              size: 24 * Responsive.scaleFor(context),
+              color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
+            ),
+            SizedBox(width: 16 * Responsive.scaleWidth(context)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontSize: 14 * Responsive.scaleFor(context),
+                      color: isSelected ? theme.colorScheme.primary : null,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4 * Responsive.scaleHeight(context)),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 12 * Responsive.scaleFor(context),
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -265,14 +325,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   SizedBox(height: 12),
                   _buildVisibilityOption(
                     title: 'Частная комната',
-                    subtitle: 'Доступ имеют только приглашенные пользователи. Сквозное шифрование.',
+                    subtitle: 'Только приглашенные пользователи могут присоединиться',
                     value: GroupVisibility.private,
                     icon: Icons.lock,
                   ),
-                  SizedBox(height: 12),
                   _buildVisibilityOption(
                     title: 'Общедоступная комната',
-                    subtitle: 'Любой может найти. Можно изменить в настройках.',
+                    subtitle: 'Любой пользователь может присоединиться',
                     value: GroupVisibility.public,
                     icon: Icons.public,
                   ),
@@ -305,71 +364,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 ],
               ),
             ),
-    );
-  }
-
-  Widget _buildVisibilityOption({
-    required String title,
-    required String subtitle,
-    required GroupVisibility value,
-    required IconData icon,
-  }) {
-    final theme = Theme.of(context);
-    final isSelected = _visibility == value;
-
-    return GestureDetector(
-      onTap: () => setState(() => _visibility = value),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline.withOpacity(0.3),
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: isSelected ? theme.colorScheme.primary.withOpacity(0.08) : null,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: isSelected ? theme.colorScheme.primary : null,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Radio<GroupVisibility>(
-              value: value,
-              groupValue: _visibility,
-              onChanged: (newValue) {
-                if (newValue != null) {
-                  setState(() => _visibility = newValue);
-                }
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
