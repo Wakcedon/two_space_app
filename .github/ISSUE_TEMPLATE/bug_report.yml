@@ -66,18 +66,11 @@ body:
       label: "Операционная система"
       description: "На какой ОС происходит баг"
       options:
-        - label: "iOS"
-          value: "ios"
-        - label: "Android"
-          value: "android"
-        - label: "Windows"
-          value: "windows"
-        - label: "macOS"
-          value: "macos"
-        - label: "Linux"
-          value: "linux"
-        - label: "Другое"
-          value: "other"
+        - Android
+        - iOS
+        - Windows
+        - MacOS
+        - Linux
     validations:
       required: true
 
