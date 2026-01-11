@@ -2,6 +2,9 @@
 ![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android%20%7C%20iOS-lightgrey?style=for-the-badge)
 
+**ПРОЕКТ ПЕРЕНЕСЁН В РЕПОЗИТОРИЙ [ОРГАНИЗАЦИИ](https://github.com/TwoSpaceApp/messenger). ЭТОТ РЕПОЗИТОРИЙ БОЛЬШЕ НЕ БУДЕТ ПОЛУЧАТЬ НИКАКИХ ОБНОВЛЕНИЙ**
+
+
 <div align="center">
 
 # 🌌 Мессенджер TwoSpace
